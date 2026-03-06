@@ -18,12 +18,15 @@ const DailyCheckIn = () => {
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      className="max-w-xl mx-auto p-8 rounded-3xl bg-card border border-border shadow-soft text-center"
+      className="max-w-xl mx-auto p-8 rounded-3xl backdrop-blur-xl border border-white/15 text-center shadow-lg"
+      style={{
+        background: "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.03) 100%)",
+      }}
     >
-      <h3 className="text-2xl font-display font-bold text-foreground mb-2">
+      <h3 className="text-2xl font-display font-bold text-white mb-2">
         How are you feeling today?
       </h3>
-      <p className="text-muted-foreground text-sm mb-6">
+      <p className="text-white/50 text-sm mb-6">
         Be honest — there's no wrong answer here.
       </p>
 
@@ -32,14 +35,14 @@ const DailyCheckIn = () => {
           <button
             key={mood.label}
             onClick={() => setSelected(i)}
-            className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${
+            className={`flex flex-col items-center gap-2 p-4 rounded-2xl backdrop-blur-md border-2 transition-all ${
               selected === i
-                ? "border-primary bg-uprising-green-light scale-105"
-                : "border-transparent bg-secondary hover:bg-secondary/80"
+                ? "border-white/40 bg-white/20 scale-105"
+                : "border-white/10 bg-white/5 hover:bg-white/10"
             }`}
           >
             <span className="text-3xl">{mood.emoji}</span>
-            <span className="text-xs font-medium text-foreground">{mood.label}</span>
+            <span className="text-xs font-medium text-white/80">{mood.label}</span>
           </button>
         ))}
       </div>
@@ -53,10 +56,11 @@ const DailyCheckIn = () => {
             exit={{ opacity: 0, y: -10 }}
             className="space-y-4"
           >
-            <p className="text-foreground font-medium">{moods[selected].message}</p>
+            <p className="text-white/90 font-medium">{moods[selected].message}</p>
             <button
               onClick={() => navigate("/chat")}
-              className="px-6 py-3 rounded-xl bg-gradient-hero text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity"
+              className="px-6 py-3 rounded-2xl text-white font-semibold text-sm hover:opacity-90 transition-opacity shadow-lg"
+              style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
             >
               Talk to me about it →
             </button>
