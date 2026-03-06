@@ -2,3 +2,6 @@ project_id = "cgkvvfybtaynwvvfcyob"
 
 [functions.chat]
 verify_jwt = false
+
+[functions.voice-tts]
+verify_jwt = false
