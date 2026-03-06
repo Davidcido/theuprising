@@ -2,8 +2,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Send, Heart } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import uprisingLogo from "@/assets/uprising-logo.jpeg";
 
 type Message = {
   role: "user" | "assistant";
@@ -135,14 +135,12 @@ const Chat = () => {
     };
 
     try {
-      // Send only last 20 messages for context
       const contextMessages = newMessages.slice(-20);
       
       await streamChat({
         messages: contextMessages,
         onDelta: (chunk) => {
           if (assistantSoFar === "") {
-            // First chunk - add assistant message
             setMessages((prev) => [...prev, { role: "assistant", content: chunk }]);
             assistantSoFar = chunk;
           } else {
@@ -161,14 +159,14 @@ const Chat = () => {
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Header */}
-      <div className="border-b border-border px-4 py-3 bg-card">
+      <div className="px-4 py-3 backdrop-blur-xl border-b border-white/10"
+        style={{ background: "rgba(15, 81, 50, 0.4)" }}
+      >
         <div className="container mx-auto flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-hero flex items-center justify-center">
-            <Heart className="w-5 h-5 text-primary-foreground" fill="currentColor" />
-          </div>
+          <img src={uprisingLogo} alt="Uprising" className="w-10 h-10 rounded-xl object-cover shadow-md" />
           <div>
-            <h2 className="font-display font-semibold text-foreground">Uprising Companion</h2>
-            <p className="text-xs text-muted-foreground">
+            <h2 className="font-display font-semibold text-white">Uprising Companion</h2>
+            <p className="text-xs text-white/50">
               {isTyping ? "typing..." : "Your safe space to talk"}
             </p>
           </div>
@@ -186,14 +184,14 @@ const Chat = () => {
               className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed backdrop-blur-md ${
                   msg.role === "user"
-                    ? "bg-primary text-primary-foreground rounded-br-md"
-                    : "bg-secondary text-secondary-foreground rounded-bl-md"
+                    ? "bg-white/15 text-white border border-white/20 rounded-br-md"
+                    : "bg-white/10 text-white/90 border border-white/10 rounded-bl-md"
                 }`}
               >
                 {msg.role === "assistant" ? (
-                  <div className="prose prose-sm max-w-none text-secondary-foreground">
+                  <div className="prose prose-sm prose-invert max-w-none">
                     <ReactMarkdown>{msg.content}</ReactMarkdown>
                   </div>
                 ) : (
@@ -205,8 +203,8 @@ const Chat = () => {
 
           {isTyping && messages[messages.length - 1]?.role !== "assistant" && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
-              <div className="bg-secondary rounded-2xl rounded-bl-md px-4 py-3 text-sm text-muted-foreground">
-                <span className="animate-pulse-soft">typing...</span>
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl rounded-bl-md px-4 py-3 text-sm text-white/50 border border-white/10">
+                <span className="animate-pulse">typing...</span>
               </div>
             </motion.div>
           )}
@@ -217,13 +215,15 @@ const Chat = () => {
 
       {/* Privacy notice */}
       <div className="px-4 py-1">
-        <p className="text-center text-xs text-muted-foreground">
+        <p className="text-center text-xs text-white/30">
           🔒 Your conversation is private and anonymous. No personal data is stored.
         </p>
       </div>
 
       {/* Input */}
-      <div className="border-t border-border px-4 py-4 bg-card">
+      <div className="px-4 py-4 backdrop-blur-xl border-t border-white/10"
+        style={{ background: "rgba(15, 81, 50, 0.4)" }}
+      >
         <div className="container mx-auto max-w-2xl">
           <form
             onSubmit={(e) => {
@@ -236,12 +236,13 @@ const Chat = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Share what's on your mind..."
-              className="flex-1 rounded-xl border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="flex-1 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-white/30"
             />
             <button
               type="submit"
               disabled={!input.trim() || isTyping}
-              className="rounded-xl bg-gradient-hero px-4 py-3 text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-40"
+              className="rounded-2xl px-4 py-3 text-white hover:opacity-90 transition-opacity disabled:opacity-40 shadow-lg"
+              style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
             >
               <Send className="w-5 h-5" />
             </button>
