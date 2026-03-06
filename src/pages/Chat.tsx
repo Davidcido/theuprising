@@ -1,64 +1,98 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Send, Heart, AlertTriangle } from "lucide-react";
+import { Send, Heart } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 type Message = {
   role: "user" | "assistant";
   content: string;
 };
 
-const CRISIS_KEYWORDS = [
-  "kill myself", "suicide", "end my life", "want to die", "self harm",
-  "hurt myself", "don't want to live", "no reason to live",
-];
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
-const CRISIS_RESPONSE = `I'm really glad you told me how you're feeling. You deserve support through this, and you don't have to face it alone.
+async function streamChat({
+  messages,
+  mode,
+  onDelta,
+  onDone,
+}: {
+  messages: Message[];
+  mode?: string;
+  onDelta: (deltaText: string) => void;
+  onDone: () => void;
+}) {
+  const resp = await fetch(CHAT_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+    },
+    body: JSON.stringify({ messages, mode }),
+  });
 
-**Please reach out to someone who can help right now:**
-- 🇺🇸 **988 Suicide & Crisis Lifeline**: Call or text **988**
-- 🌍 **Crisis Text Line**: Text **HELLO** to **741741**
-- 🌐 **International Association for Suicide Prevention**: [https://www.iasp.info/resources/Crisis_Centres/](https://www.iasp.info/resources/Crisis_Centres/)
+  if (!resp.ok) {
+    const errorData = await resp.json().catch(() => ({ error: "Connection failed" }));
+    throw new Error(errorData.error || "Failed to connect");
+  }
 
-Is there someone you trust — a friend, family member, or counselor — that you could reach out to right now? 💚`;
+  if (!resp.body) throw new Error("No response stream");
 
-const MOOD_RESPONSES: Record<string, string> = {
-  happy: "That's amazing! I'd love to hear what's making you feel good. 😊",
-  stressed: "Stress can feel overwhelming. Let's slow down together. What's weighing on you the most right now?",
-  sad: "I'm here with you. It's okay to feel sad. Do you want to share what's going on?",
-  anxious: "Anxiety can feel really intense. Let's try to ground ourselves. What's one thing you can see right now?",
-  overwhelmed: "That's a lot to carry. You don't have to figure it all out at once. What feels most urgent?",
-};
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let textBuffer = "";
+  let streamDone = false;
 
-function detectMood(text: string): string | null {
-  const lower = text.toLowerCase();
-  if (/happy|great|amazing|wonderful|excited|good/.test(lower)) return "happy";
-  if (/stress|pressure|busy|too much|overwhelm/.test(lower)) return "stressed";
-  if (/sad|down|depress|cry|tears|miserable|hopeless/.test(lower)) return "sad";
-  if (/anxi|nervous|worry|scared|fear|panic/.test(lower)) return "anxious";
-  if (/overwhelm|can't cope|falling apart|breaking/.test(lower)) return "overwhelmed";
-  return null;
-}
+  while (!streamDone) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    textBuffer += decoder.decode(value, { stream: true });
 
-function detectCrisis(text: string): boolean {
-  const lower = text.toLowerCase();
-  return CRISIS_KEYWORDS.some((kw) => lower.includes(kw));
-}
+    let newlineIndex: number;
+    while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+      let line = textBuffer.slice(0, newlineIndex);
+      textBuffer = textBuffer.slice(newlineIndex + 1);
 
-function generateResponse(userMessage: string): string {
-  if (detectCrisis(userMessage)) return CRISIS_RESPONSE;
+      if (line.endsWith("\r")) line = line.slice(0, -1);
+      if (line.startsWith(":") || line.trim() === "") continue;
+      if (!line.startsWith("data: ")) continue;
 
-  const mood = detectMood(userMessage);
-  if (mood && MOOD_RESPONSES[mood]) return MOOD_RESPONSES[mood];
+      const jsonStr = line.slice(6).trim();
+      if (jsonStr === "[DONE]") {
+        streamDone = true;
+        break;
+      }
 
-  const responses = [
-    "I'm really glad you shared that with me. Can you tell me more about what you're feeling?",
-    "That sounds really important. How long have you been feeling this way?",
-    "Thank you for trusting me with this. What would feel most helpful right now — talking it through, or trying a calming exercise?",
-    "I hear you. Sometimes just putting feelings into words can help. What else is on your mind?",
-    "You're doing something brave by expressing yourself. What do you think triggered these feelings?",
-  ];
-  return responses[Math.floor(Math.random() * responses.length)];
+      try {
+        const parsed = JSON.parse(jsonStr);
+        const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+        if (content) onDelta(content);
+      } catch {
+        textBuffer = line + "\n" + textBuffer;
+        break;
+      }
+    }
+  }
+
+  // Final flush
+  if (textBuffer.trim()) {
+    for (let raw of textBuffer.split("\n")) {
+      if (!raw) continue;
+      if (raw.endsWith("\r")) raw = raw.slice(0, -1);
+      if (raw.startsWith(":") || raw.trim() === "") continue;
+      if (!raw.startsWith("data: ")) continue;
+      const jsonStr = raw.slice(6).trim();
+      if (jsonStr === "[DONE]") continue;
+      try {
+        const parsed = JSON.parse(jsonStr);
+        const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+        if (content) onDelta(content);
+      } catch { /* ignore */ }
+    }
+  }
+
+  onDone();
 }
 
 const Chat = () => {
@@ -77,21 +111,52 @@ const Chat = () => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
+  const handleSend = useCallback(async () => {
+    if (!input.trim() || isTyping) return;
     const userMsg: Message = { role: "user", content: input.trim() };
-    setMessages((prev) => [...prev, userMsg]);
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
     setInput("");
     setIsTyping(true);
 
-    const isCrisis = detectCrisis(input);
+    let assistantSoFar = "";
 
-    setTimeout(() => {
-      const response = generateResponse(userMsg.content);
-      setMessages((prev) => [...prev, { role: "assistant", content: response }]);
+    const upsertAssistant = (nextChunk: string) => {
+      assistantSoFar += nextChunk;
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "assistant" && prev.length > messages.length + 1) {
+          return prev.map((m, i) =>
+            i === prev.length - 1 ? { ...m, content: assistantSoFar } : m
+          );
+        }
+        return [...prev.slice(0, -1), { role: "assistant" as const, content: assistantSoFar }];
+      });
+    };
+
+    try {
+      // Send only last 20 messages for context
+      const contextMessages = newMessages.slice(-20);
+      
+      await streamChat({
+        messages: contextMessages,
+        onDelta: (chunk) => {
+          if (assistantSoFar === "") {
+            // First chunk - add assistant message
+            setMessages((prev) => [...prev, { role: "assistant", content: chunk }]);
+            assistantSoFar = chunk;
+          } else {
+            upsertAssistant(chunk);
+          }
+        },
+        onDone: () => setIsTyping(false),
+      });
+    } catch (e: any) {
+      console.error(e);
       setIsTyping(false);
-    }, 1000 + Math.random() * 1000);
-  };
+      toast.error(e.message || "Something went wrong. Please try again.");
+    }
+  }, [input, isTyping, messages]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
@@ -103,7 +168,9 @@ const Chat = () => {
           </div>
           <div>
             <h2 className="font-display font-semibold text-foreground">Uprising Companion</h2>
-            <p className="text-xs text-muted-foreground">Your safe space to talk</p>
+            <p className="text-xs text-muted-foreground">
+              {isTyping ? "typing..." : "Your safe space to talk"}
+            </p>
           </div>
         </div>
       </div>
@@ -136,7 +203,7 @@ const Chat = () => {
             </motion.div>
           ))}
 
-          {isTyping && (
+          {isTyping && messages[messages.length - 1]?.role !== "assistant" && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
               <div className="bg-secondary rounded-2xl rounded-bl-md px-4 py-3 text-sm text-muted-foreground">
                 <span className="animate-pulse-soft">typing...</span>
@@ -173,7 +240,7 @@ const Chat = () => {
             />
             <button
               type="submit"
-              disabled={!input.trim()}
+              disabled={!input.trim() || isTyping}
               className="rounded-xl bg-gradient-hero px-4 py-3 text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-40"
             >
               <Send className="w-5 h-5" />
