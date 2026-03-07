@@ -552,12 +552,12 @@ Never expose the English interpretation to the user — always reply fully in Ha
       } else if (activeRef.current && phaseRef.current === "idle") {
         clearTimer();
         timerRef.current = setTimeout(() => {
-          if (activeRef.current && !mutedRef.current) startListening();
+          if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
         }, 500);
       }
       return newMuted;
     });
-  }, [killRecognition, startListening, setPhaseSync, clearTimer]);
+  }, [killRecognition, setPhaseSync, clearTimer]);
 
   const handleTextSubmit = useCallback(() => {
     const text = textInput.trim();
