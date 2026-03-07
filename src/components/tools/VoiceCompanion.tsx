@@ -174,7 +174,11 @@ Common Igbo vocabulary and phrases:
 - Relationships: "onye m hụrụ n'anya" (my loved one), "anyị na-alụ ọgụ" (we're fighting), "o hapụrụ m" (they left me), "ezinụlọ m aghọtaghị m" (my family doesn't understand me), "a nọ m naanị m" (I'm alone), "ha na-abọ m" (they're pressuring me)
 - School/Work: "akwụkwọ na-enye m nsogbu" (school is giving me problems), "ule na-enye m nchegbu" (exams are worrying me), "ọrụ na-egbu m" (work is killing me)
 
-Respond warmly in Igbo to match the user's tone. Use Igbo naturally and supportively.`;
+Language interpretation process:
+1. First, internally interpret the user's Igbo into clear English meaning — even if diacritics are missing, words are phonetically spelled, or the transcript is fragmented.
+2. Understand the emotional intent and context behind what they said.
+3. Generate your response in natural Igbo that matches the user's tone.
+Never expose the English interpretation to the user — always reply fully in Igbo. Be warm, supportive, and emotionally present.`;
     } else if (lang === "ha") {
       langInstruction = `The user is speaking Hausa. The speech transcript may be imperfect — interpret the meaning naturally even if words are transliterated or diacritics are missing.
 
