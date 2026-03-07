@@ -119,7 +119,7 @@ const VoiceCompanion = () => {
     }
   }, []);
 
-  const getAIResponse = useCallback(async (userText: string): Promise<string> => {
+  const getAIResponse = useCallback(async (userText: string, retries = 1): Promise<string> => {
     conversationRef.current.push({ role: "user", content: userText });
 
     const mode = selectedModeRef.current;
@@ -135,50 +135,69 @@ const VoiceCompanion = () => {
       ...conversationRef.current.slice(-12),
     ];
 
-    const resp = await fetch(CHAT_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-      },
-      body: JSON.stringify({ messages: messagesForAPI, mode: modeHint }),
-    });
+    const attempt = async (): Promise<string> => {
+      const resp = await fetch(CHAT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ messages: messagesForAPI, mode: modeHint }),
+      });
 
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error || "AI response failed");
-    }
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || "AI response failed");
+      }
 
-    let fullText = "";
-    const reader = resp.body!.getReader();
-    const decoder = new TextDecoder();
-    let buf = "";
+      let fullText = "";
+      const reader = resp.body!.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
 
-      let nl: number;
-      while ((nl = buf.indexOf("\n")) !== -1) {
-        let line = buf.slice(0, nl);
-        buf = buf.slice(nl + 1);
-        if (line.endsWith("\r")) line = line.slice(0, -1);
-        if (!line.startsWith("data: ")) continue;
-        const json = line.slice(6).trim();
-        if (json === "[DONE]") break;
-        try {
-          const c = JSON.parse(json).choices?.[0]?.delta?.content;
-          if (c) fullText += c;
-        } catch {
-          buf = line + "\n" + buf;
-          break;
+        let nl: number;
+        while ((nl = buf.indexOf("\n")) !== -1) {
+          let line = buf.slice(0, nl);
+          buf = buf.slice(nl + 1);
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (!line.startsWith("data: ")) continue;
+          const json = line.slice(6).trim();
+          if (json === "[DONE]") break;
+          try {
+            const c = JSON.parse(json).choices?.[0]?.delta?.content;
+            if (c) fullText += c;
+          } catch {
+            buf = line + "\n" + buf;
+            break;
+          }
+        }
+      }
+
+      return fullText;
+    };
+
+    let lastError: Error | null = null;
+    for (let i = 0; i <= retries; i++) {
+      try {
+        const result = await attempt();
+        conversationRef.current.push({ role: "assistant", content: result });
+        return result;
+      } catch (err) {
+        lastError = err as Error;
+        if (i < retries) {
+          await new Promise((r) => setTimeout(r, 1000));
         }
       }
     }
 
-    conversationRef.current.push({ role: "assistant", content: fullText });
-    return fullText;
+    // Remove the user message we added since the response failed
+    conversationRef.current.pop();
+    throw lastError!;
   }, []);
 
   const speakText = useCallback(async (text: string): Promise<void> => {
@@ -331,19 +350,18 @@ const VoiceCompanion = () => {
       await speakText(aiResponse);
     } catch (err) {
       console.error("Voice flow error:", err);
-      toast.error("Something went wrong. I'm still here though. 💚");
+      toast.error("I couldn't process that. Let's try again. 💚");
     }
 
     if (!activeRef.current) return;
 
-    // Cooldown before resuming listening
     setPhaseSync("cooldown");
     clearTimer();
     timerRef.current = setTimeout(() => {
       if (activeRef.current && !mutedRef.current) {
         startListening();
       }
-    }, 1500);
+    }, 1000);
   }, [getAIResponse, speakText, killRecognition, setPhaseSync, clearTimer, startListening]);
 
   const startCall = useCallback(async () => {
@@ -358,10 +376,10 @@ const VoiceCompanion = () => {
     const mode = selectedModeRef.current;
     const greeting =
       mode === "vent"
-        ? "I'm here to listen. Take your time, and say whatever's on your mind."
+        ? "Hi, this is your Uprising Companion. I'm here to listen. Take your time, and say whatever's on your mind."
         : mode === "calm"
-        ? "Let's take a moment to breathe and find some calm together. I'm right here with you."
-        : "Hey, I'm your Uprising Companion. I'm here for you. How are you feeling right now?";
+        ? "Hi, this is your Uprising Companion. Let's take a moment to breathe and find some calm together. I'm right here with you."
+        : "Hi, this is your Uprising Companion. I'm here with you. How are you doing today?";
 
     setTranscript([{ role: "assistant", text: greeting }]);
     conversationRef.current.push({ role: "assistant", content: greeting });
@@ -374,14 +392,13 @@ const VoiceCompanion = () => {
 
     if (!activeRef.current) return;
 
-    // Wait then start listening
     setPhaseSync("cooldown");
     clearTimer();
     timerRef.current = setTimeout(() => {
       if (activeRef.current && !mutedRef.current) {
         startListening();
       }
-    }, 1500);
+    }, 1000);
   }, [setupAudioAnalyser, speakText, startListening, setPhaseSync, clearTimer]);
 
   const endCall = useCallback(() => {
