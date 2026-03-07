@@ -53,6 +53,8 @@ const VoiceCompanion = () => {
   const [audioLevel, setAudioLevel] = useState(0);
   const [textInput, setTextInput] = useState("");
   const [showTextInput, setShowTextInput] = useState(false);
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceUri, setSelectedVoiceUri] = useState<string>("");
 
   const phaseRef = useRef<CallPhase>("idle");
   const activeRef = useRef(false);
