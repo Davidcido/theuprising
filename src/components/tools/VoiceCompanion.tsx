@@ -93,6 +93,10 @@ const VoiceCompanion = () => {
   }, []);
 
   const killAudio = useCallback(() => {
+    // Cancel any browser TTS speech
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.onended = null;
@@ -277,11 +281,88 @@ Never expose the English interpretation to the user — always reply fully in Ha
     throw lastError!;
   }, []);
 
-  const speakWithBrowser = useCallback((text: string): Promise<void> => {
-    return new Promise<void>((resolve) => {
-      if (!window.speechSynthesis) { resolve(); return; }
+  // Cached best voice ref to avoid repeated lookups
+  const bestVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  const voicesLoadedRef = useRef(false);
 
-      // Cancel any ongoing speech
+  // Load and select the best available voice
+  const loadBestVoice = useCallback((): Promise<SpeechSynthesisVoice | null> => {
+    return new Promise((resolve) => {
+      if (!window.speechSynthesis) { resolve(null); return; }
+
+      const pickBest = () => {
+        const voices = window.speechSynthesis.getVoices();
+        if (!voices.length) return null;
+
+        // Priority order: Google > Microsoft > other high-quality > any English
+        const googleEn = voices.find(v => v.name.includes("Google") && v.lang.startsWith("en"));
+        if (googleEn) return googleEn;
+
+        const microsoftEn = voices.find(v => v.name.includes("Microsoft") && v.lang.startsWith("en") && !v.name.includes("David"));
+        if (microsoftEn) return microsoftEn;
+
+        // Prefer non-local (network) voices as they tend to be higher quality
+        const networkEn = voices.find(v => v.lang.startsWith("en") && !v.localService);
+        if (networkEn) return networkEn;
+
+        const localEn = voices.find(v => v.lang.startsWith("en") && v.localService);
+        if (localEn) return localEn;
+
+        return voices.find(v => v.lang.startsWith("en")) || null;
+      };
+
+      // If voices are already loaded
+      const existing = pickBest();
+      if (existing) {
+        bestVoiceRef.current = existing;
+        voicesLoadedRef.current = true;
+        resolve(existing);
+        return;
+      }
+
+      // Wait for voices to load (needed on many mobile browsers)
+      const onChanged = () => {
+        window.speechSynthesis.removeEventListener("voiceschanged", onChanged);
+        const voice = pickBest();
+        bestVoiceRef.current = voice;
+        voicesLoadedRef.current = true;
+        resolve(voice);
+      };
+      window.speechSynthesis.addEventListener("voiceschanged", onChanged);
+
+      // Safety timeout — don't wait forever
+      setTimeout(() => {
+        window.speechSynthesis.removeEventListener("voiceschanged", onChanged);
+        if (!voicesLoadedRef.current) {
+          const voice = pickBest();
+          bestVoiceRef.current = voice;
+          voicesLoadedRef.current = true;
+          resolve(voice);
+        }
+      }, 2000);
+    });
+  }, []);
+
+  // Eagerly load voices on mount
+  useEffect(() => {
+    loadBestVoice();
+  }, [loadBestVoice]);
+
+  const speakWithBrowser = useCallback(async (text: string): Promise<void> => {
+    if (!window.speechSynthesis) return;
+
+    // Cancel ALL queued and ongoing speech first
+    window.speechSynthesis.cancel();
+    // Small delay after cancel to let the engine reset (needed on mobile)
+    await new Promise(r => setTimeout(r, 100));
+
+    // Ensure we have the best voice loaded
+    if (!voicesLoadedRef.current) {
+      await loadBestVoice();
+    }
+
+    return new Promise<void>((resolve) => {
+      // Double-check cancel to prevent queue stacking
       window.speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(text);
@@ -289,18 +370,37 @@ Never expose the English interpretation to the user — always reply fully in Ha
       utterance.pitch = 1.0;
       utterance.volume = 1.0;
 
-      // Try to pick a good English voice
-      const voices = window.speechSynthesis.getVoices();
-      const preferred = voices.find(v => v.name.includes("Google") && v.lang.startsWith("en")) 
-        || voices.find(v => v.lang.startsWith("en") && v.localService)
-        || voices.find(v => v.lang.startsWith("en"));
-      if (preferred) utterance.voice = preferred;
+      if (bestVoiceRef.current) {
+        utterance.voice = bestVoiceRef.current;
+        console.log("Browser TTS using voice:", bestVoiceRef.current.name);
+      }
 
-      utterance.onend = () => resolve();
-      utterance.onerror = () => resolve();
+      let resolved = false;
+      const finish = () => { if (!resolved) { resolved = true; resolve(); } };
+
+      utterance.onend = finish;
+      utterance.onerror = (e) => {
+        console.warn("Browser TTS error:", e);
+        finish();
+      };
+
       window.speechSynthesis.speak(utterance);
+
+      // Chrome bug workaround: long utterances can pause silently
+      // Periodically resume to keep speech going
+      const keepAlive = setInterval(() => {
+        if (window.speechSynthesis.speaking) {
+          window.speechSynthesis.pause();
+          window.speechSynthesis.resume();
+        } else {
+          clearInterval(keepAlive);
+        }
+      }, 10000);
+
+      utterance.onend = () => { clearInterval(keepAlive); finish(); };
+      utterance.onerror = (e) => { clearInterval(keepAlive); console.warn("Browser TTS error:", e); finish(); };
     });
-  }, []);
+  }, [loadBestVoice]);
 
   const speakText = useCallback(async (text: string): Promise<void> => {
     if (!activeRef.current) return;
