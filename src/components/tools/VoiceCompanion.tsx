@@ -7,6 +7,8 @@ import {
   MicOff,
   MessageSquare,
   Globe,
+  Send,
+  Keyboard,
 } from "lucide-react";
 import { toast } from "sonner";
 
