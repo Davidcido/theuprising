@@ -9,8 +9,16 @@ import {
   Globe,
   Send,
   Keyboard,
+  Volume2,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const languages = [
   { code: "en", label: "English", speechCode: "en-US" },
