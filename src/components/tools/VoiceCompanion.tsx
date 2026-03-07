@@ -370,9 +370,8 @@ Never expose the English interpretation to the user — always reply fully in Ha
     }
 
     const recognition = new SpeechRecognition();
-    const currentLang = selectedLangRef.current;
-    const speechLang = currentLang === "pcm" ? "en-NG" : (languages.find((l) => l.code === currentLang)?.speechCode || "en-US");
-    recognition.lang = speechLang;
+    // Always use English recognition for browser compatibility — AI interprets language internally
+    recognition.lang = "en-US";
     recognition.continuous = false;
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
