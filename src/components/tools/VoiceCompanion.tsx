@@ -167,6 +167,19 @@ Common Igbo vocabulary and phrases:
 - School/Work: "akwụkwọ na-enye m nsogbu" (school is giving me problems), "ule na-enye m nchegbu" (exams are worrying me), "ọrụ na-egbu m" (work is killing me)
 
 Respond warmly in Igbo to match the user's tone. Use Igbo naturally and supportively.`;
+    } else if (lang === "ha") {
+      langInstruction = `The user is speaking Hausa. The speech transcript may be imperfect — interpret the meaning naturally even if words are transliterated or diacritics are missing.
+
+Common Hausa vocabulary and phrases:
+- Greetings: "sannu" (hello), "ina kwana" (good morning/how did you sleep), "ina wuni" (good afternoon/how's your day), "yaya dai" (how are you), "lafiya lau" (I'm fine), "barka da zuwa" (welcome), "yaya gida" (how's home/family)
+- Emotions: "ina farin ciki" (I'm happy), "ba ni da daɗi" (I'm not happy), "ina baƙin ciki" (I'm sad), "ina fushi" (I'm angry), "ina tsoro" (I'm scared), "jiki na ba ni daɗi ba" (I'm not feeling well), "zuciya na cike" (my heart is full/overwhelmed), "na gaji" (I'm tired/exhausted), "kai na yi mini hauka" (I'm confused), "ban da bege" (I have no hope), "rayuwa ta yi mini wuya" (life is hard for me)
+- States: "ina nan" (I'm here), "lafiya" (I'm fine), "babu matsala" (no problem), "ina ƙoƙari" (I'm trying), "ya fi ƙarfi na" (it's beyond me), "ba zan iya ba" (I can't anymore), "ina so in daina" (I want to quit), "ina jurewa" (I'm enduring)
+- Expressions: "Allah ya sani" (God knows), "za a yi" (it will be done/it'll be okay), "don Allah" (please/for God's sake), "na gode" (thank you), "madalla" (well done), "ya isa" (it's enough), "wallahi" (I swear), "subhanallah" (exclamation of awe), "innalillahi" (exclamation of grief), "Allah ya taimaka" (God help)
+- Actions: "ina so in yi magana" (I want to talk), "ka saurare ni" (listen to me), "ka taimake ni" (help me), "ina tunani da yawa" (I'm overthinking), "barci ba ya zo mini" (I can't sleep), "ba zan iya ci ba" (I can't eat), "ina buƙatar wani" (I need someone)
+- Relationships: "ƙaunataccen na" (my loved one), "muna faɗa" (we're fighting), "ya/ta bar ni" (they left me), "iyali na ba su fahimce ni ba" (my family doesn't understand me), "ina kaɗaici" (I'm lonely), "suna matsa mini" (they're pressuring me)
+- School/Work: "makaranta na damun ni" (school is bothering me), "jarrabawa na ba ni tsoro" (exams scare me), "aiki ya yi mini yawa" (work is too much for me)
+
+Respond warmly in Hausa to match the user's tone. Use Hausa naturally and supportively.`;
     } else if (lang !== "en") {
       langInstruction = `The user is speaking in ${langInfo?.label}. Respond in the same language.`;
     }
