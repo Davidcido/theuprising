@@ -155,6 +155,7 @@ const VoiceCompanion = () => {
 
   const getAIResponse = useCallback(async (userText: string, retries = 1): Promise<string> => {
     conversationRef.current.push({ role: "user", content: userText });
+    console.log("[Voice] Transcript received:", userText);
 
     const mode = selectedModeRef.current;
     const lang = selectedLangRef.current;
@@ -254,12 +255,15 @@ Never expose the English interpretation to the user — always reply fully in Ha
         throw new Error(err.error || "AI response failed");
       }
 
+      if (!resp.body) throw new Error("No response body");
+
       let fullText = "";
-      const reader = resp.body!.getReader();
+      const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let buf = "";
+      let streamDone = false;
 
-      while (true) {
+      while (!streamDone) {
         const { done, value } = await reader.read();
         if (done) break;
         buf += decoder.decode(value, { stream: true });
@@ -269,9 +273,10 @@ Never expose the English interpretation to the user — always reply fully in Ha
           let line = buf.slice(0, nl);
           buf = buf.slice(nl + 1);
           if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (line.startsWith(":") || line.trim() === "") continue;
           if (!line.startsWith("data: ")) continue;
           const json = line.slice(6).trim();
-          if (json === "[DONE]") break;
+          if (json === "[DONE]") { streamDone = true; break; }
           try {
             const c = JSON.parse(json).choices?.[0]?.delta?.content;
             if (c) fullText += c;
@@ -282,6 +287,23 @@ Never expose the English interpretation to the user — always reply fully in Ha
         }
       }
 
+      // Flush remaining buffer
+      if (buf.trim()) {
+        for (let raw of buf.split("\n")) {
+          if (!raw) continue;
+          if (raw.endsWith("\r")) raw = raw.slice(0, -1);
+          if (raw.startsWith(":") || raw.trim() === "") continue;
+          if (!raw.startsWith("data: ")) continue;
+          const jsonStr = raw.slice(6).trim();
+          if (jsonStr === "[DONE]") continue;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) fullText += content;
+          } catch { /* ignore partial leftovers */ }
+        }
+      }
+
       return fullText;
     };
 
@@ -289,10 +311,18 @@ Never expose the English interpretation to the user — always reply fully in Ha
     for (let i = 0; i <= retries; i++) {
       try {
         const result = await attempt();
-        conversationRef.current.push({ role: "assistant", content: result });
-        return result;
+        if (result.trim().length > 0) {
+          console.log("[Voice] AI response generated:", result.substring(0, 80) + "...");
+          conversationRef.current.push({ role: "assistant", content: result });
+          return result;
+        }
+        // Empty result — treat as failure and retry
+        console.warn("[Voice] AI returned empty response, attempt", i + 1);
+        lastError = new Error("AI returned empty response");
+        if (i < retries) await new Promise((r) => setTimeout(r, 1000));
       } catch (err) {
         lastError = err as Error;
+        console.error("[Voice] AI attempt", i + 1, "failed:", err);
         if (i < retries) {
           await new Promise((r) => setTimeout(r, 1000));
         }
