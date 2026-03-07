@@ -76,6 +76,7 @@ const VoiceCompanion = () => {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const emptyRetryRef = useRef(0);
   const selectedLangRef = useRef(selectedLang);
   const selectedModeRef = useRef(selectedMode);
   const selectedVoiceRef = useRef(selectedVoice);
@@ -407,6 +408,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
       clearTimer();
       setPhaseSync("listening");
       setCurrentPartial("");
+      // Reset empty retry counter when recognition starts fresh
     };
 
     recognition.onresult = (event: any) => {
@@ -432,14 +434,32 @@ Never expose the English interpretation to the user — always reply fully in Ha
       if (phaseRef.current !== "listening") return;
 
       const userText = finalText.trim();
-      if (userText.length > 0) {
+      // Ignore very short transcripts (likely noise)
+      if (userText.length >= 2) {
+        emptyRetryRef.current = 0;
         processUtteranceRef.current?.(userText);
-      } else {
+      } else if (emptyRetryRef.current < 1) {
+        // First empty result — retry silently
+        emptyRetryRef.current++;
         setPhaseSync("cooldown");
         clearTimer();
         timerRef.current = setTimeout(() => {
           if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
-        }, 800);
+        }, 500);
+      } else {
+        // Second empty result — speak a friendly prompt
+        emptyRetryRef.current = 0;
+        const retryMsg = "I didn't quite catch that. Could you say it again?";
+        setTranscript((prev) => [...prev, { role: "assistant", text: retryMsg }]);
+        setPhaseSync("processing");
+        speakText(retryMsg).then(() => {
+          if (!activeRef.current) return;
+          setPhaseSync("cooldown");
+          clearTimer();
+          timerRef.current = setTimeout(() => {
+            if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
+          }, 700);
+        });
       }
     };
 
@@ -470,7 +490,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
             if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
           }, 500);
         }
-      }, 2000);
+      }, 3500);
     } catch {
       recognitionRef.current = null;
       clearTimer();
@@ -478,7 +498,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
         if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
       }, 500);
     }
-  }, [killRecognition, setPhaseSync, clearTimer]);
+  }, [killRecognition, setPhaseSync, clearTimer, speakText]);
 
   // Process a complete utterance through AI + TTS pipeline
   const processUtterance = useCallback(async (userText: string) => {
@@ -498,7 +518,14 @@ Never expose the English interpretation to the user — always reply fully in Ha
       await speakText(aiResponse);
     } catch (err) {
       console.error("Voice flow error:", err);
-      toast.error("I couldn't process that. Let's try again. 💚");
+      // Speak the error instead of just toasting
+      const errorMsg = "I couldn't process that. Let's try again.";
+      setTranscript((prev) => [...prev, { role: "assistant", text: errorMsg }]);
+      try {
+        await speakText(errorMsg);
+      } catch {
+        toast.error("I couldn't process that. Let's try again. 💚");
+      }
     }
 
     if (!activeRef.current) return;
