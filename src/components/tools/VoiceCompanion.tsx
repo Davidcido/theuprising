@@ -515,6 +515,17 @@ Never expose the English interpretation to the user — always reply fully in Ha
     });
   }, [killRecognition, startListening, setPhaseSync, clearTimer]);
 
+  const handleTextSubmit = useCallback(() => {
+    const text = textInput.trim();
+    if (!text || !activeRef.current) return;
+    if (phaseRef.current === "processing" || phaseRef.current === "speaking") return;
+
+    // Stop any active listening
+    killRecognition();
+    setTextInput("");
+    processUtterance(text);
+  }, [textInput, killRecognition, processUtterance]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
