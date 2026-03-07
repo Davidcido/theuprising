@@ -350,19 +350,18 @@ const VoiceCompanion = () => {
       await speakText(aiResponse);
     } catch (err) {
       console.error("Voice flow error:", err);
-      toast.error("Something went wrong. I'm still here though. 💚");
+      toast.error("I couldn't process that. Let's try again. 💚");
     }
 
     if (!activeRef.current) return;
 
-    // Cooldown before resuming listening
     setPhaseSync("cooldown");
     clearTimer();
     timerRef.current = setTimeout(() => {
       if (activeRef.current && !mutedRef.current) {
         startListening();
       }
-    }, 1500);
+    }, 1000);
   }, [getAIResponse, speakText, killRecognition, setPhaseSync, clearTimer, startListening]);
 
   const startCall = useCallback(async () => {
