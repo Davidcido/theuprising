@@ -69,14 +69,17 @@ const VoiceCompanion = () => {
   const activeRef = useRef(false);
   const mutedRef = useRef(false);
   const recognitionRef = useRef<any>(null);
+  const recognitionBusyRef = useRef(false); // prevents overlapping recognition sessions
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const conversationRef = useRef<{ role: string; content: string }[]>([]);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null); // stored for cleanup
   const animFrameRef = useRef<number>(0);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const emptyRetryRef = useRef(0);
+  const listenCycleRef = useRef(0); // increments each cycle to invalidate stale restarts
   const selectedLangRef = useRef(selectedLang);
   const selectedModeRef = useRef(selectedMode);
   const selectedVoiceRef = useRef(selectedVoice);
@@ -133,6 +136,7 @@ const VoiceCompanion = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
       const audioCtx = new AudioContext();
+      audioCtxRef.current = audioCtx;
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
@@ -421,8 +425,17 @@ Never expose the English interpretation to the user — always reply fully in Ha
 
   // The main listening function — only enters if phase allows
   const startListening = useCallback(() => {
+    // Guard: only start if call is active, not muted, and not already busy
     if (!activeRef.current || mutedRef.current) return;
-    if (phaseRef.current !== "idle" && phaseRef.current !== "cooldown") return;
+    if (recognitionBusyRef.current) {
+      console.log("[Voice] Blocked: recognition already active");
+      return;
+    }
+    // Only allow from idle or cooldown
+    if (phaseRef.current !== "idle" && phaseRef.current !== "cooldown") {
+      console.log("[Voice] Blocked: phase is", phaseRef.current);
+      return;
+    }
 
     killRecognition();
 
@@ -433,26 +446,40 @@ Never expose the English interpretation to the user — always reply fully in Ha
       return;
     }
 
+    // Lock this cycle
+    recognitionBusyRef.current = true;
+    const cycleId = ++listenCycleRef.current;
+
     const recognition = new SpeechRecognition();
     recognition.lang = "en-US";
     recognition.continuous = false;
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
 
-    // captured flag prevents double-processing from both onresult and onend
     let captured = false;
     let lastInterim = "";
 
     const handleCapture = (text: string) => {
       if (captured) return;
       captured = true;
+      recognitionBusyRef.current = false;
       console.log("[Voice] Captured transcript:", JSON.stringify(text));
-      // Immediately stop recognition and lock state
       killRecognition();
       emptyRetryRef.current = 0;
       setPhaseSync("processing");
       setCurrentPartial("");
       processUtteranceRef.current?.(text);
+    };
+
+    const scheduleRestart = (delayMs: number) => {
+      // Only restart if this is still the current cycle
+      clearTimer();
+      timerRef.current = setTimeout(() => {
+        if (cycleId !== listenCycleRef.current) return; // stale cycle
+        if (activeRef.current && !mutedRef.current) {
+          startListeningRef.current?.();
+        }
+      }, delayMs);
     };
 
     recognition.onstart = () => {
@@ -461,7 +488,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
       lastInterim = "";
       setPhaseSync("listening");
       setCurrentPartial("");
-      console.log("[Voice] Recognition started, listening...");
+      console.log("[Voice] Recognition started (cycle " + cycleId + ")");
     };
 
     recognition.onresult = (event: any) => {
@@ -479,11 +506,9 @@ Never expose the English interpretation to the user — always reply fully in Ha
         }
       }
 
-      // Track interim for fallback
       if (interim) lastInterim = interim;
       setCurrentPartial(interim || finalText);
 
-      // If we have a final transcript >= 2 chars, capture immediately
       if (finalText.trim().length >= 2) {
         handleCapture(finalText.trim());
       }
@@ -491,26 +516,25 @@ Never expose the English interpretation to the user — always reply fully in Ha
 
     recognition.onend = () => {
       recognitionRef.current = null;
-      if (!activeRef.current || captured) return;
+      recognitionBusyRef.current = false;
 
-      // Fallback: use lastInterim if no final was captured
+      if (!activeRef.current || captured) return;
+      if (cycleId !== listenCycleRef.current) return; // stale
+
       const fallbackText = lastInterim.trim();
-      console.log("[Voice] Recognition ended without capture. Interim fallback:", JSON.stringify(fallbackText));
+      console.log("[Voice] Recognition ended. Fallback:", JSON.stringify(fallbackText));
 
       if (fallbackText.length >= 2) {
         handleCapture(fallbackText);
         return;
       }
 
-      // Empty/short transcript handling
+      // Empty transcript — retry once, then speak fallback
       if (emptyRetryRef.current < 1) {
         emptyRetryRef.current++;
-        console.log("[Voice] Empty transcript, retrying...");
+        console.log("[Voice] Empty transcript, retrying once...");
         setPhaseSync("cooldown");
-        clearTimer();
-        timerRef.current = setTimeout(() => {
-          if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
-        }, 500);
+        scheduleRestart(600);
       } else {
         emptyRetryRef.current = 0;
         const retryMsg = "I didn't quite catch that. Could you say it again?";
@@ -519,50 +543,47 @@ Never expose the English interpretation to the user — always reply fully in Ha
         speakText(retryMsg).then(() => {
           if (!activeRef.current) return;
           setPhaseSync("cooldown");
-          clearTimer();
-          timerRef.current = setTimeout(() => {
-            if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
-          }, 700);
+          scheduleRestart(700);
         });
       }
     };
 
     recognition.onerror = (e: any) => {
       recognitionRef.current = null;
+      recognitionBusyRef.current = false;
+
       if (captured) return;
       if (e.error === "not-allowed") {
         toast.error("Microphone access denied.");
         return;
       }
+      if (e.error === "aborted") return; // intentional abort
       console.warn("[Voice] Recognition error:", e.error);
-      if (activeRef.current) {
+      if (activeRef.current && cycleId === listenCycleRef.current) {
         setPhaseSync("cooldown");
-        clearTimer();
-        timerRef.current = setTimeout(() => {
-          if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
-        }, 1000);
+        scheduleRestart(1000);
       }
     };
 
     recognitionRef.current = recognition;
     try {
       recognition.start();
+      // Safety timeout: if recognition hasn't started after 4s, retry
       clearTimer();
       timerRef.current = setTimeout(() => {
+        if (cycleId !== listenCycleRef.current) return;
         if (activeRef.current && !mutedRef.current && phaseRef.current !== "listening") {
-          console.warn("[Voice] SpeechRecognition stuck — retrying");
+          console.warn("[Voice] Recognition stuck, retrying");
+          recognitionBusyRef.current = false;
           killRecognition();
-          timerRef.current = setTimeout(() => {
-            if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
-          }, 500);
+          scheduleRestart(500);
         }
-      }, 3500);
+      }, 4000);
     } catch {
       recognitionRef.current = null;
+      recognitionBusyRef.current = false;
       clearTimer();
-      timerRef.current = setTimeout(() => {
-        if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
-      }, 500);
+      if (activeRef.current) scheduleRestart(500);
     }
   }, [killRecognition, setPhaseSync, clearTimer, speakText]);
 
@@ -611,6 +632,8 @@ Never expose the English interpretation to the user — always reply fully in Ha
 
     // Step 4: Return to listening
     console.log("[Voice] === PIPELINE COMPLETE === Returning to listening");
+    listenCycleRef.current++; // new cycle for next listen
+    recognitionBusyRef.current = false;
     setPhaseSync("cooldown");
     clearTimer();
     timerRef.current = setTimeout(() => {
@@ -628,9 +651,11 @@ Never expose the English interpretation to the user — always reply fully in Ha
   const startCall = useCallback(async () => {
     console.log("[Voice] Session start");
     activeRef.current = true;
+    recognitionBusyRef.current = false;
+    listenCycleRef.current = 0;
     setCallActive(true);
     setTranscript([]);
-    setPhaseSync("processing"); // Show "Thinking..." while preparing greeting
+    setPhaseSync("processing");
     conversationRef.current = [];
     emptyRetryRef.current = 0;
 
@@ -675,7 +700,10 @@ Never expose the English interpretation to the user — always reply fully in Ha
   }, [setupAudioAnalyser, speakText, setPhaseSync, clearTimer]);
 
   const endCall = useCallback(() => {
+    console.log("[Voice] Ending call — full cleanup");
     activeRef.current = false;
+    listenCycleRef.current++; // invalidate any pending restarts
+    recognitionBusyRef.current = false;
     clearTimer();
     killRecognition();
     killAudio();
@@ -693,6 +721,12 @@ Never expose the English interpretation to the user — always reply fully in Ha
       mediaStreamRef.current.getTracks().forEach((t) => t.stop());
       mediaStreamRef.current = null;
     }
+    // Close AudioContext to prevent page freeze
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close().catch(() => {});
+      audioCtxRef.current = null;
+    }
+    analyserRef.current = null;
   }, [clearTimer, killRecognition, killAudio, setPhaseSync]);
 
   const toggleMute = useCallback(() => {
@@ -726,8 +760,10 @@ Never expose the English interpretation to the user — always reply fully in Ha
   useEffect(() => {
     return () => {
       activeRef.current = false;
+      listenCycleRef.current++;
+      recognitionBusyRef.current = false;
       clearTimer();
-      if (recognitionRef.current) try { recognitionRef.current.stop(); } catch {}
+      if (recognitionRef.current) try { recognitionRef.current.abort(); } catch { try { recognitionRef.current.stop(); } catch {} }
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
@@ -738,6 +774,9 @@ Never expose the English interpretation to the user — always reply fully in Ha
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {});
       }
     };
   }, [clearTimer]);
