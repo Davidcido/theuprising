@@ -651,6 +651,28 @@ Never expose the English interpretation to the user — always reply fully in Ha
     setPhaseSync("idle");
     conversationRef.current = [];
 
+    // iOS Safari audio unlock: create and play a silent audio context on user tap
+    // This satisfies the browser's autoplay policy for subsequent speechSynthesis calls
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const buf = ctx.createBuffer(1, 1, 22050);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      src.start(0);
+      // Also do a dummy speechSynthesis speak to unlock it
+      const dummy = new SpeechSynthesisUtterance("");
+      dummy.volume = 0;
+      window.speechSynthesis?.speak(dummy);
+      setTimeout(() => window.speechSynthesis?.cancel(), 50);
+      setTimeout(() => ctx.close().catch(() => {}), 100);
+    } catch (e) {
+      console.warn("Audio unlock failed:", e);
+    }
+
+    // Pre-load voices while setting up audio
+    loadBestVoice();
+
     await setupAudioAnalyser();
 
     const mode = selectedModeRef.current;
