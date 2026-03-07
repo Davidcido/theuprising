@@ -76,6 +76,7 @@ const VoiceCompanion = () => {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const emptyRetryRef = useRef(0);
   const selectedLangRef = useRef(selectedLang);
   const selectedModeRef = useRef(selectedMode);
   const selectedVoiceRef = useRef(selectedVoice);
