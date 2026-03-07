@@ -651,9 +651,11 @@ Never expose the English interpretation to the user — always reply fully in Ha
   const startCall = useCallback(async () => {
     console.log("[Voice] Session start");
     activeRef.current = true;
+    recognitionBusyRef.current = false;
+    listenCycleRef.current = 0;
     setCallActive(true);
     setTranscript([]);
-    setPhaseSync("processing"); // Show "Thinking..." while preparing greeting
+    setPhaseSync("processing");
     conversationRef.current = [];
     emptyRetryRef.current = 0;
 
