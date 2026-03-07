@@ -553,7 +553,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
     }
   }, [killRecognition, setPhaseSync, clearTimer, speakText]);
 
-  // Process a complete utterance through AI + TTS pipeline
+  // Process a complete utterance through AI + TTS pipeline — MUST always produce a response
   const processUtterance = useCallback(async (userText: string) => {
     if (!activeRef.current) return;
 
@@ -561,13 +561,16 @@ Never expose the English interpretation to the user — always reply fully in Ha
     setCurrentPartial("");
     setPhaseSync("processing");
     setTranscript((prev) => [...prev, { role: "user", text: userText }]);
-    console.log("[Voice] Processing utterance:", userText);
+    console.log("[Voice] === PIPELINE START === Transcript:", userText);
 
+    // Step 1: Get AI response
     let aiResponse = "";
     try {
+      console.log("[Voice] Step 1: Calling AI chat model...");
       aiResponse = await getAIResponse(userText);
+      console.log("[Voice] Step 1 complete. AI response:", aiResponse?.substring(0, 100));
     } catch (err) {
-      console.error("[Voice] AI response error:", err);
+      console.error("[Voice] Step 1 FAILED:", err);
     }
 
     if (!activeRef.current) return;
@@ -575,27 +578,31 @@ Never expose the English interpretation to the user — always reply fully in Ha
     // Guarantee an AI response — use fallback if empty
     if (!aiResponse || aiResponse.trim().length === 0) {
       aiResponse = "I hear you. Could you tell me a bit more about how you're feeling?";
-      console.warn("[Voice] Using fallback AI response");
+      console.warn("[Voice] Using fallback AI response (original was empty)");
       conversationRef.current.push({ role: "assistant", content: aiResponse });
     }
 
+    // Step 2: Show response in transcript
     setTranscript((prev) => [...prev, { role: "assistant", text: aiResponse }]);
-    console.log("[Voice] Speaking AI response");
 
+    // Step 3: Speak the response via TTS
+    console.log("[Voice] Step 2: Sending to TTS...");
     try {
       await speakText(aiResponse);
+      console.log("[Voice] Step 2 complete. TTS playback finished.");
     } catch (err) {
-      console.error("[Voice] TTS failed for AI response:", err);
+      console.error("[Voice] Step 2 FAILED (TTS):", err);
     }
 
     if (!activeRef.current) return;
 
-    // Always return to listening after speaking
+    // Step 4: Return to listening
+    console.log("[Voice] === PIPELINE COMPLETE === Returning to listening");
     setPhaseSync("cooldown");
     clearTimer();
     timerRef.current = setTimeout(() => {
       if (activeRef.current && !mutedRef.current) {
-        console.log("[Voice] Returning to listening mode");
+        console.log("[Voice] Activating microphone for next turn");
         startListeningRef.current?.();
       }
     }, 700);
