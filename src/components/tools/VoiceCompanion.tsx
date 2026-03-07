@@ -315,43 +315,52 @@ Never expose the English interpretation to the user — always reply fully in Ha
       .replace(/[💚🌱✨🫂]/g, "")
       .trim();
 
-    // Try ElevenLabs first
-    try {
-      const resp = await fetch(TTS_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ text: cleanText }),
-      });
-
-      if (!resp.ok) throw new Error("ElevenLabs failed");
-
-      const data = await resp.json();
+    // Try ElevenLabs with up to 2 retries before falling back to browser TTS
+    let elevenLabsSuccess = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
       if (!activeRef.current) return;
+      try {
+        const resp = await fetch(TTS_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ text: cleanText }),
+        });
 
-      const audioUrl = `data:audio/mpeg;base64,${data.audioContent}`;
+        if (!resp.ok) throw new Error(`ElevenLabs failed (${resp.status})`);
 
-      await new Promise<void>((resolve, reject) => {
-        const audio = new Audio(audioUrl);
-        audioRef.current = audio;
-        audio.onended = () => { audioRef.current = null; resolve(); };
-        audio.onerror = () => { audioRef.current = null; reject(new Error("Playback failed")); };
-        audio.play().catch((err) => { audioRef.current = null; reject(err); });
-      });
-      return; // Success — done
-    } catch (err) {
-      console.warn("ElevenLabs TTS failed, using browser fallback:", err);
+        const data = await resp.json();
+        if (!activeRef.current) return;
+
+        const audioUrl = `data:audio/mpeg;base64,${data.audioContent}`;
+
+        await new Promise<void>((resolve, reject) => {
+          const audio = new Audio(audioUrl);
+          audioRef.current = audio;
+          audio.onended = () => { audioRef.current = null; resolve(); };
+          audio.onerror = () => { audioRef.current = null; reject(new Error("Playback failed")); };
+          audio.play().catch((err) => { audioRef.current = null; reject(err); });
+        });
+        elevenLabsSuccess = true;
+        break; // Success — exit retry loop
+      } catch (err) {
+        console.warn(`ElevenLabs TTS attempt ${attempt + 1}/3 failed:`, err);
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 800));
+      }
     }
 
-    // Fallback to browser SpeechSynthesis
-    if (!activeRef.current) return;
-    try {
-      await speakWithBrowser(cleanText);
-    } catch (err) {
-      console.error("Browser TTS also failed:", err);
+    // Only use browser TTS as final fallback after all ElevenLabs retries exhausted
+    if (!elevenLabsSuccess) {
+      console.warn("All ElevenLabs attempts failed, using browser TTS fallback");
+      if (!activeRef.current) return;
+      try {
+        await speakWithBrowser(cleanText);
+      } catch (err) {
+        console.error("Browser TTS also failed:", err);
+      }
     }
   }, [setPhaseSync, speakWithBrowser]);
 
@@ -370,9 +379,8 @@ Never expose the English interpretation to the user — always reply fully in Ha
     }
 
     const recognition = new SpeechRecognition();
-    const currentLang = selectedLangRef.current;
-    const speechLang = currentLang === "pcm" ? "en-NG" : (languages.find((l) => l.code === currentLang)?.speechCode || "en-US");
-    recognition.lang = speechLang;
+    // Always use English recognition for browser compatibility — AI interprets language internally
+    recognition.lang = "en-US";
     recognition.continuous = false;
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
@@ -380,6 +388,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
     let finalText = "";
 
     recognition.onstart = () => {
+      clearTimer(); // Clear the 2s safety timeout — we successfully started
       setPhaseSync("listening");
       setCurrentPartial("");
     };
@@ -438,6 +447,18 @@ Never expose the English interpretation to the user — always reply fully in Ha
     recognitionRef.current = recognition;
     try {
       recognition.start();
+      // Safety timeout: if we don't reach "listening" within 2s, force retry
+      clearTimer();
+      timerRef.current = setTimeout(() => {
+        if (activeRef.current && !mutedRef.current && phaseRef.current !== "listening") {
+          console.warn("SpeechRecognition stuck — retrying");
+          killRecognition();
+          // Retry after short delay
+          timerRef.current = setTimeout(() => {
+            if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
+          }, 500);
+        }
+      }, 2000);
     } catch {
       recognitionRef.current = null;
       // Retry once after a short delay
