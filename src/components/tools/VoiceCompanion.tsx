@@ -437,6 +437,18 @@ Never expose the English interpretation to the user — always reply fully in Ha
     recognitionRef.current = recognition;
     try {
       recognition.start();
+      // Safety timeout: if we don't reach "listening" within 2s, force retry
+      clearTimer();
+      timerRef.current = setTimeout(() => {
+        if (activeRef.current && !mutedRef.current && phaseRef.current !== "listening") {
+          console.warn("SpeechRecognition stuck — retrying");
+          killRecognition();
+          // Retry after short delay
+          timerRef.current = setTimeout(() => {
+            if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
+          }, 500);
+        }
+      }, 2000);
     } catch {
       recognitionRef.current = null;
       // Retry once after a short delay
