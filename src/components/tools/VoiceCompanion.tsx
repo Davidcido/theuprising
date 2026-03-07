@@ -518,7 +518,14 @@ Never expose the English interpretation to the user — always reply fully in Ha
       await speakText(aiResponse);
     } catch (err) {
       console.error("Voice flow error:", err);
-      toast.error("I couldn't process that. Let's try again. 💚");
+      // Speak the error instead of just toasting
+      const errorMsg = "I couldn't process that. Let's try again.";
+      setTranscript((prev) => [...prev, { role: "assistant", text: errorMsg }]);
+      try {
+        await speakText(errorMsg);
+      } catch {
+        toast.error("I couldn't process that. Let's try again. 💚");
+      }
     }
 
     if (!activeRef.current) return;
