@@ -439,23 +439,37 @@ Never expose the English interpretation to the user — always reply fully in Ha
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
 
-    let finalText = "";
+    // captured flag prevents double-processing from both onresult and onend
+    let captured = false;
     let lastInterim = "";
+
+    const handleCapture = (text: string) => {
+      if (captured) return;
+      captured = true;
+      console.log("[Voice] Captured transcript:", JSON.stringify(text));
+      // Immediately stop recognition and lock state
+      killRecognition();
+      emptyRetryRef.current = 0;
+      setPhaseSync("processing");
+      setCurrentPartial("");
+      processUtteranceRef.current?.(text);
+    };
 
     recognition.onstart = () => {
       clearTimer();
+      captured = false;
+      lastInterim = "";
       setPhaseSync("listening");
       setCurrentPartial("");
-      finalText = "";
-      lastInterim = "";
       console.log("[Voice] Recognition started, listening...");
     };
 
     recognition.onresult = (event: any) => {
+      if (captured) return;
       if (phaseRef.current !== "listening") return;
 
+      let finalText = "";
       let interim = "";
-      finalText = "";
       for (let i = 0; i < event.results.length; i++) {
         const result = event.results[i];
         if (result.isFinal) {
@@ -464,64 +478,63 @@ Never expose the English interpretation to the user — always reply fully in Ha
           interim += result[0].transcript;
         }
       }
-      // Keep track of last interim as fallback
+
+      // Track interim for fallback
       if (interim) lastInterim = interim;
       setCurrentPartial(interim || finalText);
+
+      // If we have a final transcript >= 2 chars, capture immediately
+      if (finalText.trim().length >= 2) {
+        handleCapture(finalText.trim());
+      }
     };
 
     recognition.onend = () => {
       recognitionRef.current = null;
+      if (!activeRef.current || captured) return;
 
-      if (!activeRef.current) return;
+      // Fallback: use lastInterim if no final was captured
+      const fallbackText = lastInterim.trim();
+      console.log("[Voice] Recognition ended without capture. Interim fallback:", JSON.stringify(fallbackText));
 
-      // Use finalText, or fall back to lastInterim if no final was produced
-      let userText = finalText.trim();
-      if (!userText && lastInterim.trim().length >= 2) {
-        userText = lastInterim.trim();
-        console.log("[Voice] No final transcript, using interim:", userText);
+      if (fallbackText.length >= 2) {
+        handleCapture(fallbackText);
+        return;
       }
 
-      console.log("[Voice] Recognition ended. Phase:", phaseRef.current, "Transcript:", JSON.stringify(userText));
-
-      // Process transcript regardless of current phase (as long as call is active)
-      if (userText.length >= 2) {
+      // Empty/short transcript handling
+      if (emptyRetryRef.current < 1) {
+        emptyRetryRef.current++;
+        console.log("[Voice] Empty transcript, retrying...");
+        setPhaseSync("cooldown");
+        clearTimer();
+        timerRef.current = setTimeout(() => {
+          if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
+        }, 500);
+      } else {
         emptyRetryRef.current = 0;
-        // Force phase to processing to avoid any guard issues
+        const retryMsg = "I didn't quite catch that. Could you say it again?";
+        setTranscript((prev) => [...prev, { role: "assistant", text: retryMsg }]);
         setPhaseSync("processing");
-        processUtteranceRef.current?.(userText);
-      } else if (phaseRef.current === "listening" || phaseRef.current === "cooldown" || phaseRef.current === "idle") {
-        // Empty/short transcript handling
-        if (emptyRetryRef.current < 1) {
-          emptyRetryRef.current++;
-          console.log("[Voice] Empty transcript, retrying...");
+        speakText(retryMsg).then(() => {
+          if (!activeRef.current) return;
           setPhaseSync("cooldown");
           clearTimer();
           timerRef.current = setTimeout(() => {
             if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
-          }, 500);
-        } else {
-          emptyRetryRef.current = 0;
-          const retryMsg = "I didn't quite catch that. Could you say it again?";
-          setTranscript((prev) => [...prev, { role: "assistant", text: retryMsg }]);
-          setPhaseSync("processing");
-          speakText(retryMsg).then(() => {
-            if (!activeRef.current) return;
-            setPhaseSync("cooldown");
-            clearTimer();
-            timerRef.current = setTimeout(() => {
-              if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
-            }, 700);
-          });
-        }
+          }, 700);
+        });
       }
     };
 
     recognition.onerror = (e: any) => {
       recognitionRef.current = null;
+      if (captured) return;
       if (e.error === "not-allowed") {
         toast.error("Microphone access denied.");
         return;
       }
+      console.warn("[Voice] Recognition error:", e.error);
       if (activeRef.current) {
         setPhaseSync("cooldown");
         clearTimer();
@@ -537,7 +550,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
       clearTimer();
       timerRef.current = setTimeout(() => {
         if (activeRef.current && !mutedRef.current && phaseRef.current !== "listening") {
-          console.warn("SpeechRecognition stuck — retrying");
+          console.warn("[Voice] SpeechRecognition stuck — retrying");
           killRecognition();
           timerRef.current = setTimeout(() => {
             if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
