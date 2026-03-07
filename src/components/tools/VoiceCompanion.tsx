@@ -191,7 +191,11 @@ Common Hausa vocabulary and phrases:
 - Relationships: "ƙaunataccen na" (my loved one), "muna faɗa" (we're fighting), "ya/ta bar ni" (they left me), "iyali na ba su fahimce ni ba" (my family doesn't understand me), "ina kaɗaici" (I'm lonely), "suna matsa mini" (they're pressuring me)
 - School/Work: "makaranta na damun ni" (school is bothering me), "jarrabawa na ba ni tsoro" (exams scare me), "aiki ya yi mini yawa" (work is too much for me)
 
-Respond warmly in Hausa to match the user's tone. Use Hausa naturally and supportively.`;
+Language interpretation process:
+1. First, internally interpret the user's Hausa into clear English meaning — even if diacritics are missing, words are phonetically spelled, or the transcript is fragmented.
+2. Understand the emotional intent and context behind what they said.
+3. Generate your response in natural Hausa that matches the user's tone.
+Never expose the English interpretation to the user — always reply fully in Hausa. Be warm, supportive, and emotionally present.`;
     } else if (lang !== "en") {
       langInstruction = `The user is speaking in ${langInfo?.label}. Respond in the same language.`;
     }
