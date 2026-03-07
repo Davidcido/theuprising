@@ -45,6 +45,12 @@ const VoiceCompanion = () => {
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [audioLevel, setAudioLevel] = useState(0);
 
+  // Refs for state accessed in callbacks (prevents stale closures)
+  const isSpeakingRef = useRef(false);
+  const isProcessingRef = useRef(false);
+  const isListeningRef = useRef(false);
+  const mutedRef = useRef(false);
+  const isActiveRef = useRef(false);
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const conversationRef = useRef<{ role: string; content: string }[]>([]);
@@ -52,13 +58,30 @@ const VoiceCompanion = () => {
   const animFrameRef = useRef<number>(0);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
-  const isActiveRef = useRef(false);
+  const listenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const selectedLangRef = useRef(selectedLang);
+  const selectedModeRef = useRef(selectedMode);
+
+  // Sync refs with state
+  useEffect(() => { isSpeakingRef.current = isSpeaking; }, [isSpeaking]);
+  useEffect(() => { isProcessingRef.current = isProcessing; }, [isProcessing]);
+  useEffect(() => { isListeningRef.current = isListening; }, [isListening]);
+  useEffect(() => { mutedRef.current = muted; }, [muted]);
+  useEffect(() => { selectedLangRef.current = selectedLang; }, [selectedLang]);
+  useEffect(() => { selectedModeRef.current = selectedMode; }, [selectedMode]);
 
   useEffect(() => {
     if (transcriptEndRef.current) {
       transcriptEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [transcript]);
+
+  const clearListenTimeout = useCallback(() => {
+    if (listenTimeoutRef.current) {
+      clearTimeout(listenTimeoutRef.current);
+      listenTimeoutRef.current = null;
+    }
+  }, []);
 
   const setupAudioAnalyser = useCallback(async () => {
     try {
@@ -86,21 +109,27 @@ const VoiceCompanion = () => {
     }
   }, []);
 
+  const stopRecognition = useCallback(() => {
+    clearListenTimeout();
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch {}
+      recognitionRef.current = null;
+    }
+    setIsListening(false);
+    setCurrentPartial("");
+  }, [clearListenTimeout]);
+
   const getAIResponse = useCallback(
     async (userText: string): Promise<string> => {
       conversationRef.current.push({ role: "user", content: userText });
 
-      // Build mode-specific system instruction
-      const modeHint =
-        selectedMode === "vent"
-          ? "vent"
-          : selectedMode === "calm"
-          ? "calm"
-          : undefined;
+      const mode = selectedModeRef.current;
+      const lang = selectedLangRef.current;
+      const modeHint = mode === "vent" ? "vent" : mode === "calm" ? "calm" : undefined;
 
-      const langInfo = languages.find((l) => l.code === selectedLang);
+      const langInfo = languages.find((l) => l.code === lang);
       const langInstruction =
-        selectedLang !== "en"
+        lang !== "en"
           ? `The user is speaking in ${langInfo?.label}. Respond in the same language.`
           : "";
 
@@ -117,10 +146,7 @@ const VoiceCompanion = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({
-          messages: messagesForAPI,
-          mode: modeHint,
-        }),
+        body: JSON.stringify({ messages: messagesForAPI, mode: modeHint }),
       });
 
       if (!resp.ok) {
@@ -128,7 +154,6 @@ const VoiceCompanion = () => {
         throw new Error(err.error || "AI response failed");
       }
 
-      // Parse the streamed response to get full text
       let fullText = "";
       const reader = resp.body!.getReader();
       const decoder = new TextDecoder();
@@ -160,13 +185,13 @@ const VoiceCompanion = () => {
       conversationRef.current.push({ role: "assistant", content: fullText });
       return fullText;
     },
-    [selectedLang, selectedMode]
+    []
   );
 
   const speakText = useCallback(async (text: string): Promise<void> => {
     setIsSpeaking(true);
+    isSpeakingRef.current = true;
     try {
-      // Strip markdown formatting for speech
       const cleanText = text
         .replace(/\*\*(.*?)\*\*/g, "$1")
         .replace(/\*(.*?)\*/g, "$1")
@@ -176,14 +201,14 @@ const VoiceCompanion = () => {
         .trim();
 
       const resp = await fetch(TTS_URL, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({ text: cleanText }),
-});
-          
-  
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ text: cleanText }),
+      });
 
       if (!resp.ok) {
         throw new Error("Voice generation failed");
@@ -197,25 +222,75 @@ const VoiceCompanion = () => {
         audioRef.current = audio;
         audio.onended = () => {
           setIsSpeaking(false);
+          isSpeakingRef.current = false;
           resolve();
         };
         audio.onerror = () => {
           setIsSpeaking(false);
+          isSpeakingRef.current = false;
           reject(new Error("Audio playback failed"));
         };
         audio.play().catch((err) => {
           setIsSpeaking(false);
+          isSpeakingRef.current = false;
           reject(err);
         });
       });
     } catch (err) {
       setIsSpeaking(false);
+      isSpeakingRef.current = false;
       throw err;
     }
   }, []);
 
-  const startListening = useCallback(() => {
-    if (!isActiveRef.current || muted) return;
+  // Process user speech: get AI response, speak it, then resume listening
+  const processUserSpeech = useCallback(async (userText: string) => {
+    if (!isActiveRef.current) return;
+
+    setTranscript((prev) => [...prev, { role: "user", text: userText }]);
+    setIsProcessing(true);
+    isProcessingRef.current = true;
+
+    try {
+      const aiResponse = await getAIResponse(userText);
+      setTranscript((prev) => [...prev, { role: "assistant", text: aiResponse }]);
+      setIsProcessing(false);
+      isProcessingRef.current = false;
+
+      // Speak the response
+      await speakText(aiResponse);
+    } catch (err) {
+      console.error("Voice flow error:", err);
+      setIsProcessing(false);
+      isProcessingRef.current = false;
+      setIsSpeaking(false);
+      isSpeakingRef.current = false;
+      toast.error("Something went wrong. I'm still here though. 💚");
+    }
+
+    // Resume listening after a delay (only if call is still active)
+    if (isActiveRef.current && !mutedRef.current) {
+      clearListenTimeout();
+      listenTimeoutRef.current = setTimeout(() => {
+        if (isActiveRef.current && !isSpeakingRef.current && !isProcessingRef.current && !mutedRef.current) {
+          startListeningInternal();
+        }
+      }, 1200);
+    }
+  }, [getAIResponse, speakText, clearListenTimeout]);
+
+  // Internal startListening that uses refs to avoid stale closures
+  const startListeningInternal = useCallback(() => {
+    // Guard: don't start if AI is busy or call inactive
+    if (!isActiveRef.current || mutedRef.current || isSpeakingRef.current || isProcessingRef.current) {
+      return;
+    }
+
+    // Stop any existing recognition first
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch {}
+      recognitionRef.current = null;
+    }
 
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -226,15 +301,19 @@ const VoiceCompanion = () => {
     }
 
     const recognition = new SpeechRecognition();
-    const langInfo = languages.find((l) => l.code === selectedLang);
+    const langInfo = languages.find((l) => l.code === selectedLangRef.current);
     recognition.lang = langInfo?.speechCode || "en-US";
     recognition.continuous = true;
     recognition.interimResults = true;
 
     let finalTranscript = "";
-    let silenceTimeout: NodeJS.Timeout;
+    let silenceTimeout: NodeJS.Timeout | null = null;
+    let hasProcessed = false;
 
     recognition.onresult = (event: any) => {
+      // Don't process if AI is speaking or processing
+      if (isSpeakingRef.current || isProcessingRef.current || hasProcessed) return;
+
       let interim = "";
       finalTranscript = "";
 
@@ -248,71 +327,79 @@ const VoiceCompanion = () => {
 
       setCurrentPartial(interim || finalTranscript);
 
-      // Reset silence timer
-      clearTimeout(silenceTimeout);
-      if (finalTranscript) {
-        silenceTimeout = setTimeout(async () => {
-          if (!isActiveRef.current) return;
-          recognition.stop();
+      // Reset silence timer on new results
+      if (silenceTimeout) clearTimeout(silenceTimeout);
+
+      if (finalTranscript.trim()) {
+        silenceTimeout = setTimeout(() => {
+          if (!isActiveRef.current || hasProcessed || isSpeakingRef.current || isProcessingRef.current) return;
+          hasProcessed = true;
+
+          // Stop recognition before processing
+          try { recognition.stop(); } catch {}
+          recognitionRef.current = null;
           setIsListening(false);
           setCurrentPartial("");
 
           const userText = finalTranscript.trim();
-          if (!userText) {
-            startListening();
-            return;
-          }
-
-          setTranscript((prev) => [...prev, { role: "user", text: userText }]);
-          setIsProcessing(true);
-
-          try {
-            const aiResponse = await getAIResponse(userText);
-            setTranscript((prev) => [
-              ...prev,
-              { role: "assistant", text: aiResponse },
-            ]);
-            setIsProcessing(false);
-
-            await speakText(aiResponse);
-          } catch (err) {
-            console.error("Voice flow error:", err);
-            setIsProcessing(false);
-            toast.error("Something went wrong. I'm still here though. 💚");
-          }
-
-          // Resume listening after speaking
-          if (isActiveRef.current) {
-            startListening();
+          if (userText) {
+            processUserSpeech(userText);
           }
         }, 1500);
       }
     };
 
-    recognition.onstart = () => setIsListening(true);
+    recognition.onstart = () => {
+      setIsListening(true);
+      isListeningRef.current = true;
+    };
+
     recognition.onerror = (e: any) => {
       if (e.error === "not-allowed") {
         toast.error("Microphone access denied. Please allow it in your browser settings.");
-      } else if (e.error !== "aborted" && e.error !== "no-speech") {
+        return;
+      }
+      if (e.error !== "aborted" && e.error !== "no-speech") {
         console.error("Speech error:", e.error);
       }
       setIsListening(false);
-      // Retry if still active
-      if (isActiveRef.current && e.error === "no-speech") {
-        setTimeout(() => startListening(), 500);
+      isListeningRef.current = false;
+
+      // Retry on no-speech after delay, only if safe
+      if (isActiveRef.current && e.error === "no-speech" && !isSpeakingRef.current && !isProcessingRef.current && !hasProcessed) {
+        clearListenTimeout();
+        listenTimeoutRef.current = setTimeout(() => {
+          if (isActiveRef.current && !isSpeakingRef.current && !isProcessingRef.current && !mutedRef.current) {
+            startListeningInternal();
+          }
+        }, 1000);
       }
     };
+
     recognition.onend = () => {
       setIsListening(false);
-      // Auto-restart if call is still active and not processing
-      if (isActiveRef.current && !isProcessing && !isSpeaking) {
-        setTimeout(() => startListening(), 300);
+      isListeningRef.current = false;
+
+      // Only auto-restart if we haven't processed speech and call is still active
+      if (isActiveRef.current && !hasProcessed && !isSpeakingRef.current && !isProcessingRef.current && !mutedRef.current) {
+        clearListenTimeout();
+        listenTimeoutRef.current = setTimeout(() => {
+          if (isActiveRef.current && !isSpeakingRef.current && !isProcessingRef.current && !mutedRef.current) {
+            startListeningInternal();
+          }
+        }, 1000);
       }
     };
 
     recognitionRef.current = recognition;
-    recognition.start();
-  }, [selectedLang, muted, getAIResponse, speakText, isProcessing, isSpeaking]);
+    try {
+      recognition.start();
+    } catch (err) {
+      console.error("Recognition start error:", err);
+      setIsListening(false);
+      isListeningRef.current = false;
+    }
+  }, [processUserSpeech, clearListenTimeout]);
 
   const startCall = useCallback(async () => {
     isActiveRef.current = true;
@@ -322,11 +409,11 @@ const VoiceCompanion = () => {
 
     await setupAudioAnalyser();
 
-    // Greet the user
+    const mode = selectedModeRef.current;
     const greeting =
-      selectedMode === "vent"
+      mode === "vent"
         ? "I'm here to listen. Take your time, and say whatever's on your mind."
-        : selectedMode === "calm"
+        : mode === "calm"
         ? "Let's take a moment to breathe and find some calm together. I'm right here with you."
         : "Hey, I'm your Uprising Companion. I'm here for you. How are you feeling right now?";
 
@@ -339,11 +426,17 @@ const VoiceCompanion = () => {
       console.error("TTS greeting error:", err);
     }
 
-    startListening();
-  }, [selectedMode, setupAudioAnalyser, speakText, startListening]);
+    // Start listening after greeting with delay
+    listenTimeoutRef.current = setTimeout(() => {
+      if (isActiveRef.current && !mutedRef.current) {
+        startListeningInternal();
+      }
+    }, 1200);
+  }, [setupAudioAnalyser, speakText, startListeningInternal]);
 
   const endCall = useCallback(() => {
     isActiveRef.current = false;
+    clearListenTimeout();
     setCallActive(false);
     setMuted(false);
     setShowTranscript(false);
@@ -352,9 +445,12 @@ const VoiceCompanion = () => {
     setIsProcessing(false);
     setCurrentPartial("");
     setAudioLevel(0);
+    isSpeakingRef.current = false;
+    isProcessingRef.current = false;
+    isListeningRef.current = false;
 
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      try { recognitionRef.current.stop(); } catch {}
       recognitionRef.current = null;
     }
     if (audioRef.current) {
@@ -368,32 +464,39 @@ const VoiceCompanion = () => {
       mediaStreamRef.current.getTracks().forEach((t) => t.stop());
       mediaStreamRef.current = null;
     }
-  }, []);
+  }, [clearListenTimeout]);
 
   const toggleMute = useCallback(() => {
     setMuted((prev) => {
       const newMuted = !prev;
-      if (newMuted && recognitionRef.current) {
-        recognitionRef.current.stop();
-      } else if (!newMuted && isActiveRef.current) {
-        startListening();
+      mutedRef.current = newMuted;
+      if (newMuted) {
+        stopRecognition();
+      } else if (isActiveRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+        clearListenTimeout();
+        listenTimeoutRef.current = setTimeout(() => {
+          if (isActiveRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+            startListeningInternal();
+          }
+        }, 500);
       }
       return newMuted;
     });
-  }, [startListening]);
+  }, [stopRecognition, startListeningInternal, clearListenTimeout]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       isActiveRef.current = false;
-      if (recognitionRef.current) recognitionRef.current.stop();
+      clearListenTimeout();
+      if (recognitionRef.current) try { recognitionRef.current.stop(); } catch {}
       if (audioRef.current) audioRef.current.pause();
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((t) => t.stop());
       }
     };
-  }, []);
+  }, [clearListenTimeout]);
 
   if (!callActive) {
     return (
@@ -469,7 +572,6 @@ const VoiceCompanion = () => {
       {/* Voice Waveform Visualization */}
       <div className="text-center space-y-3">
         <div className="relative w-32 h-32 mx-auto">
-          {/* Outer pulse rings */}
           {isSpeaking && (
             <>
               <motion.div
@@ -487,7 +589,6 @@ const VoiceCompanion = () => {
             </>
           )}
 
-          {/* Main circle */}
           <motion.div
             animate={{
               scale: isSpeaking
@@ -507,7 +608,6 @@ const VoiceCompanion = () => {
               boxShadow: `0 0 ${isSpeaking ? 60 : isListening ? 30 + audioLevel * 40 : 20}px rgba(46,139,87,${isSpeaking ? 0.5 : 0.3 + audioLevel * 0.3})`,
             }}
           >
-            {/* Waveform bars */}
             <div className="flex items-center gap-[3px]">
               {[...Array(7)].map((_, i) => (
                 <motion.div
@@ -552,7 +652,6 @@ const VoiceCompanion = () => {
           {modes.find((m) => m.id === selectedMode)?.label}
         </p>
 
-        {/* Live partial transcript */}
         {currentPartial && (
           <motion.p
             initial={{ opacity: 0 }}
