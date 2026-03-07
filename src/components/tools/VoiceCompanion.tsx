@@ -140,7 +140,11 @@ Common Pidgin vocabulary and phrases:
 - Relationships: "my person" (my partner/close one), "we dey quarrel" (we're fighting), "e leave me" / "she leave me" (they left me), "I dey lonely" (I'm lonely), "my family no understand" (my family doesn't understand), "dem dey pressure me" (they're pressuring me)
 - School/Work: "school wahala" (school stress), "I no fit cope" (I can't cope), "exam dey worry me" (exams stress me), "oga dey stress me" (my boss is stressing me)
 
-Respond warmly in Pidgin to match the user's tone. Use Pidgin naturally — don't translate to standard English.`;
+Language interpretation process:
+1. First, internally interpret the user's Pidgin into clear English meaning — even if the transcript has typos, merged words, or phonetic spelling.
+2. Understand the emotional intent and context behind what they said.
+3. Generate your response in natural Nigerian Pidgin that matches the user's tone.
+Never expose the English interpretation to the user — always reply fully in Pidgin. Be warm, supportive, and emotionally present.`;
     } else if (lang === "yo") {
       langInstruction = `The user is speaking Yoruba. The speech transcript may be imperfect — interpret the meaning naturally even if tonal marks are missing or words are transliterated.
 
@@ -153,7 +157,11 @@ Common Yoruba vocabulary and phrases:
 - Relationships: "ololufe mi" (my loved one), "a n ja" (we're fighting), "o fi mi silẹ" (they left me), "idile mi ko ye mi" (my family doesn't understand me), "mo ti sùn mọlẹ" (I feel alone), "wọn n fi ipa ba mi" (they're pressuring me)
 - School/Work: "ile-iwe n da mi lamu" (school is stressing me), "idanwo n ba mi ninu jẹ" (exams are worrying me), "isẹ n pa mi" (work is killing me)
 
-Respond warmly in Yoruba to match the user's tone. Use Yoruba naturally and supportively.`;
+Language interpretation process:
+1. First, internally interpret the user's Yoruba into clear English meaning — even if tonal marks are missing, words are phonetically spelled, or the transcript is fragmented.
+2. Understand the emotional intent and context behind what they said.
+3. Generate your response in natural Yoruba that matches the user's tone.
+Never expose the English interpretation to the user — always reply fully in Yoruba. Be warm, supportive, and emotionally present.`;
     } else if (lang === "ig") {
       langInstruction = `The user is speaking Igbo. The speech transcript may be imperfect — interpret the meaning naturally even if words are transliterated or tonal marks are missing.
 
@@ -166,7 +174,11 @@ Common Igbo vocabulary and phrases:
 - Relationships: "onye m hụrụ n'anya" (my loved one), "anyị na-alụ ọgụ" (we're fighting), "o hapụrụ m" (they left me), "ezinụlọ m aghọtaghị m" (my family doesn't understand me), "a nọ m naanị m" (I'm alone), "ha na-abọ m" (they're pressuring me)
 - School/Work: "akwụkwọ na-enye m nsogbu" (school is giving me problems), "ule na-enye m nchegbu" (exams are worrying me), "ọrụ na-egbu m" (work is killing me)
 
-Respond warmly in Igbo to match the user's tone. Use Igbo naturally and supportively.`;
+Language interpretation process:
+1. First, internally interpret the user's Igbo into clear English meaning — even if diacritics are missing, words are phonetically spelled, or the transcript is fragmented.
+2. Understand the emotional intent and context behind what they said.
+3. Generate your response in natural Igbo that matches the user's tone.
+Never expose the English interpretation to the user — always reply fully in Igbo. Be warm, supportive, and emotionally present.`;
     } else if (lang === "ha") {
       langInstruction = `The user is speaking Hausa. The speech transcript may be imperfect — interpret the meaning naturally even if words are transliterated or diacritics are missing.
 
@@ -179,7 +191,11 @@ Common Hausa vocabulary and phrases:
 - Relationships: "ƙaunataccen na" (my loved one), "muna faɗa" (we're fighting), "ya/ta bar ni" (they left me), "iyali na ba su fahimce ni ba" (my family doesn't understand me), "ina kaɗaici" (I'm lonely), "suna matsa mini" (they're pressuring me)
 - School/Work: "makaranta na damun ni" (school is bothering me), "jarrabawa na ba ni tsoro" (exams scare me), "aiki ya yi mini yawa" (work is too much for me)
 
-Respond warmly in Hausa to match the user's tone. Use Hausa naturally and supportively.`;
+Language interpretation process:
+1. First, internally interpret the user's Hausa into clear English meaning — even if diacritics are missing, words are phonetically spelled, or the transcript is fragmented.
+2. Understand the emotional intent and context behind what they said.
+3. Generate your response in natural Hausa that matches the user's tone.
+Never expose the English interpretation to the user — always reply fully in Hausa. Be warm, supportive, and emotionally present.`;
     } else if (lang !== "en") {
       langInstruction = `The user is speaking in ${langInfo?.label}. Respond in the same language.`;
     }
