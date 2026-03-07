@@ -590,11 +590,13 @@ Never expose the English interpretation to the user — always reply fully in Ha
   useEffect(() => { processUtteranceRef.current = processUtterance; }, [processUtterance]);
 
   const startCall = useCallback(async () => {
+    console.log("[Voice] Session start");
     activeRef.current = true;
     setCallActive(true);
     setTranscript([]);
-    setPhaseSync("idle");
+    setPhaseSync("processing"); // Show "Thinking..." while preparing greeting
     conversationRef.current = [];
+    emptyRetryRef.current = 0;
 
     // iOS Safari audio unlock
     try {
@@ -611,25 +613,22 @@ Never expose the English interpretation to the user — always reply fully in Ha
 
     await setupAudioAnalyser();
 
-    const mode = selectedModeRef.current;
-    const greeting =
-      mode === "vent"
-        ? "Hi, this is your Uprising Companion. I'm here to listen. Take your time, and say whatever's on your mind."
-        : mode === "calm"
-        ? "Hi, this is your Uprising Companion. Let's take a moment to breathe and find some calm together. I'm right here with you."
-        : "Hi, this is your Uprising Companion. I'm here with you. How are you doing today?";
+    const greeting = "Hi, this is your Uprising Companion. I'm here to listen and support you. How are you doing today?";
 
     setTranscript([{ role: "assistant", text: greeting }]);
     conversationRef.current.push({ role: "assistant", content: greeting });
 
+    console.log("[Voice] Speaking greeting");
     try {
       await speakText(greeting);
-    } catch {
-      // Continue even if TTS fails
+    } catch (err) {
+      console.error("[Voice] Greeting TTS failed:", err);
     }
 
     if (!activeRef.current) return;
 
+    // Only AFTER greeting finishes, activate listening
+    console.log("[Voice] Greeting done, activating listening");
     setPhaseSync("cooldown");
     clearTimer();
     timerRef.current = setTimeout(() => {
