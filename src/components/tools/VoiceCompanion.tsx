@@ -696,7 +696,10 @@ Never expose the English interpretation to the user — always reply fully in Ha
   }, [setupAudioAnalyser, speakText, setPhaseSync, clearTimer]);
 
   const endCall = useCallback(() => {
+    console.log("[Voice] Ending call — full cleanup");
     activeRef.current = false;
+    listenCycleRef.current++; // invalidate any pending restarts
+    recognitionBusyRef.current = false;
     clearTimer();
     killRecognition();
     killAudio();
@@ -714,6 +717,12 @@ Never expose the English interpretation to the user — always reply fully in Ha
       mediaStreamRef.current.getTracks().forEach((t) => t.stop());
       mediaStreamRef.current = null;
     }
+    // Close AudioContext to prevent page freeze
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close().catch(() => {});
+      audioCtxRef.current = null;
+    }
+    analyserRef.current = null;
   }, [clearTimer, killRecognition, killAudio, setPhaseSync]);
 
   const toggleMute = useCallback(() => {
