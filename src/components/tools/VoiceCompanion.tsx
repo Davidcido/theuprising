@@ -129,7 +129,18 @@ const VoiceCompanion = () => {
     const langInfo = languages.find((l) => l.code === lang);
     let langInstruction = "";
     if (lang === "pcm") {
-      langInstruction = `The user is speaking Nigerian Pidgin English. The speech transcript may be imperfect — interpret the meaning naturally. Common Pidgin patterns include: "how far" (how are you), "I dey" (I am/I'm here), "wetin dey happen" (what's happening), "no wahala" (no problem), "I no too good today" (I'm not feeling well), "abeg" (please), "na so" (that's how it is), "e don tey" (it's been a while), "I wan yarn" (I want to talk). Respond warmly in Pidgin to match the user's tone.`;
+      langInstruction = `The user is speaking Nigerian Pidgin English. The speech transcript may be imperfect — interpret the meaning naturally even if words are misspelled or run together.
+
+Common Pidgin vocabulary and phrases:
+- Greetings: "how far" (how are you), "how body" (how are you feeling), "how e dey go" (how's it going), "wetin dey sup" (what's up)
+- Emotions: "I no too good today" (I'm not feeling well), "my heart heavy" (I'm sad), "e dey pain me" (it hurts me), "I dey vex" (I'm angry), "I dey fear" (I'm scared), "I tire" / "I don tire" (I'm exhausted/fed up), "my mind no dey rest" (I'm anxious), "I dey feel somehow" (I feel off/uneasy), "e dey do me somehow" (something feels wrong), "I happy well well" (I'm very happy)
+- States: "I dey" (I'm here/I'm fine), "I dey kampe" (I'm good), "I no fit again" (I can't anymore), "I wan give up" (I want to give up), "e too much for me" (it's overwhelming), "I dey try" (I'm trying), "I dey manage" (I'm coping), "nothing dey happen" (nothing is working out)
+- Expressions: "no wahala" (no problem), "na so" (that's how it is), "e don tey" (it's been a while), "abeg" (please), "sha" (though/anyway), "abi" (right?/isn't it?), "shey" (is it that/right?), "ehen" (yes/go on), "walahi" (I swear), "na God" (it's God/only God), "e go better" (it will get better), "God dey" (God exists/is watching)
+- Actions: "I wan yarn" (I want to talk), "make we talk" (let's talk), "I need person wey go hear me" (I need someone to listen), "nobody dey hear me" (nobody listens to me), "I dey think too much" (I'm overthinking), "sleep no dey come" (I can't sleep), "I no fit chop" (I can't eat)
+- Relationships: "my person" (my partner/close one), "we dey quarrel" (we're fighting), "e leave me" / "she leave me" (they left me), "I dey lonely" (I'm lonely), "my family no understand" (my family doesn't understand), "dem dey pressure me" (they're pressuring me)
+- School/Work: "school wahala" (school stress), "I no fit cope" (I can't cope), "exam dey worry me" (exams stress me), "oga dey stress me" (my boss is stressing me)
+
+Respond warmly in Pidgin to match the user's tone. Use Pidgin naturally — don't translate to standard English.`;
     } else if (lang !== "en") {
       langInstruction = `The user is speaking in ${langInfo?.label}. Respond in the same language.`;
     }
