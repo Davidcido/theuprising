@@ -34,7 +34,17 @@ const modes = [
   { id: "calm", label: "Calm Mode", desc: "Breathing & grounding exercises" },
 ];
 
+const OPENAI_VOICES = [
+  { id: "nova", label: "Nova", desc: "Female warm voice" },
+  { id: "alloy", label: "Alloy", desc: "Neutral assistant voice" },
+  { id: "echo", label: "Echo", desc: "Male clear voice" },
+  { id: "onyx", label: "Onyx", desc: "Deep male voice" },
+  { id: "fable", label: "Fable", desc: "British accent" },
+  { id: "shimmer", label: "Shimmer", desc: "Soft female voice" },
+];
+
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+const TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tts`;
 
 type TranscriptEntry = { role: "user" | "assistant"; text: string };
 
@@ -53,8 +63,7 @@ const VoiceCompanion = () => {
   const [audioLevel, setAudioLevel] = useState(0);
   const [textInput, setTextInput] = useState("");
   const [showTextInput, setShowTextInput] = useState(false);
-  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [selectedVoiceUri, setSelectedVoiceUri] = useState<string>("");
+  const [selectedVoice, setSelectedVoice] = useState("nova");
 
   const phaseRef = useRef<CallPhase>("idle");
   const activeRef = useRef(false);
@@ -69,6 +78,7 @@ const VoiceCompanion = () => {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedLangRef = useRef(selectedLang);
   const selectedModeRef = useRef(selectedMode);
+  const selectedVoiceRef = useRef(selectedVoice);
 
   const setPhaseSync = useCallback((p: CallPhase) => {
     phaseRef.current = p;
@@ -78,6 +88,7 @@ const VoiceCompanion = () => {
   useEffect(() => { mutedRef.current = muted; }, [muted]);
   useEffect(() => { selectedLangRef.current = selectedLang; }, [selectedLang]);
   useEffect(() => { selectedModeRef.current = selectedMode; }, [selectedMode]);
+  useEffect(() => { selectedVoiceRef.current = selectedVoice; }, [selectedVoice]);
 
   useEffect(() => {
     if (transcriptEndRef.current) {
@@ -102,14 +113,16 @@ const VoiceCompanion = () => {
   }, []);
 
   const killAudio = useCallback(() => {
-    // Cancel any browser TTS speech
-    if (window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
     if (audioRef.current) {
       audioRef.current.pause();
+      audioRef.current.currentTime = 0;
       audioRef.current.onended = null;
       audioRef.current.onerror = null;
+      audioRef.current.onplay = null;
+      // Revoke object URL to free memory
+      if (audioRef.current.src && audioRef.current.src.startsWith("blob:")) {
+        URL.revokeObjectURL(audioRef.current.src);
+      }
       audioRef.current = null;
     }
   }, []);
@@ -290,253 +303,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
     throw lastError!;
   }, []);
 
-  // Cached best voice ref to avoid repeated lookups
-  const bestVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
-  const voicesLoadedRef = useRef(false);
-  const voiceLoadPromiseRef = useRef<Promise<SpeechSynthesisVoice | null> | null>(null);
-  const selectedVoiceUriRef = useRef(selectedVoiceUri);
-  useEffect(() => { selectedVoiceUriRef.current = selectedVoiceUri; }, [selectedVoiceUri]);
-
-  // Categorize and sort voices for display
-  const categorizeVoices = useCallback((voices: SpeechSynthesisVoice[]) => {
-    const scored = voices.map(v => {
-      let score = 0;
-      if (v.name.includes("Google")) score += 100;
-      if (v.name.includes("Microsoft")) score += 80;
-      if (/natural|neural|premium|enhanced/i.test(v.name)) score += 60;
-      if (v.lang.startsWith("en")) score += 40;
-      if (!v.localService) score += 20; // network voices are usually better
-      return { voice: v, score };
-    });
-    scored.sort((a, b) => b.score - a.score);
-    return scored.map(s => s.voice);
-  }, []);
-
-  // Pick the best voice from available list
-  const pickBest = useCallback((voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null => {
-    if (!voices.length) return null;
-
-    // If user has selected a voice, use it
-    const uri = selectedVoiceUriRef.current;
-    if (uri) {
-      const userPick = voices.find(v => v.voiceURI === uri);
-      if (userPick) return userPick;
-    }
-
-    // Priority: Google English > Microsoft English (not David) > network English > local English > any English > first voice
-    const googleEn = voices.find(v => v.name.includes("Google") && v.lang.startsWith("en"));
-    if (googleEn) return googleEn;
-
-    const microsoftEn = voices.find(v => v.name.includes("Microsoft") && v.lang.startsWith("en") && !v.name.includes("David"));
-    if (microsoftEn) return microsoftEn;
-
-    const networkEn = voices.find(v => v.lang.startsWith("en") && !v.localService);
-    if (networkEn) return networkEn;
-
-    const localEn = voices.find(v => v.lang.startsWith("en") && v.localService);
-    if (localEn) return localEn;
-
-    const anyEn = voices.find(v => v.lang.startsWith("en"));
-    if (anyEn) return anyEn;
-
-    // Ultimate fallback: first available voice
-    return voices[0];
-  }, []);
-
-  // Load voices — returns a shared promise so multiple callers don't race
-  const loadBestVoice = useCallback((): Promise<SpeechSynthesisVoice | null> => {
-    // If already loaded, return immediately (but re-pick if user changed selection)
-    if (voicesLoadedRef.current) {
-      const voices = window.speechSynthesis?.getVoices() || [];
-      if (voices.length > 0) {
-        const picked = pickBest(voices);
-        bestVoiceRef.current = picked;
-        return Promise.resolve(picked);
-      }
-      if (bestVoiceRef.current) return Promise.resolve(bestVoiceRef.current);
-    }
-
-    // If a load is already in progress, return the existing promise
-    if (voiceLoadPromiseRef.current) {
-      return voiceLoadPromiseRef.current;
-    }
-
-    const promise = new Promise<SpeechSynthesisVoice | null>((resolve) => {
-      if (!window.speechSynthesis) { resolve(null); return; }
-
-      const finalize = (voices: SpeechSynthesisVoice[]) => {
-        setAvailableVoices(categorizeVoices(voices));
-        const voice = pickBest(voices);
-        bestVoiceRef.current = voice;
-        voicesLoadedRef.current = true;
-        voiceLoadPromiseRef.current = null;
-        // Auto-select the best voice in dropdown if none chosen
-        if (!selectedVoiceUriRef.current && voice) {
-          setSelectedVoiceUri(voice.voiceURI);
-        }
-        if (voice) {
-          console.log("TTS voice selected:", voice.name, voice.lang);
-        } else {
-          console.warn("No TTS voices available");
-        }
-        resolve(voice);
-      };
-
-      // Try immediately
-      const voices = window.speechSynthesis.getVoices();
-      if (voices.length > 0) {
-        finalize(voices);
-        return;
-      }
-
-      // Wait for voiceschanged event (critical for mobile browsers)
-      let settled = false;
-      const onChanged = () => {
-        if (settled) return;
-        settled = true;
-        window.speechSynthesis.removeEventListener("voiceschanged", onChanged);
-        finalize(window.speechSynthesis.getVoices());
-      };
-      window.speechSynthesis.addEventListener("voiceschanged", onChanged);
-
-      // Also poll every 100ms as some browsers don't fire voiceschanged reliably
-      const pollInterval = setInterval(() => {
-        const v = window.speechSynthesis.getVoices();
-        if (v.length > 0) {
-          clearInterval(pollInterval);
-          if (!settled) {
-            settled = true;
-            window.speechSynthesis.removeEventListener("voiceschanged", onChanged);
-            finalize(v);
-          }
-        }
-      }, 100);
-
-      // Safety timeout after 3s — resolve with whatever we have
-      setTimeout(() => {
-        clearInterval(pollInterval);
-        if (!settled) {
-          settled = true;
-          window.speechSynthesis.removeEventListener("voiceschanged", onChanged);
-          finalize(window.speechSynthesis.getVoices());
-        }
-      }, 3000);
-    });
-
-    voiceLoadPromiseRef.current = promise;
-    return promise;
-  }, [pickBest, categorizeVoices]);
-
-  // Eagerly load voices on mount
-  useEffect(() => {
-    loadBestVoice();
-  }, [loadBestVoice]);
-
-  // When user changes voice selection, update the cached voice
-  useEffect(() => {
-    if (selectedVoiceUri && voicesLoadedRef.current) {
-      const voices = window.speechSynthesis?.getVoices() || [];
-      const picked = voices.find(v => v.voiceURI === selectedVoiceUri);
-      if (picked) {
-        bestVoiceRef.current = picked;
-        console.log("Voice manually set to:", picked.name);
-      }
-    }
-  }, [selectedVoiceUri]);
-
-  const speakWithBrowser = useCallback(async (text: string, isRetry = false): Promise<void> => {
-    if (!window.speechSynthesis) return;
-
-    // Cancel ALL queued and ongoing speech first
-    window.speechSynthesis.cancel();
-    // Delay after cancel to let the engine fully reset (critical on mobile Safari)
-    await new Promise(r => setTimeout(r, 200));
-
-    // Always wait for voices to be fully loaded before speaking
-    const voice = await loadBestVoice();
-
-    if (!voice) {
-      console.error("No TTS voice available. Voices:", window.speechSynthesis.getVoices());
-      return;
-    }
-
-    return new Promise<void>((resolve) => {
-      // Double-check cancel to prevent queue stacking
-      window.speechSynthesis.cancel();
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.9;
-      utterance.pitch = 1.1;
-      utterance.volume = 1.0;
-      utterance.voice = voice;
-
-      let resolved = false;
-      let speechStarted = false;
-      const finish = () => { if (!resolved) { resolved = true; resolve(); } };
-
-      // Chrome bug workaround: long utterances can pause silently
-      const keepAlive = setInterval(() => {
-        if (window.speechSynthesis.speaking) {
-          window.speechSynthesis.pause();
-          window.speechSynthesis.resume();
-        } else {
-          clearInterval(keepAlive);
-        }
-      }, 10000);
-
-      utterance.onstart = () => {
-        speechStarted = true;
-        console.log("TTS speaking started with voice:", voice.name);
-        // Only now update phase to speaking
-        if (activeRef.current) setPhaseSync("speaking");
-      };
-
-      utterance.onend = () => { clearInterval(keepAlive); finish(); };
-      utterance.onerror = (e) => {
-        clearInterval(keepAlive);
-        console.warn("Browser TTS error:", e.error, "| Available voices:", window.speechSynthesis.getVoices().map(v => v.name));
-        // Retry once on failure
-        if (!isRetry && !resolved) {
-          resolved = true;
-          console.log("Retrying TTS...");
-          // Reset voice cache to force re-selection
-          voicesLoadedRef.current = false;
-          bestVoiceRef.current = null;
-          voiceLoadPromiseRef.current = null;
-          setTimeout(() => {
-            speakWithBrowser(text, true).then(resolve).catch(() => finish());
-          }, 300);
-          return;
-        }
-        finish();
-      };
-
-      // Small delay after voice assignment before calling speak() — prevents mobile race condition
-      setTimeout(() => {
-        if (resolved) return;
-        window.speechSynthesis.speak(utterance);
-
-        // Safety: if speech hasn't started within 3s, retry once or resolve
-        setTimeout(() => {
-          if (!speechStarted && !resolved) {
-            clearInterval(keepAlive);
-            if (!isRetry) {
-              console.warn("TTS did not start — retrying once");
-              resolved = true;
-              voicesLoadedRef.current = false;
-              bestVoiceRef.current = null;
-              voiceLoadPromiseRef.current = null;
-              speakWithBrowser(text, true).then(resolve).catch(() => { resolved = false; finish(); });
-            } else {
-              console.warn("TTS did not start after retry — giving up");
-              finish();
-            }
-          }
-        }, 3000);
-      }, 150);
-    });
-  }, [loadBestVoice, setPhaseSync]);
-
+  // OpenAI TTS: send text to edge function, receive audio blob, play it
   const speakText = useCallback(async (text: string): Promise<void> => {
     if (!activeRef.current) return;
 
@@ -549,16 +316,70 @@ Never expose the English interpretation to the user — always reply fully in Ha
       .replace(/[💚🌱✨🫂]/g, "")
       .trim();
 
-    if (!activeRef.current) return;
+    if (!cleanText || !activeRef.current) return;
 
-    // Phase is set to "speaking" inside speakWithBrowser's onstart handler
-    // so UI only shows "Speaking" when audio actually begins
     try {
-      await speakWithBrowser(cleanText);
+      const resp = await fetch(TTS_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          text: cleanText,
+          voice: selectedVoiceRef.current,
+        }),
+      });
+
+      if (!resp.ok) {
+        console.error("TTS error:", resp.status);
+        return;
+      }
+
+      if (!activeRef.current) return;
+
+      const blob = await resp.blob();
+      const audioUrl = URL.createObjectURL(blob);
+
+      return new Promise<void>((resolve) => {
+        if (!activeRef.current) {
+          URL.revokeObjectURL(audioUrl);
+          resolve();
+          return;
+        }
+
+        const audio = new Audio(audioUrl);
+        audioRef.current = audio;
+        audio.volume = 1.0;
+
+        audio.onplay = () => {
+          if (activeRef.current) setPhaseSync("speaking");
+        };
+
+        audio.onended = () => {
+          URL.revokeObjectURL(audioUrl);
+          audioRef.current = null;
+          resolve();
+        };
+
+        audio.onerror = () => {
+          console.error("Audio playback error");
+          URL.revokeObjectURL(audioUrl);
+          audioRef.current = null;
+          resolve();
+        };
+
+        audio.play().catch((err) => {
+          console.error("Audio play failed:", err);
+          URL.revokeObjectURL(audioUrl);
+          audioRef.current = null;
+          resolve();
+        });
+      });
     } catch (err) {
-      console.error("Browser TTS failed:", err);
+      console.error("TTS fetch failed:", err);
     }
-  }, [speakWithBrowser]);
+  }, [setPhaseSync]);
 
   // The main listening function — only enters if phase allows
   const startListening = useCallback(() => {
@@ -575,7 +396,6 @@ Never expose the English interpretation to the user — always reply fully in Ha
     }
 
     const recognition = new SpeechRecognition();
-    // Always use English recognition for browser compatibility — AI interprets language internally
     recognition.lang = "en-US";
     recognition.continuous = false;
     recognition.interimResults = true;
@@ -584,7 +404,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
     let finalText = "";
 
     recognition.onstart = () => {
-      clearTimer(); // Clear the 2s safety timeout — we successfully started
+      clearTimer();
       setPhaseSync("listening");
       setCurrentPartial("");
     };
@@ -615,7 +435,6 @@ Never expose the English interpretation to the user — always reply fully in Ha
       if (userText.length > 0) {
         processUtteranceRef.current?.(userText);
       } else {
-        // No speech detected — restart after short delay
         setPhaseSync("cooldown");
         clearTimer();
         timerRef.current = setTimeout(() => {
@@ -630,7 +449,6 @@ Never expose the English interpretation to the user — always reply fully in Ha
         toast.error("Microphone access denied.");
         return;
       }
-      // For no-speech, aborted, network — retry after delay
       if (activeRef.current) {
         setPhaseSync("cooldown");
         clearTimer();
@@ -643,13 +461,11 @@ Never expose the English interpretation to the user — always reply fully in Ha
     recognitionRef.current = recognition;
     try {
       recognition.start();
-      // Safety timeout: if we don't reach "listening" within 2s, force retry
       clearTimer();
       timerRef.current = setTimeout(() => {
         if (activeRef.current && !mutedRef.current && phaseRef.current !== "listening") {
           console.warn("SpeechRecognition stuck — retrying");
           killRecognition();
-          // Retry after short delay
           timerRef.current = setTimeout(() => {
             if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
           }, 500);
@@ -657,7 +473,6 @@ Never expose the English interpretation to the user — always reply fully in Ha
       }, 2000);
     } catch {
       recognitionRef.current = null;
-      // Retry once after a short delay
       clearTimer();
       timerRef.current = setTimeout(() => {
         if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
@@ -708,8 +523,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
     setPhaseSync("idle");
     conversationRef.current = [];
 
-    // iOS Safari audio unlock: create and play a silent audio context on user tap
-    // This satisfies the browser's autoplay policy for subsequent speechSynthesis calls
+    // iOS Safari audio unlock
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const buf = ctx.createBuffer(1, 1, 22050);
@@ -717,18 +531,10 @@ Never expose the English interpretation to the user — always reply fully in Ha
       src.buffer = buf;
       src.connect(ctx.destination);
       src.start(0);
-      // Also do a dummy speechSynthesis speak to unlock it
-      const dummy = new SpeechSynthesisUtterance("");
-      dummy.volume = 0;
-      window.speechSynthesis?.speak(dummy);
-      setTimeout(() => window.speechSynthesis?.cancel(), 50);
       setTimeout(() => ctx.close().catch(() => {}), 100);
     } catch (e) {
       console.warn("Audio unlock failed:", e);
     }
-
-    // Pre-load voices while setting up audio
-    loadBestVoice();
 
     await setupAudioAnalyser();
 
@@ -758,7 +564,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
         startListeningRef.current?.();
       }
     }, 700);
-  }, [setupAudioAnalyser, speakText, setPhaseSync, clearTimer, loadBestVoice]);
+  }, [setupAudioAnalyser, speakText, setPhaseSync, clearTimer]);
 
   const endCall = useCallback(() => {
     activeRef.current = false;
@@ -803,20 +609,24 @@ Never expose the English interpretation to the user — always reply fully in Ha
     if (!text || !activeRef.current) return;
     if (phaseRef.current === "processing" || phaseRef.current === "speaking") return;
 
-    // Stop any active listening
     killRecognition();
     setTextInput("");
     processUtterance(text);
   }, [textInput, killRecognition, processUtterance]);
 
-  // Cleanup on unmount — cancel ALL speech
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       activeRef.current = false;
       clearTimer();
-      if (window.speechSynthesis) window.speechSynthesis.cancel();
       if (recognitionRef.current) try { recognitionRef.current.stop(); } catch {}
-      if (audioRef.current) audioRef.current.pause();
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        if (audioRef.current.src?.startsWith("blob:")) {
+          URL.revokeObjectURL(audioRef.current.src);
+        }
+      }
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((t) => t.stop());
@@ -877,56 +687,31 @@ Never expose the English interpretation to the user — always reply fully in Ha
           </div>
         </div>
 
-        {/* Voice picker */}
-        {availableVoices.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-white/70 text-xs font-medium uppercase tracking-wider flex items-center gap-1.5">
-              <Volume2 className="w-3.5 h-3.5" /> Voice
-            </p>
-            <Select value={selectedVoiceUri} onValueChange={setSelectedVoiceUri}>
-              <SelectTrigger className="w-full bg-white/10 border-white/20 text-white text-sm rounded-xl h-11 [&>span]:text-white/80">
-                <SelectValue placeholder="Auto-select best voice" />
-              </SelectTrigger>
-              <SelectContent className="max-h-60 bg-[#1a2e23] border-white/20">
-                {availableVoices.map((v) => {
-                  const isGoogle = v.name.includes("Google");
-                  const isMicrosoft = v.name.includes("Microsoft");
-                  const isNatural = /natural|neural|premium|enhanced/i.test(v.name);
-                  const badge = isGoogle ? "⭐ Google" : isMicrosoft ? "⭐ Microsoft" : isNatural ? "✨ Natural" : "";
-                  
-                  // Parse language and accent from voice lang code
-                  const langParts = v.lang.split("-");
-                  const langName = langParts[0] === "en" ? "English" : langParts[0] === "es" ? "Spanish" : langParts[0] === "fr" ? "French" : langParts[0] === "de" ? "German" : langParts[0];
-                  const regionMap: Record<string, string> = {
-                    US: "United States", GB: "United Kingdom", UK: "United Kingdom",
-                    AU: "Australia", CA: "Canada", IN: "India", NZ: "New Zealand",
-                    IE: "Ireland", ZA: "South Africa", NG: "Nigeria", SG: "Singapore",
-                  };
-                  const region = langParts[1] ? (regionMap[langParts[1]] || langParts[1]) : "";
-                  const displayLabel = `${v.name}${langName ? ` — ${langName}` : ""}${region ? ` — ${region}` : ""}`;
-
-                  return (
-                    <SelectItem
-                      key={v.voiceURI}
-                      value={v.voiceURI}
-                      className="text-white/80 text-xs focus:bg-white/10 focus:text-white"
-                    >
-                      <span className="flex flex-col gap-0.5">
-                        <span className="flex items-center gap-2">
-                          <span className="truncate max-w-[240px]">{displayLabel}</span>
-                        </span>
-                        {badge && (
-                          <span className="text-[10px] text-white/50">{badge}</span>
-                        )}
-                      </span>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
+        {/* Voice picker — OpenAI voices */}
+        <div className="space-y-2">
+          <p className="text-white/70 text-xs font-medium uppercase tracking-wider flex items-center gap-1.5">
+            <Volume2 className="w-3.5 h-3.5" /> Voice
+          </p>
+          <Select value={selectedVoice} onValueChange={setSelectedVoice}>
+            <SelectTrigger className="w-full bg-white/10 border-white/20 text-white text-sm rounded-xl h-11 [&>span]:text-white/80">
+              <SelectValue placeholder="Select a voice" />
+            </SelectTrigger>
+            <SelectContent className="max-h-60 bg-[#1a2e23] border-white/20">
+              {OPENAI_VOICES.map((v) => (
+                <SelectItem
+                  key={v.id}
+                  value={v.id}
+                  className="text-white/80 text-sm focus:bg-white/10 focus:text-white"
+                >
+                  <span className="flex flex-col gap-0.5">
+                    <span className="font-medium">{v.label}</span>
+                    <span className="text-[11px] text-white/50">{v.desc}</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <motion.button
           whileHover={{ scale: 1.03 }}
@@ -940,7 +725,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
         </motion.button>
 
         <p className="text-center text-white/40 text-xs">
-          🎙️ Microphone access required · Uses AI voice
+          🎙️ Microphone access required · OpenAI voice
         </p>
       </div>
     );
@@ -1031,7 +816,8 @@ Never expose the English interpretation to the user — always reply fully in Ha
         <p className="text-white/50 text-sm">{statusText}</p>
         <p className="text-white/30 text-xs">
           {languages.find((l) => l.code === selectedLang)?.label} ·{" "}
-          {modes.find((m) => m.id === selectedMode)?.label}
+          {modes.find((m) => m.id === selectedMode)?.label} ·{" "}
+          {OPENAI_VOICES.find((v) => v.id === selectedVoice)?.label}
         </p>
 
         {currentPartial && (
