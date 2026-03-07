@@ -376,10 +376,10 @@ const VoiceCompanion = () => {
     const mode = selectedModeRef.current;
     const greeting =
       mode === "vent"
-        ? "I'm here to listen. Take your time, and say whatever's on your mind."
+        ? "Hi, this is your Uprising Companion. I'm here to listen. Take your time, and say whatever's on your mind."
         : mode === "calm"
-        ? "Let's take a moment to breathe and find some calm together. I'm right here with you."
-        : "Hey, I'm your Uprising Companion. I'm here for you. How are you feeling right now?";
+        ? "Hi, this is your Uprising Companion. Let's take a moment to breathe and find some calm together. I'm right here with you."
+        : "Hi, this is your Uprising Companion. I'm here with you. How are you doing today?";
 
     setTranscript([{ role: "assistant", text: greeting }]);
     conversationRef.current.push({ role: "assistant", content: greeting });
@@ -392,14 +392,13 @@ const VoiceCompanion = () => {
 
     if (!activeRef.current) return;
 
-    // Wait then start listening
     setPhaseSync("cooldown");
     clearTimer();
     timerRef.current = setTimeout(() => {
       if (activeRef.current && !mutedRef.current) {
         startListening();
       }
-    }, 1500);
+    }, 1000);
   }, [setupAudioAnalyser, speakText, startListening, setPhaseSync, clearTimer]);
 
   const endCall = useCallback(() => {
