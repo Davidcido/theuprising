@@ -490,7 +490,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
             if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
           }, 500);
         }
-      }, 2000);
+      }, 3500);
     } catch {
       recognitionRef.current = null;
       clearTimer();
