@@ -701,7 +701,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
         startListeningRef.current?.();
       }
     }, 700);
-  }, [setupAudioAnalyser, speakText, setPhaseSync, clearTimer]);
+  }, [setupAudioAnalyser, speakText, setPhaseSync, clearTimer, loadBestVoice]);
 
   const endCall = useCallback(() => {
     activeRef.current = false;
