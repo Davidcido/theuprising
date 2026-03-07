@@ -155,6 +155,7 @@ const VoiceCompanion = () => {
 
   const getAIResponse = useCallback(async (userText: string, retries = 1): Promise<string> => {
     conversationRef.current.push({ role: "user", content: userText });
+    console.log("[Voice] Transcript received:", userText);
 
     const mode = selectedModeRef.current;
     const lang = selectedLangRef.current;
@@ -254,12 +255,15 @@ Never expose the English interpretation to the user — always reply fully in Ha
         throw new Error(err.error || "AI response failed");
       }
 
+      if (!resp.body) throw new Error("No response body");
+
       let fullText = "";
-      const reader = resp.body!.getReader();
+      const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let buf = "";
+      let streamDone = false;
 
-      while (true) {
+      while (!streamDone) {
         const { done, value } = await reader.read();
         if (done) break;
         buf += decoder.decode(value, { stream: true });
@@ -269,9 +273,10 @@ Never expose the English interpretation to the user — always reply fully in Ha
           let line = buf.slice(0, nl);
           buf = buf.slice(nl + 1);
           if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (line.startsWith(":") || line.trim() === "") continue;
           if (!line.startsWith("data: ")) continue;
           const json = line.slice(6).trim();
-          if (json === "[DONE]") break;
+          if (json === "[DONE]") { streamDone = true; break; }
           try {
             const c = JSON.parse(json).choices?.[0]?.delta?.content;
             if (c) fullText += c;
@@ -282,6 +287,23 @@ Never expose the English interpretation to the user — always reply fully in Ha
         }
       }
 
+      // Flush remaining buffer
+      if (buf.trim()) {
+        for (let raw of buf.split("\n")) {
+          if (!raw) continue;
+          if (raw.endsWith("\r")) raw = raw.slice(0, -1);
+          if (raw.startsWith(":") || raw.trim() === "") continue;
+          if (!raw.startsWith("data: ")) continue;
+          const jsonStr = raw.slice(6).trim();
+          if (jsonStr === "[DONE]") continue;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) fullText += content;
+          } catch { /* ignore partial leftovers */ }
+        }
+      }
+
       return fullText;
     };
 
@@ -289,10 +311,18 @@ Never expose the English interpretation to the user — always reply fully in Ha
     for (let i = 0; i <= retries; i++) {
       try {
         const result = await attempt();
-        conversationRef.current.push({ role: "assistant", content: result });
-        return result;
+        if (result.trim().length > 0) {
+          console.log("[Voice] AI response generated:", result.substring(0, 80) + "...");
+          conversationRef.current.push({ role: "assistant", content: result });
+          return result;
+        }
+        // Empty result — treat as failure and retry
+        console.warn("[Voice] AI returned empty response, attempt", i + 1);
+        lastError = new Error("AI returned empty response");
+        if (i < retries) await new Promise((r) => setTimeout(r, 1000));
       } catch (err) {
         lastError = err as Error;
+        console.error("[Voice] AI attempt", i + 1, "failed:", err);
         if (i < retries) {
           await new Promise((r) => setTimeout(r, 1000));
         }
@@ -304,7 +334,6 @@ Never expose the English interpretation to the user — always reply fully in Ha
     throw lastError!;
   }, []);
 
-  // OpenAI TTS: send text to edge function, receive audio blob, play it
   const speakText = useCallback(async (text: string): Promise<void> => {
     if (!activeRef.current) return;
 
@@ -318,6 +347,8 @@ Never expose the English interpretation to the user — always reply fully in Ha
       .trim();
 
     if (!cleanText || !activeRef.current) return;
+
+    console.log("[Voice] TTS playback starting for:", cleanText.substring(0, 60));
 
     try {
       const resp = await fetch(TTS_URL, {
@@ -333,13 +364,17 @@ Never expose the English interpretation to the user — always reply fully in Ha
       });
 
       if (!resp.ok) {
-        console.error("TTS error:", resp.status);
+        console.error("[Voice] TTS error:", resp.status);
         return;
       }
 
       if (!activeRef.current) return;
 
       const blob = await resp.blob();
+      if (blob.size === 0) {
+        console.error("[Voice] TTS returned empty audio blob");
+        return;
+      }
       const audioUrl = URL.createObjectURL(blob);
 
       return new Promise<void>((resolve) => {
@@ -354,31 +389,33 @@ Never expose the English interpretation to the user — always reply fully in Ha
         audio.volume = 1.0;
 
         audio.onplay = () => {
+          console.log("[Voice] Audio playback started");
           if (activeRef.current) setPhaseSync("speaking");
         };
 
         audio.onended = () => {
+          console.log("[Voice] Audio playback ended");
           URL.revokeObjectURL(audioUrl);
           audioRef.current = null;
           resolve();
         };
 
-        audio.onerror = () => {
-          console.error("Audio playback error");
+        audio.onerror = (e) => {
+          console.error("[Voice] Audio playback error:", e);
           URL.revokeObjectURL(audioUrl);
           audioRef.current = null;
           resolve();
         };
 
         audio.play().catch((err) => {
-          console.error("Audio play failed:", err);
+          console.error("[Voice] Audio play failed:", err);
           URL.revokeObjectURL(audioUrl);
           audioRef.current = null;
           resolve();
         });
       });
     } catch (err) {
-      console.error("TTS fetch failed:", err);
+      console.error("[Voice] TTS fetch failed:", err);
     }
   }, [setPhaseSync]);
 
@@ -508,32 +545,41 @@ Never expose the English interpretation to the user — always reply fully in Ha
     setCurrentPartial("");
     setPhaseSync("processing");
     setTranscript((prev) => [...prev, { role: "user", text: userText }]);
+    console.log("[Voice] Processing utterance:", userText);
 
+    let aiResponse = "";
     try {
-      const aiResponse = await getAIResponse(userText);
-      if (!activeRef.current) return;
-
-      setTranscript((prev) => [...prev, { role: "assistant", text: aiResponse }]);
-
-      await speakText(aiResponse);
+      aiResponse = await getAIResponse(userText);
     } catch (err) {
-      console.error("Voice flow error:", err);
-      // Speak the error instead of just toasting
-      const errorMsg = "I couldn't process that. Let's try again.";
-      setTranscript((prev) => [...prev, { role: "assistant", text: errorMsg }]);
-      try {
-        await speakText(errorMsg);
-      } catch {
-        toast.error("I couldn't process that. Let's try again. 💚");
-      }
+      console.error("[Voice] AI response error:", err);
     }
 
     if (!activeRef.current) return;
 
+    // Guarantee an AI response — use fallback if empty
+    if (!aiResponse || aiResponse.trim().length === 0) {
+      aiResponse = "I hear you. Could you tell me a bit more about how you're feeling?";
+      console.warn("[Voice] Using fallback AI response");
+      conversationRef.current.push({ role: "assistant", content: aiResponse });
+    }
+
+    setTranscript((prev) => [...prev, { role: "assistant", text: aiResponse }]);
+    console.log("[Voice] Speaking AI response");
+
+    try {
+      await speakText(aiResponse);
+    } catch (err) {
+      console.error("[Voice] TTS failed for AI response:", err);
+    }
+
+    if (!activeRef.current) return;
+
+    // Always return to listening after speaking
     setPhaseSync("cooldown");
     clearTimer();
     timerRef.current = setTimeout(() => {
       if (activeRef.current && !mutedRef.current) {
+        console.log("[Voice] Returning to listening mode");
         startListeningRef.current?.();
       }
     }, 700);
@@ -544,11 +590,13 @@ Never expose the English interpretation to the user — always reply fully in Ha
   useEffect(() => { processUtteranceRef.current = processUtterance; }, [processUtterance]);
 
   const startCall = useCallback(async () => {
+    console.log("[Voice] Session start");
     activeRef.current = true;
     setCallActive(true);
     setTranscript([]);
-    setPhaseSync("idle");
+    setPhaseSync("processing"); // Show "Thinking..." while preparing greeting
     conversationRef.current = [];
+    emptyRetryRef.current = 0;
 
     // iOS Safari audio unlock
     try {
@@ -565,25 +613,22 @@ Never expose the English interpretation to the user — always reply fully in Ha
 
     await setupAudioAnalyser();
 
-    const mode = selectedModeRef.current;
-    const greeting =
-      mode === "vent"
-        ? "Hi, this is your Uprising Companion. I'm here to listen. Take your time, and say whatever's on your mind."
-        : mode === "calm"
-        ? "Hi, this is your Uprising Companion. Let's take a moment to breathe and find some calm together. I'm right here with you."
-        : "Hi, this is your Uprising Companion. I'm here with you. How are you doing today?";
+    const greeting = "Hi, this is your Uprising Companion. I'm here to listen and support you. How are you doing today?";
 
     setTranscript([{ role: "assistant", text: greeting }]);
     conversationRef.current.push({ role: "assistant", content: greeting });
 
+    console.log("[Voice] Speaking greeting");
     try {
       await speakText(greeting);
-    } catch {
-      // Continue even if TTS fails
+    } catch (err) {
+      console.error("[Voice] Greeting TTS failed:", err);
     }
 
     if (!activeRef.current) return;
 
+    // Only AFTER greeting finishes, activate listening
+    console.log("[Voice] Greeting done, activating listening");
     setPhaseSync("cooldown");
     clearTimer();
     timerRef.current = setTimeout(() => {
