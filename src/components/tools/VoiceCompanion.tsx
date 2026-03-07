@@ -758,8 +758,10 @@ Never expose the English interpretation to the user — always reply fully in Ha
   useEffect(() => {
     return () => {
       activeRef.current = false;
+      listenCycleRef.current++;
+      recognitionBusyRef.current = false;
       clearTimer();
-      if (recognitionRef.current) try { recognitionRef.current.stop(); } catch {}
+      if (recognitionRef.current) try { recognitionRef.current.abort(); } catch { try { recognitionRef.current.stop(); } catch {} }
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
@@ -770,6 +772,9 @@ Never expose the English interpretation to the user — always reply fully in Ha
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {});
       }
     };
   }, [clearTimer]);
