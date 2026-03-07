@@ -893,16 +893,30 @@ Never expose the English interpretation to the user — always reply fully in Ha
                   const isMicrosoft = v.name.includes("Microsoft");
                   const isNatural = /natural|neural|premium|enhanced/i.test(v.name);
                   const badge = isGoogle ? "⭐ Google" : isMicrosoft ? "⭐ Microsoft" : isNatural ? "✨ Natural" : "";
+                  
+                  // Parse language and accent from voice lang code
+                  const langParts = v.lang.split("-");
+                  const langName = langParts[0] === "en" ? "English" : langParts[0] === "es" ? "Spanish" : langParts[0] === "fr" ? "French" : langParts[0] === "de" ? "German" : langParts[0];
+                  const regionMap: Record<string, string> = {
+                    US: "United States", GB: "United Kingdom", UK: "United Kingdom",
+                    AU: "Australia", CA: "Canada", IN: "India", NZ: "New Zealand",
+                    IE: "Ireland", ZA: "South Africa", NG: "Nigeria", SG: "Singapore",
+                  };
+                  const region = langParts[1] ? (regionMap[langParts[1]] || langParts[1]) : "";
+                  const displayLabel = `${v.name}${langName ? ` — ${langName}` : ""}${region ? ` — ${region}` : ""}`;
+
                   return (
                     <SelectItem
                       key={v.voiceURI}
                       value={v.voiceURI}
                       className="text-white/80 text-xs focus:bg-white/10 focus:text-white"
                     >
-                      <span className="flex items-center gap-2">
-                        <span className="truncate max-w-[180px]">{v.name}</span>
+                      <span className="flex flex-col gap-0.5">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate max-w-[240px]">{displayLabel}</span>
+                        </span>
                         {badge && (
-                          <span className="text-[10px] text-white/50 shrink-0">{badge}</span>
+                          <span className="text-[10px] text-white/50">{badge}</span>
                         )}
                       </span>
                     </SelectItem>
