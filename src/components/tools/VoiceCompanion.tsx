@@ -371,10 +371,9 @@ Never expose the English interpretation to the user — always reply fully in Ha
 
     const recognition = new SpeechRecognition();
     const currentLang = selectedLangRef.current;
-    // Nigerian Pidgin has no browser speech support — use Nigerian English instead
     const speechLang = currentLang === "pcm" ? "en-NG" : (languages.find((l) => l.code === currentLang)?.speechCode || "en-US");
     recognition.lang = speechLang;
-    recognition.continuous = false;    // Single utterance — prevents loop issues
+    recognition.continuous = false;
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
 
@@ -402,7 +401,6 @@ Never expose the English interpretation to the user — always reply fully in Ha
     };
 
     recognition.onend = () => {
-      // Recognition ended naturally (single utterance done)
       recognitionRef.current = null;
 
       if (!activeRef.current) return;
@@ -410,14 +408,13 @@ Never expose the English interpretation to the user — always reply fully in Ha
 
       const userText = finalText.trim();
       if (userText.length > 0) {
-        // Got speech → process it
-        processUtterance(userText);
+        processUtteranceRef.current?.(userText);
       } else {
         // No speech detected — restart after short delay
         setPhaseSync("cooldown");
         clearTimer();
         timerRef.current = setTimeout(() => {
-          if (activeRef.current && !mutedRef.current) startListening();
+          if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
         }, 800);
       }
     };
@@ -429,11 +426,11 @@ Never expose the English interpretation to the user — always reply fully in Ha
         return;
       }
       // For no-speech, aborted, network — retry after delay
-      if (activeRef.current && phaseRef.current === "listening") {
+      if (activeRef.current) {
         setPhaseSync("cooldown");
         clearTimer();
         timerRef.current = setTimeout(() => {
-          if (activeRef.current && !mutedRef.current) startListening();
+          if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
         }, 1000);
       }
     };
@@ -443,6 +440,11 @@ Never expose the English interpretation to the user — always reply fully in Ha
       recognition.start();
     } catch {
       recognitionRef.current = null;
+      // Retry once after a short delay
+      clearTimer();
+      timerRef.current = setTimeout(() => {
+        if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
+      }, 500);
     }
   }, [killRecognition, setPhaseSync, clearTimer]);
 
@@ -473,10 +475,14 @@ Never expose the English interpretation to the user — always reply fully in Ha
     clearTimer();
     timerRef.current = setTimeout(() => {
       if (activeRef.current && !mutedRef.current) {
-        startListening();
+        startListeningRef.current?.();
       }
-    }, 1000);
-  }, [getAIResponse, speakText, killRecognition, setPhaseSync, clearTimer, startListening]);
+    }, 700);
+  }, [getAIResponse, speakText, killRecognition, setPhaseSync, clearTimer]);
+
+  // Keep refs updated
+  useEffect(() => { startListeningRef.current = startListening; }, [startListening]);
+  useEffect(() => { processUtteranceRef.current = processUtterance; }, [processUtterance]);
 
   const startCall = useCallback(async () => {
     activeRef.current = true;
