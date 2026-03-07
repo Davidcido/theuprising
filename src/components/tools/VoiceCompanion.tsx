@@ -294,10 +294,34 @@ Never expose the English interpretation to the user — always reply fully in Ha
   const bestVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const voicesLoadedRef = useRef(false);
   const voiceLoadPromiseRef = useRef<Promise<SpeechSynthesisVoice | null> | null>(null);
+  const selectedVoiceUriRef = useRef(selectedVoiceUri);
+  useEffect(() => { selectedVoiceUriRef.current = selectedVoiceUri; }, [selectedVoiceUri]);
+
+  // Categorize and sort voices for display
+  const categorizeVoices = useCallback((voices: SpeechSynthesisVoice[]) => {
+    const scored = voices.map(v => {
+      let score = 0;
+      if (v.name.includes("Google")) score += 100;
+      if (v.name.includes("Microsoft")) score += 80;
+      if (/natural|neural|premium|enhanced/i.test(v.name)) score += 60;
+      if (v.lang.startsWith("en")) score += 40;
+      if (!v.localService) score += 20; // network voices are usually better
+      return { voice: v, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    return scored.map(s => s.voice);
+  }, []);
 
   // Pick the best voice from available list
   const pickBest = useCallback((voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null => {
     if (!voices.length) return null;
+
+    // If user has selected a voice, use it
+    const uri = selectedVoiceUriRef.current;
+    if (uri) {
+      const userPick = voices.find(v => v.voiceURI === uri);
+      if (userPick) return userPick;
+    }
 
     // Priority: Google English > Microsoft English (not David) > network English > local English > any English > first voice
     const googleEn = voices.find(v => v.name.includes("Google") && v.lang.startsWith("en"));
@@ -321,9 +345,15 @@ Never expose the English interpretation to the user — always reply fully in Ha
 
   // Load voices — returns a shared promise so multiple callers don't race
   const loadBestVoice = useCallback((): Promise<SpeechSynthesisVoice | null> => {
-    // If already loaded, return immediately
-    if (voicesLoadedRef.current && bestVoiceRef.current) {
-      return Promise.resolve(bestVoiceRef.current);
+    // If already loaded, return immediately (but re-pick if user changed selection)
+    if (voicesLoadedRef.current) {
+      const voices = window.speechSynthesis?.getVoices() || [];
+      if (voices.length > 0) {
+        const picked = pickBest(voices);
+        bestVoiceRef.current = picked;
+        return Promise.resolve(picked);
+      }
+      if (bestVoiceRef.current) return Promise.resolve(bestVoiceRef.current);
     }
 
     // If a load is already in progress, return the existing promise
@@ -335,10 +365,15 @@ Never expose the English interpretation to the user — always reply fully in Ha
       if (!window.speechSynthesis) { resolve(null); return; }
 
       const finalize = (voices: SpeechSynthesisVoice[]) => {
+        setAvailableVoices(categorizeVoices(voices));
         const voice = pickBest(voices);
         bestVoiceRef.current = voice;
         voicesLoadedRef.current = true;
         voiceLoadPromiseRef.current = null;
+        // Auto-select the best voice in dropdown if none chosen
+        if (!selectedVoiceUriRef.current && voice) {
+          setSelectedVoiceUri(voice.voiceURI);
+        }
         if (voice) {
           console.log("TTS voice selected:", voice.name, voice.lang);
         } else {
@@ -390,12 +425,24 @@ Never expose the English interpretation to the user — always reply fully in Ha
 
     voiceLoadPromiseRef.current = promise;
     return promise;
-  }, [pickBest]);
+  }, [pickBest, categorizeVoices]);
 
   // Eagerly load voices on mount
   useEffect(() => {
     loadBestVoice();
   }, [loadBestVoice]);
+
+  // When user changes voice selection, update the cached voice
+  useEffect(() => {
+    if (selectedVoiceUri && voicesLoadedRef.current) {
+      const voices = window.speechSynthesis?.getVoices() || [];
+      const picked = voices.find(v => v.voiceURI === selectedVoiceUri);
+      if (picked) {
+        bestVoiceRef.current = picked;
+        console.log("Voice manually set to:", picked.name);
+      }
+    }
+  }, [selectedVoiceUri]);
 
   const speakWithBrowser = useCallback(async (text: string, isRetry = false): Promise<void> => {
     if (!window.speechSynthesis) return;
