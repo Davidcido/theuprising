@@ -93,6 +93,10 @@ const VoiceCompanion = () => {
   }, []);
 
   const killAudio = useCallback(() => {
+    // Cancel any browser TTS speech
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.onended = null;
