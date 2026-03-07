@@ -809,11 +809,12 @@ Never expose the English interpretation to the user — always reply fully in Ha
     processUtterance(text);
   }, [textInput, killRecognition, processUtterance]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount — cancel ALL speech
   useEffect(() => {
     return () => {
       activeRef.current = false;
       clearTimer();
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
       if (recognitionRef.current) try { recognitionRef.current.stop(); } catch {}
       if (audioRef.current) audioRef.current.pause();
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
