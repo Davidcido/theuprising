@@ -408,6 +408,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
       clearTimer();
       setPhaseSync("listening");
       setCurrentPartial("");
+      // Reset empty retry counter when recognition starts fresh
     };
 
     recognition.onresult = (event: any) => {
