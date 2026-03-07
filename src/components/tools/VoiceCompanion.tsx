@@ -516,10 +516,10 @@ Never expose the English interpretation to the user — always reply fully in Ha
     clearTimer();
     timerRef.current = setTimeout(() => {
       if (activeRef.current && !mutedRef.current) {
-        startListening();
+        startListeningRef.current?.();
       }
-    }, 1000);
-  }, [setupAudioAnalyser, speakText, startListening, setPhaseSync, clearTimer]);
+    }, 700);
+  }, [setupAudioAnalyser, speakText, setPhaseSync, clearTimer]);
 
   const endCall = useCallback(() => {
     activeRef.current = false;
