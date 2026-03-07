@@ -388,6 +388,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
     let finalText = "";
 
     recognition.onstart = () => {
+      clearTimer(); // Clear the 2s safety timeout — we successfully started
       setPhaseSync("listening");
       setCurrentPartial("");
     };
