@@ -434,14 +434,32 @@ Never expose the English interpretation to the user — always reply fully in Ha
       if (phaseRef.current !== "listening") return;
 
       const userText = finalText.trim();
-      if (userText.length > 0) {
+      // Ignore very short transcripts (likely noise)
+      if (userText.length >= 2) {
+        emptyRetryRef.current = 0;
         processUtteranceRef.current?.(userText);
-      } else {
+      } else if (emptyRetryRef.current < 1) {
+        // First empty result — retry silently
+        emptyRetryRef.current++;
         setPhaseSync("cooldown");
         clearTimer();
         timerRef.current = setTimeout(() => {
           if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
-        }, 800);
+        }, 500);
+      } else {
+        // Second empty result — speak a friendly prompt
+        emptyRetryRef.current = 0;
+        const retryMsg = "I didn't quite catch that. Could you say it again?";
+        setTranscript((prev) => [...prev, { role: "assistant", text: retryMsg }]);
+        setPhaseSync("processing");
+        speakText(retryMsg).then(() => {
+          if (!activeRef.current) return;
+          setPhaseSync("cooldown");
+          clearTimer();
+          timerRef.current = setTimeout(() => {
+            if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
+          }, 700);
+        });
       }
     };
 
