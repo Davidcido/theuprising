@@ -334,7 +334,6 @@ Never expose the English interpretation to the user — always reply fully in Ha
     throw lastError!;
   }, []);
 
-  // OpenAI TTS: send text to edge function, receive audio blob, play it
   const speakText = useCallback(async (text: string): Promise<void> => {
     if (!activeRef.current) return;
 
@@ -348,6 +347,8 @@ Never expose the English interpretation to the user — always reply fully in Ha
       .trim();
 
     if (!cleanText || !activeRef.current) return;
+
+    console.log("[Voice] TTS playback starting for:", cleanText.substring(0, 60));
 
     try {
       const resp = await fetch(TTS_URL, {
@@ -363,13 +364,17 @@ Never expose the English interpretation to the user — always reply fully in Ha
       });
 
       if (!resp.ok) {
-        console.error("TTS error:", resp.status);
+        console.error("[Voice] TTS error:", resp.status);
         return;
       }
 
       if (!activeRef.current) return;
 
       const blob = await resp.blob();
+      if (blob.size === 0) {
+        console.error("[Voice] TTS returned empty audio blob");
+        return;
+      }
       const audioUrl = URL.createObjectURL(blob);
 
       return new Promise<void>((resolve) => {
@@ -384,31 +389,33 @@ Never expose the English interpretation to the user — always reply fully in Ha
         audio.volume = 1.0;
 
         audio.onplay = () => {
+          console.log("[Voice] Audio playback started");
           if (activeRef.current) setPhaseSync("speaking");
         };
 
         audio.onended = () => {
+          console.log("[Voice] Audio playback ended");
           URL.revokeObjectURL(audioUrl);
           audioRef.current = null;
           resolve();
         };
 
-        audio.onerror = () => {
-          console.error("Audio playback error");
+        audio.onerror = (e) => {
+          console.error("[Voice] Audio playback error:", e);
           URL.revokeObjectURL(audioUrl);
           audioRef.current = null;
           resolve();
         };
 
         audio.play().catch((err) => {
-          console.error("Audio play failed:", err);
+          console.error("[Voice] Audio play failed:", err);
           URL.revokeObjectURL(audioUrl);
           audioRef.current = null;
           resolve();
         });
       });
     } catch (err) {
-      console.error("TTS fetch failed:", err);
+      console.error("[Voice] TTS fetch failed:", err);
     }
   }, [setPhaseSync]);
 
