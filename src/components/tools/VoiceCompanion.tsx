@@ -157,7 +157,11 @@ Common Yoruba vocabulary and phrases:
 - Relationships: "ololufe mi" (my loved one), "a n ja" (we're fighting), "o fi mi silẹ" (they left me), "idile mi ko ye mi" (my family doesn't understand me), "mo ti sùn mọlẹ" (I feel alone), "wọn n fi ipa ba mi" (they're pressuring me)
 - School/Work: "ile-iwe n da mi lamu" (school is stressing me), "idanwo n ba mi ninu jẹ" (exams are worrying me), "isẹ n pa mi" (work is killing me)
 
-Respond warmly in Yoruba to match the user's tone. Use Yoruba naturally and supportively.`;
+Language interpretation process:
+1. First, internally interpret the user's Yoruba into clear English meaning — even if tonal marks are missing, words are phonetically spelled, or the transcript is fragmented.
+2. Understand the emotional intent and context behind what they said.
+3. Generate your response in natural Yoruba that matches the user's tone.
+Never expose the English interpretation to the user — always reply fully in Yoruba. Be warm, supportive, and emotionally present.`;
     } else if (lang === "ig") {
       langInstruction = `The user is speaking Igbo. The speech transcript may be imperfect — interpret the meaning naturally even if words are transliterated or tonal marks are missing.
 
