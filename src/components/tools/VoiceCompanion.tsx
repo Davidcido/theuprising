@@ -876,7 +876,43 @@ Never expose the English interpretation to the user — always reply fully in Ha
           </div>
         </div>
 
-        {/* Start call */}
+        {/* Voice picker */}
+        {availableVoices.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-white/70 text-xs font-medium uppercase tracking-wider flex items-center gap-1.5">
+              <Volume2 className="w-3.5 h-3.5" /> Voice
+            </p>
+            <Select value={selectedVoiceUri} onValueChange={setSelectedVoiceUri}>
+              <SelectTrigger className="w-full bg-white/10 border-white/20 text-white text-sm rounded-xl h-11 [&>span]:text-white/80">
+                <SelectValue placeholder="Auto-select best voice" />
+              </SelectTrigger>
+              <SelectContent className="max-h-60 bg-[#1a2e23] border-white/20">
+                {availableVoices.map((v) => {
+                  const isGoogle = v.name.includes("Google");
+                  const isMicrosoft = v.name.includes("Microsoft");
+                  const isNatural = /natural|neural|premium|enhanced/i.test(v.name);
+                  const badge = isGoogle ? "⭐ Google" : isMicrosoft ? "⭐ Microsoft" : isNatural ? "✨ Natural" : "";
+                  return (
+                    <SelectItem
+                      key={v.voiceURI}
+                      value={v.voiceURI}
+                      className="text-white/80 text-xs focus:bg-white/10 focus:text-white"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="truncate max-w-[180px]">{v.name}</span>
+                        {badge && (
+                          <span className="text-[10px] text-white/50 shrink-0">{badge}</span>
+                        )}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+
         <motion.button
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.97 }}
