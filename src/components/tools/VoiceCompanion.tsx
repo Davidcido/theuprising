@@ -274,6 +274,31 @@ Never expose the English interpretation to the user — always reply fully in Ha
     throw lastError!;
   }, []);
 
+  const speakWithBrowser = useCallback((text: string): Promise<void> => {
+    return new Promise<void>((resolve) => {
+      if (!window.speechSynthesis) { resolve(); return; }
+
+      // Cancel any ongoing speech
+      window.speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.95;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+
+      // Try to pick a good English voice
+      const voices = window.speechSynthesis.getVoices();
+      const preferred = voices.find(v => v.name.includes("Google") && v.lang.startsWith("en")) 
+        || voices.find(v => v.lang.startsWith("en") && v.localService)
+        || voices.find(v => v.lang.startsWith("en"));
+      if (preferred) utterance.voice = preferred;
+
+      utterance.onend = () => resolve();
+      utterance.onerror = () => resolve();
+      window.speechSynthesis.speak(utterance);
+    });
+  }, []);
+
   const speakText = useCallback(async (text: string): Promise<void> => {
     if (!activeRef.current) return;
     setPhaseSync("speaking");
@@ -284,8 +309,10 @@ Never expose the English interpretation to the user — always reply fully in Ha
       .replace(/#{1,6}\s/g, "")
       .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
       .replace(/[`~]/g, "")
+      .replace(/[💚🌱✨🫂]/g, "")
       .trim();
 
+    // Try ElevenLabs first
     try {
       const resp = await fetch(TTS_URL, {
         method: "POST",
@@ -297,7 +324,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
         body: JSON.stringify({ text: cleanText }),
       });
 
-      if (!resp.ok) throw new Error("Voice generation failed");
+      if (!resp.ok) throw new Error("ElevenLabs failed");
 
       const data = await resp.json();
       if (!activeRef.current) return;
@@ -311,11 +338,19 @@ Never expose the English interpretation to the user — always reply fully in Ha
         audio.onerror = () => { audioRef.current = null; reject(new Error("Playback failed")); };
         audio.play().catch((err) => { audioRef.current = null; reject(err); });
       });
+      return; // Success — done
     } catch (err) {
-      console.error("TTS error:", err);
-      // Don't block the flow — continue to cooldown even if TTS fails
+      console.warn("ElevenLabs TTS failed, using browser fallback:", err);
     }
-  }, [setPhaseSync]);
+
+    // Fallback to browser SpeechSynthesis
+    if (!activeRef.current) return;
+    try {
+      await speakWithBrowser(cleanText);
+    } catch (err) {
+      console.error("Browser TTS also failed:", err);
+    }
+  }, [setPhaseSync, speakWithBrowser]);
 
   // The main listening function — only enters if phase allows
   const startListening = useCallback(() => {
