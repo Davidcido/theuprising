@@ -69,14 +69,17 @@ const VoiceCompanion = () => {
   const activeRef = useRef(false);
   const mutedRef = useRef(false);
   const recognitionRef = useRef<any>(null);
+  const recognitionBusyRef = useRef(false); // prevents overlapping recognition sessions
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const conversationRef = useRef<{ role: string; content: string }[]>([]);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null); // stored for cleanup
   const animFrameRef = useRef<number>(0);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const emptyRetryRef = useRef(0);
+  const listenCycleRef = useRef(0); // increments each cycle to invalidate stale restarts
   const selectedLangRef = useRef(selectedLang);
   const selectedModeRef = useRef(selectedMode);
   const selectedVoiceRef = useRef(selectedVoice);
