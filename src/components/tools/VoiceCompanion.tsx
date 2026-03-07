@@ -76,6 +76,9 @@ const VoiceCompanion = () => {
     }
   }, [transcript]);
 
+  const processUtteranceRef = useRef<(text: string) => Promise<void>>();
+  const startListeningRef = useRef<() => void>();
+
   const clearTimer = useCallback(() => {
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
   }, []);
