@@ -387,16 +387,21 @@ Never expose the English interpretation to the user — always reply fully in Ha
     loadBestVoice();
   }, [loadBestVoice]);
 
-  const speakWithBrowser = useCallback(async (text: string): Promise<void> => {
+  const speakWithBrowser = useCallback(async (text: string, isRetry = false): Promise<void> => {
     if (!window.speechSynthesis) return;
 
     // Cancel ALL queued and ongoing speech first
     window.speechSynthesis.cancel();
-    // Small delay after cancel to let the engine reset (needed on mobile)
-    await new Promise(r => setTimeout(r, 150));
+    // Delay after cancel to let the engine fully reset (critical on mobile Safari)
+    await new Promise(r => setTimeout(r, 200));
 
-    // Always wait for voices to be loaded before speaking
+    // Always wait for voices to be fully loaded before speaking
     const voice = await loadBestVoice();
+
+    if (!voice) {
+      console.error("No TTS voice available. Voices:", window.speechSynthesis.getVoices());
+      return;
+    }
 
     return new Promise<void>((resolve) => {
       // Double-check cancel to prevent queue stacking
@@ -406,12 +411,10 @@ Never expose the English interpretation to the user — always reply fully in Ha
       utterance.rate = 0.95;
       utterance.pitch = 1.0;
       utterance.volume = 1.0;
-
-      if (voice) {
-        utterance.voice = voice;
-      }
+      utterance.voice = voice;
 
       let resolved = false;
+      let speechStarted = false;
       const finish = () => { if (!resolved) { resolved = true; resolve(); } };
 
       // Chrome bug workaround: long utterances can pause silently
@@ -424,25 +427,58 @@ Never expose the English interpretation to the user — always reply fully in Ha
         }
       }, 10000);
 
+      utterance.onstart = () => {
+        speechStarted = true;
+        console.log("TTS speaking started with voice:", voice.name);
+        // Only now update phase to speaking
+        if (activeRef.current) setPhaseSync("speaking");
+      };
+
       utterance.onend = () => { clearInterval(keepAlive); finish(); };
       utterance.onerror = (e) => {
         clearInterval(keepAlive);
-        console.warn("Browser TTS error:", e);
+        console.warn("Browser TTS error:", e.error, "| Available voices:", window.speechSynthesis.getVoices().map(v => v.name));
+        // Retry once on failure
+        if (!isRetry && !resolved) {
+          resolved = true;
+          console.log("Retrying TTS...");
+          // Reset voice cache to force re-selection
+          voicesLoadedRef.current = false;
+          bestVoiceRef.current = null;
+          voiceLoadPromiseRef.current = null;
+          setTimeout(() => {
+            speakWithBrowser(text, true).then(resolve).catch(() => finish());
+          }, 300);
+          return;
+        }
         finish();
       };
 
-      window.speechSynthesis.speak(utterance);
-
-      // Safety: if nothing happens within 5s and synth isn't speaking, resolve
+      // Small delay after voice assignment before calling speak() — prevents mobile race condition
       setTimeout(() => {
-        if (!window.speechSynthesis.speaking && !resolved) {
-          clearInterval(keepAlive);
-          console.warn("TTS did not start speaking — resolving");
-          finish();
-        }
-      }, 5000);
+        if (resolved) return;
+        window.speechSynthesis.speak(utterance);
+
+        // Safety: if speech hasn't started within 3s, retry once or resolve
+        setTimeout(() => {
+          if (!speechStarted && !resolved) {
+            clearInterval(keepAlive);
+            if (!isRetry) {
+              console.warn("TTS did not start — retrying once");
+              resolved = true;
+              voicesLoadedRef.current = false;
+              bestVoiceRef.current = null;
+              voiceLoadPromiseRef.current = null;
+              speakWithBrowser(text, true).then(resolve).catch(() => { resolved = false; finish(); });
+            } else {
+              console.warn("TTS did not start after retry — giving up");
+              finish();
+            }
+          }
+        }, 3000);
+      }, 150);
     });
-  }, [loadBestVoice]);
+  }, [loadBestVoice, setPhaseSync]);
 
   const speakText = useCallback(async (text: string): Promise<void> => {
     if (!activeRef.current) return;
@@ -458,15 +494,14 @@ Never expose the English interpretation to the user — always reply fully in Ha
 
     if (!activeRef.current) return;
 
-    // Only set phase to "speaking" right before actual speech starts
-    setPhaseSync("speaking");
-
+    // Phase is set to "speaking" inside speakWithBrowser's onstart handler
+    // so UI only shows "Speaking" when audio actually begins
     try {
       await speakWithBrowser(cleanText);
     } catch (err) {
       console.error("Browser TTS failed:", err);
     }
-  }, [setPhaseSync, speakWithBrowser]);
+  }, [speakWithBrowser]);
 
   // The main listening function — only enters if phase allows
   const startListening = useCallback(() => {
@@ -616,6 +651,28 @@ Never expose the English interpretation to the user — always reply fully in Ha
     setPhaseSync("idle");
     conversationRef.current = [];
 
+    // iOS Safari audio unlock: create and play a silent audio context on user tap
+    // This satisfies the browser's autoplay policy for subsequent speechSynthesis calls
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const buf = ctx.createBuffer(1, 1, 22050);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      src.start(0);
+      // Also do a dummy speechSynthesis speak to unlock it
+      const dummy = new SpeechSynthesisUtterance("");
+      dummy.volume = 0;
+      window.speechSynthesis?.speak(dummy);
+      setTimeout(() => window.speechSynthesis?.cancel(), 50);
+      setTimeout(() => ctx.close().catch(() => {}), 100);
+    } catch (e) {
+      console.warn("Audio unlock failed:", e);
+    }
+
+    // Pre-load voices while setting up audio
+    loadBestVoice();
+
     await setupAudioAnalyser();
 
     const mode = selectedModeRef.current;
@@ -644,7 +701,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
         startListeningRef.current?.();
       }
     }, 700);
-  }, [setupAudioAnalyser, speakText, setPhaseSync, clearTimer]);
+  }, [setupAudioAnalyser, speakText, setPhaseSync, clearTimer, loadBestVoice]);
 
   const endCall = useCallback(() => {
     activeRef.current = false;
