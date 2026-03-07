@@ -258,8 +258,10 @@ const VoiceCompanion = () => {
     }
 
     const recognition = new SpeechRecognition();
-    const langInfo = languages.find((l) => l.code === selectedLangRef.current);
-    recognition.lang = langInfo?.speechCode || "en-US";
+    const currentLang = selectedLangRef.current;
+    // Nigerian Pidgin has no browser speech support — use Nigerian English instead
+    const speechLang = currentLang === "pcm" ? "en-NG" : (languages.find((l) => l.code === currentLang)?.speechCode || "en-US");
+    recognition.lang = speechLang;
     recognition.continuous = false;    // Single utterance — prevents loop issues
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
