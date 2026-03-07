@@ -140,7 +140,11 @@ Common Pidgin vocabulary and phrases:
 - Relationships: "my person" (my partner/close one), "we dey quarrel" (we're fighting), "e leave me" / "she leave me" (they left me), "I dey lonely" (I'm lonely), "my family no understand" (my family doesn't understand), "dem dey pressure me" (they're pressuring me)
 - School/Work: "school wahala" (school stress), "I no fit cope" (I can't cope), "exam dey worry me" (exams stress me), "oga dey stress me" (my boss is stressing me)
 
-Respond warmly in Pidgin to match the user's tone. Use Pidgin naturally — don't translate to standard English.`;
+Language interpretation process:
+1. First, internally interpret the user's Pidgin into clear English meaning — even if the transcript has typos, merged words, or phonetic spelling.
+2. Understand the emotional intent and context behind what they said.
+3. Generate your response in natural Nigerian Pidgin that matches the user's tone.
+Never expose the English interpretation to the user — always reply fully in Pidgin. Be warm, supportive, and emotionally present.`;
     } else if (lang === "yo") {
       langInstruction = `The user is speaking Yoruba. The speech transcript may be imperfect — interpret the meaning naturally even if tonal marks are missing or words are transliterated.
 
