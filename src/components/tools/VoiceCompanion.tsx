@@ -7,6 +7,8 @@ import {
   MicOff,
   MessageSquare,
   Globe,
+  Send,
+  Keyboard,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -42,6 +44,8 @@ const VoiceCompanion = () => {
   const [currentPartial, setCurrentPartial] = useState("");
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [textInput, setTextInput] = useState("");
+  const [showTextInput, setShowTextInput] = useState(false);
 
   const phaseRef = useRef<CallPhase>("idle");
   const activeRef = useRef(false);
@@ -511,6 +515,17 @@ Never expose the English interpretation to the user — always reply fully in Ha
     });
   }, [killRecognition, startListening, setPhaseSync, clearTimer]);
 
+  const handleTextSubmit = useCallback(() => {
+    const text = textInput.trim();
+    if (!text || !activeRef.current) return;
+    if (phaseRef.current === "processing" || phaseRef.current === "speaking") return;
+
+    // Stop any active listening
+    killRecognition();
+    setTextInput("");
+    processUtterance(text);
+  }, [textInput, killRecognition, processUtterance]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -734,22 +749,66 @@ Never expose the English interpretation to the user — always reply fully in Ha
         )}
       </AnimatePresence>
 
+      {/* Text input fallback */}
+      <AnimatePresence>
+        {showTextInput && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="flex gap-2"
+          >
+            <input
+              type="text"
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleTextSubmit();
+              }}
+              placeholder="Type your message..."
+              disabled={isProcessing || isSpeaking}
+              className="flex-1 px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-white/40 disabled:opacity-40"
+            />
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={handleTextSubmit}
+              disabled={!textInput.trim() || isProcessing || isSpeaking}
+              className="w-12 h-12 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center disabled:opacity-30 transition-all"
+            >
+              <Send className="w-5 h-5 text-white" />
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Controls */}
-      <div className="flex items-center justify-center gap-6">
+      <div className="flex items-center justify-center gap-4">
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={toggleMute}
-          className={`w-14 h-14 rounded-full flex items-center justify-center border transition-all ${
+          className={`w-13 h-13 rounded-full flex items-center justify-center border transition-all ${
             muted
               ? "bg-red-500/20 border-red-400/30"
               : "bg-white/10 border-white/20"
           }`}
         >
           {muted ? (
-            <MicOff className="w-6 h-6 text-red-300" />
+            <MicOff className="w-5 h-5 text-red-300" />
           ) : (
-            <Mic className="w-6 h-6 text-white" />
+            <Mic className="w-5 h-5 text-white" />
           )}
+        </motion.button>
+
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setShowTextInput(!showTextInput)}
+          className={`w-13 h-13 rounded-full flex items-center justify-center border transition-all ${
+            showTextInput
+              ? "bg-white/20 border-white/40"
+              : "bg-white/10 border-white/20"
+          }`}
+        >
+          <Keyboard className="w-5 h-5 text-white" />
         </motion.button>
 
         <motion.button
@@ -764,13 +823,13 @@ Never expose the English interpretation to the user — always reply fully in Ha
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => setShowTranscript(!showTranscript)}
-          className={`w-14 h-14 rounded-full flex items-center justify-center border transition-all ${
+          className={`w-13 h-13 rounded-full flex items-center justify-center border transition-all ${
             showTranscript
               ? "bg-white/20 border-white/40"
               : "bg-white/10 border-white/20"
           }`}
         >
-          <MessageSquare className="w-6 h-6 text-white" />
+          <MessageSquare className="w-5 h-5 text-white" />
         </motion.button>
       </div>
     </div>
