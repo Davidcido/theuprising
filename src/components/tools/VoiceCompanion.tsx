@@ -141,6 +141,32 @@ Common Pidgin vocabulary and phrases:
 - School/Work: "school wahala" (school stress), "I no fit cope" (I can't cope), "exam dey worry me" (exams stress me), "oga dey stress me" (my boss is stressing me)
 
 Respond warmly in Pidgin to match the user's tone. Use Pidgin naturally — don't translate to standard English.`;
+    } else if (lang === "yo") {
+      langInstruction = `The user is speaking Yoruba. The speech transcript may be imperfect — interpret the meaning naturally even if tonal marks are missing or words are transliterated.
+
+Common Yoruba vocabulary and phrases:
+- Greetings: "bawo ni" (how are you), "e kaaro" (good morning), "e kaasan" (good afternoon), "e kaaale" (good evening), "se daadaa ni" (are you well?), "pele o" (sorry/sympathy greeting)
+- Emotions: "inu mi dun" (I'm happy), "inu mi bajẹ" (I'm sad/upset), "mo n binu" (I'm angry), "mo n bẹru" (I'm scared), "ara mi ko da" (I'm not feeling well), "okan mi ko balẹ" (my heart is unsettled/I'm anxious), "mo ti arẹ" (I'm tired), "ori mi wu mi" (I'm confused/overwhelmed), "mo ni ireti" (I have hope), "aye mi daru" (my life is troubled)
+- States: "mo wa" (I'm here), "mo dara" (I'm fine), "ko si wahala" (no problem), "mo n gbiyanju" (I'm trying), "ko le ye mi" (I can't understand), "o ti pọ ju" (it's too much), "mi o le mọ" (I can't anymore), "mo fẹ fi silẹ" (I want to give up)
+- Expressions: "Oluwa maa je" (God will provide), "a o ni ku" (we won't die/it will be okay), "e ma binu" (don't be angry), "o da mi loju" (I'm sure), "Olorun lo mọ" (only God knows), "e jọọ" (please), "mo dupẹ" (thank you), "ẹ ku isẹ" (well done), "rara" (no), "bẹẹni" (yes)
+- Actions: "mo fẹ sọrọ" (I want to talk), "gbọ mi" (listen to me), "ẹ ran mi lọwọ" (help me), "mo n ronú pupọ" (I'm overthinking), "orun ko gba mi" (I can't sleep), "mi o le jẹun" (I can't eat)
+- Relationships: "ololufe mi" (my loved one), "a n ja" (we're fighting), "o fi mi silẹ" (they left me), "idile mi ko ye mi" (my family doesn't understand me), "mo ti sùn mọlẹ" (I feel alone), "wọn n fi ipa ba mi" (they're pressuring me)
+- School/Work: "ile-iwe n da mi lamu" (school is stressing me), "idanwo n ba mi ninu jẹ" (exams are worrying me), "isẹ n pa mi" (work is killing me)
+
+Respond warmly in Yoruba to match the user's tone. Use Yoruba naturally and supportively.`;
+    } else if (lang === "ig") {
+      langInstruction = `The user is speaking Igbo. The speech transcript may be imperfect — interpret the meaning naturally even if words are transliterated or tonal marks are missing.
+
+Common Igbo vocabulary and phrases:
+- Greetings: "kedu" (how are you), "nnọọ" (welcome), "ụtụtụ ọma" (good morning), "ehihie ọma" (good afternoon), "anyasị ọma" (good evening), "i meela" (thank you/well done), "kedu ka ị mere" (how are you doing)
+- Emotions: "obi dị m ụtọ" (I'm happy), "obi na-ewu m ewu" (I'm sad), "iwe na-ewe m" (I'm angry), "ụjọ na-atụ m" (I'm scared), "ahụ adịghị m mma" (I'm not well), "obi m adịghị mma" (my heart is not well/I'm upset), "ike gwụrụ m" (I'm exhausted), "isi na-awụ m" (I'm confused), "enweghị m olileanya" (I have no hope), "ndụ siri m ike" (life is hard for me)
+- States: "a nọ m" (I'm here), "ọ dị mma" (it's fine/I'm good), "enweghi nsogbu" (no problem), "a na m agba mbọ" (I'm trying), "ọ karịrị m" (it's beyond me), "a pụghị m ịnagide" (I can't endure anymore), "achọrọ m ịhapụ" (I want to quit)
+- Expressions: "Chukwu mara" (God knows), "ọ ga-adị mma" (it will be fine), "biko" (please), "nwanne" (sibling/friend), "daalụ" (thank you), "ọ dị egwu" (it's serious), "chineke m" (my God - exclamation), "ewoo" (exclamation of distress), "ndo" (sorry/sympathy)
+- Actions: "achọrọ m ịkọrọ gị" (I want to tell you), "gee m ntị" (listen to me), "nyere m aka" (help me), "a na m eche echiche ọtụtụ" (I'm overthinking), "ụra adịghị abịa m" (I can't sleep), "apụghị m iri nri" (I can't eat)
+- Relationships: "onye m hụrụ n'anya" (my loved one), "anyị na-alụ ọgụ" (we're fighting), "o hapụrụ m" (they left me), "ezinụlọ m aghọtaghị m" (my family doesn't understand me), "a nọ m naanị m" (I'm alone), "ha na-abọ m" (they're pressuring me)
+- School/Work: "akwụkwọ na-enye m nsogbu" (school is giving me problems), "ule na-enye m nchegbu" (exams are worrying me), "ọrụ na-egbu m" (work is killing me)
+
+Respond warmly in Igbo to match the user's tone. Use Igbo naturally and supportively.`;
     } else if (lang !== "en") {
       langInstruction = `The user is speaking in ${langInfo?.label}. Respond in the same language.`;
     }
