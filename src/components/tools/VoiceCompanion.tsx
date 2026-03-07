@@ -465,8 +465,8 @@ Never expose the English interpretation to the user — always reply fully in Ha
       window.speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.95;
-      utterance.pitch = 1.0;
+      utterance.rate = 0.9;
+      utterance.pitch = 1.1;
       utterance.volume = 1.0;
       utterance.voice = voice;
 
