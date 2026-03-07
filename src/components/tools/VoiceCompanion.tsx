@@ -27,7 +27,6 @@ const modes = [
 ];
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
-const TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/voice-tts`;
 
 type TranscriptEntry = { role: "user" | "assistant"; text: string };
 
