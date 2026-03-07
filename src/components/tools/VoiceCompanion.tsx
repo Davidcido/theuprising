@@ -545,32 +545,41 @@ Never expose the English interpretation to the user — always reply fully in Ha
     setCurrentPartial("");
     setPhaseSync("processing");
     setTranscript((prev) => [...prev, { role: "user", text: userText }]);
+    console.log("[Voice] Processing utterance:", userText);
 
+    let aiResponse = "";
     try {
-      const aiResponse = await getAIResponse(userText);
-      if (!activeRef.current) return;
-
-      setTranscript((prev) => [...prev, { role: "assistant", text: aiResponse }]);
-
-      await speakText(aiResponse);
+      aiResponse = await getAIResponse(userText);
     } catch (err) {
-      console.error("Voice flow error:", err);
-      // Speak the error instead of just toasting
-      const errorMsg = "I couldn't process that. Let's try again.";
-      setTranscript((prev) => [...prev, { role: "assistant", text: errorMsg }]);
-      try {
-        await speakText(errorMsg);
-      } catch {
-        toast.error("I couldn't process that. Let's try again. 💚");
-      }
+      console.error("[Voice] AI response error:", err);
     }
 
     if (!activeRef.current) return;
 
+    // Guarantee an AI response — use fallback if empty
+    if (!aiResponse || aiResponse.trim().length === 0) {
+      aiResponse = "I hear you. Could you tell me a bit more about how you're feeling?";
+      console.warn("[Voice] Using fallback AI response");
+      conversationRef.current.push({ role: "assistant", content: aiResponse });
+    }
+
+    setTranscript((prev) => [...prev, { role: "assistant", text: aiResponse }]);
+    console.log("[Voice] Speaking AI response");
+
+    try {
+      await speakText(aiResponse);
+    } catch (err) {
+      console.error("[Voice] TTS failed for AI response:", err);
+    }
+
+    if (!activeRef.current) return;
+
+    // Always return to listening after speaking
     setPhaseSync("cooldown");
     clearTimer();
     timerRef.current = setTimeout(() => {
       if (activeRef.current && !mutedRef.current) {
+        console.log("[Voice] Returning to listening mode");
         startListeningRef.current?.();
       }
     }, 700);
