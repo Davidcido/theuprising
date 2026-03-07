@@ -498,7 +498,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
         if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
       }, 500);
     }
-  }, [killRecognition, setPhaseSync, clearTimer]);
+  }, [killRecognition, setPhaseSync, clearTimer, speakText]);
 
   // Process a complete utterance through AI + TTS pipeline
   const processUtterance = useCallback(async (userText: string) => {
