@@ -440,12 +440,15 @@ Never expose the English interpretation to the user — always reply fully in Ha
     recognition.maxAlternatives = 1;
 
     let finalText = "";
+    let lastInterim = "";
 
     recognition.onstart = () => {
       clearTimer();
       setPhaseSync("listening");
       setCurrentPartial("");
-      // Reset empty retry counter when recognition starts fresh
+      finalText = "";
+      lastInterim = "";
+      console.log("[Voice] Recognition started, listening...");
     };
 
     recognition.onresult = (event: any) => {
@@ -461,6 +464,8 @@ Never expose the English interpretation to the user — always reply fully in Ha
           interim += result[0].transcript;
         }
       }
+      // Keep track of last interim as fallback
+      if (interim) lastInterim = interim;
       setCurrentPartial(interim || finalText);
     };
 
@@ -468,35 +473,46 @@ Never expose the English interpretation to the user — always reply fully in Ha
       recognitionRef.current = null;
 
       if (!activeRef.current) return;
-      if (phaseRef.current !== "listening") return;
 
-      const userText = finalText.trim();
-      // Ignore very short transcripts (likely noise)
+      // Use finalText, or fall back to lastInterim if no final was produced
+      let userText = finalText.trim();
+      if (!userText && lastInterim.trim().length >= 2) {
+        userText = lastInterim.trim();
+        console.log("[Voice] No final transcript, using interim:", userText);
+      }
+
+      console.log("[Voice] Recognition ended. Phase:", phaseRef.current, "Transcript:", JSON.stringify(userText));
+
+      // Process transcript regardless of current phase (as long as call is active)
       if (userText.length >= 2) {
         emptyRetryRef.current = 0;
-        processUtteranceRef.current?.(userText);
-      } else if (emptyRetryRef.current < 1) {
-        // First empty result — retry silently
-        emptyRetryRef.current++;
-        setPhaseSync("cooldown");
-        clearTimer();
-        timerRef.current = setTimeout(() => {
-          if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
-        }, 500);
-      } else {
-        // Second empty result — speak a friendly prompt
-        emptyRetryRef.current = 0;
-        const retryMsg = "I didn't quite catch that. Could you say it again?";
-        setTranscript((prev) => [...prev, { role: "assistant", text: retryMsg }]);
+        // Force phase to processing to avoid any guard issues
         setPhaseSync("processing");
-        speakText(retryMsg).then(() => {
-          if (!activeRef.current) return;
+        processUtteranceRef.current?.(userText);
+      } else if (phaseRef.current === "listening" || phaseRef.current === "cooldown" || phaseRef.current === "idle") {
+        // Empty/short transcript handling
+        if (emptyRetryRef.current < 1) {
+          emptyRetryRef.current++;
+          console.log("[Voice] Empty transcript, retrying...");
           setPhaseSync("cooldown");
           clearTimer();
           timerRef.current = setTimeout(() => {
             if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
-          }, 700);
-        });
+          }, 500);
+        } else {
+          emptyRetryRef.current = 0;
+          const retryMsg = "I didn't quite catch that. Could you say it again?";
+          setTranscript((prev) => [...prev, { role: "assistant", text: retryMsg }]);
+          setPhaseSync("processing");
+          speakText(retryMsg).then(() => {
+            if (!activeRef.current) return;
+            setPhaseSync("cooldown");
+            clearTimer();
+            timerRef.current = setTimeout(() => {
+              if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
+            }, 700);
+          });
+        }
       }
     };
 
