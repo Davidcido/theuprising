@@ -44,6 +44,8 @@ const VoiceCompanion = () => {
   const [currentPartial, setCurrentPartial] = useState("");
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [textInput, setTextInput] = useState("");
+  const [showTextInput, setShowTextInput] = useState(false);
 
   const phaseRef = useRef<CallPhase>("idle");
   const activeRef = useRef(false);
