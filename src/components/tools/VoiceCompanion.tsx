@@ -127,8 +127,12 @@ const VoiceCompanion = () => {
     const modeHint = mode === "vent" ? "vent" : mode === "calm" ? "calm" : undefined;
 
     const langInfo = languages.find((l) => l.code === lang);
-    const langInstruction =
-      lang !== "en" ? `The user is speaking in ${langInfo?.label}. Respond in the same language.` : "";
+    let langInstruction = "";
+    if (lang === "pcm") {
+      langInstruction = `The user is speaking Nigerian Pidgin English. The speech transcript may be imperfect — interpret the meaning naturally. Common Pidgin patterns include: "how far" (how are you), "I dey" (I am/I'm here), "wetin dey happen" (what's happening), "no wahala" (no problem), "I no too good today" (I'm not feeling well), "abeg" (please), "na so" (that's how it is), "e don tey" (it's been a while), "I wan yarn" (I want to talk). Respond warmly in Pidgin to match the user's tone.`;
+    } else if (lang !== "en") {
+      langInstruction = `The user is speaking in ${langInfo?.label}. Respond in the same language.`;
+    }
 
     const messagesForAPI = [
       ...(langInstruction ? [{ role: "user" as const, content: `[System note: ${langInstruction}]` }] : []),
@@ -258,8 +262,10 @@ const VoiceCompanion = () => {
     }
 
     const recognition = new SpeechRecognition();
-    const langInfo = languages.find((l) => l.code === selectedLangRef.current);
-    recognition.lang = langInfo?.speechCode || "en-US";
+    const currentLang = selectedLangRef.current;
+    // Nigerian Pidgin has no browser speech support — use Nigerian English instead
+    const speechLang = currentLang === "pcm" ? "en-NG" : (languages.find((l) => l.code === currentLang)?.speechCode || "en-US");
+    recognition.lang = speechLang;
     recognition.continuous = false;    // Single utterance — prevents loop issues
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
