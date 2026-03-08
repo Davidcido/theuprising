@@ -15,6 +15,7 @@ import Admin from "./pages/Admin";
 import ResetPassword from "./pages/ResetPassword";
 import Profile from "./pages/Profile";
 import Messages from "./pages/Messages";
+import Explore from "./pages/Explore";
 import Bookmarks from "./pages/Bookmarks";
 import Drafts from "./pages/Drafts";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
