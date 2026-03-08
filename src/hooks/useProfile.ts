@@ -10,6 +10,7 @@ export type Profile = {
   avatar_url: string | null;
   cover_photo: string | null;
   online_status: string;
+  last_seen_at: string | null;
   created_at: string;
   updated_at: string;
 };
