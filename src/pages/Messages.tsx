@@ -437,7 +437,10 @@ const Messages = () => {
               <>
                 <input
                   value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
+                  onChange={(e) => {
+                    setNewMessage(e.target.value);
+                    if (e.target.value.trim()) sendTyping(displayName);
+                  }}
                   onKeyDown={handleKeyDown}
                   placeholder="Type a message..."
                   className="flex-1 rounded-xl bg-white/10 border border-white/15 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
