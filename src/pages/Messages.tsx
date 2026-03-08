@@ -215,6 +215,45 @@ const Messages = () => {
     toast({ title: "User reported" });
   };
 
+  // Selection mode handlers
+  const enterSelectionMode = (msgId: string) => {
+    setSelectionMode(true);
+    setSelectedMsgIds(new Set([msgId]));
+  };
+
+  const toggleSelectMsg = (msgId: string) => {
+    setSelectedMsgIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(msgId)) next.delete(msgId);
+      else next.add(msgId);
+      if (next.size === 0) setSelectionMode(false);
+      return next;
+    });
+  };
+
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedMsgIds(new Set());
+  };
+
+  const copySelectedMessages = async () => {
+    const selected = messages
+      .filter((m) => selectedMsgIds.has(m.id))
+      .map((m) => {
+        const senderName = m.sender_id === userId ? "You" : (currentConv?.other_user?.display_name || "User");
+        const anyM = m as any;
+        if (anyM.deleted_for_everyone) return `${senderName}: [deleted]`;
+        return `${senderName}: ${m.content}`;
+      });
+    try {
+      await navigator.clipboard.writeText(selected.join("\n"));
+      toast({ title: `${selected.length} message${selected.length > 1 ? "s" : ""} copied` });
+    } catch {
+      toast({ title: "Failed to copy", variant: "destructive" });
+    }
+    exitSelectionMode();
+  };
+
   // Conversation list view
   if (!conversationId) {
     return (
