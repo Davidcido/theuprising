@@ -47,6 +47,7 @@ const Messages = () => {
   const { callState, incomingCall, activeCallType, localMediaStream, remoteMediaStream, startCall, acceptCall, rejectCall, endCall } = useCallSignaling(userId);
   const { isBlocked, blockUser, unblockUser } = useBlocks(userId);
   const { isOtherTyping, typingUserName, sendTyping } = useTypingIndicator(conversationId, userId);
+  const { toggleReaction, getGroupedReactions } = useMessageReactions(conversationId, userId);
   const [displayName, setDisplayName] = useState<string>();
 
   useEffect(() => {
