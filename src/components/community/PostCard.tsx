@@ -296,6 +296,9 @@ const PostCard = ({
                   onUpdate={(commentId, newContent) => onCommentUpdate(post.id, commentId, newContent)}
                   onReply={onAddReply}
                   allComments={postComments}
+                  commentReactionCounts={commentReactionCounts}
+                  myCommentReactions={myCommentReactions}
+                  onToggleCommentReaction={onToggleCommentReaction}
                 />
               ))}
               {postComments.length === 0 && (
