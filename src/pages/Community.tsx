@@ -8,6 +8,7 @@ import { formatDistanceToNow } from "date-fns";
 
 type Comment = {
   id: string;
+  post_id: string;
   content: string;
   anonymous_name: string;
   created_at: string;
