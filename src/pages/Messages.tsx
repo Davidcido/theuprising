@@ -399,6 +399,15 @@ const Messages = () => {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Typing indicator */}
+      {isOtherTyping && (
+        <div className="px-4 py-1.5">
+          <span className="text-xs text-emerald-400/80 italic animate-pulse">
+            {typingUserName || "User"} is typing…
+          </span>
+        </div>
+      )}
+
       {/* Input */}
       <div className="sticky bottom-0 border-t border-white/10 backdrop-blur-xl px-4 py-3" style={{ background: "rgba(15, 81, 50, 0.8)" }}>
         {isOtherBlocked ? (
