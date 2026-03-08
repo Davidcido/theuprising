@@ -296,7 +296,7 @@ const Community = () => {
   useEffect(() => {
     const newPostIds = visiblePosts
       .map(p => p.id)
-      .filter(id => !viewedPostsRef.current.has(id));
+      .filter(id => !id.startsWith("repost-") && !viewedPostsRef.current.has(id));
     if (newPostIds.length === 0) return;
     newPostIds.forEach(id => viewedPostsRef.current.add(id));
     newPostIds.forEach(id => {
