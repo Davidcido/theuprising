@@ -95,7 +95,7 @@ const Vision = () => {
             }}
           >
             <h2 className="text-3xl md:text-4xl font-display font-bold text-white mb-4">
-              This Is Your Movement
+              This Is Our Movement
             </h2>
             <p className="text-white/60 mb-8 max-w-lg mx-auto">
               The Uprising is built by young people, for young people. Your voice matters. Your feelings matter. You matter.
