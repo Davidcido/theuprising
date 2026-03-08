@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Heart, MessageCircle, Sparkles, Users, ArrowRight } from "lucide-react";
+import { Heart, MessageCircle, Sparkles, Users, ArrowRight, Bot, Globe, HandHeart, Sun } from "lucide-react";
 import { Link } from "react-router-dom";
 import uprisingLogo from "@/assets/uprising-logo.jpeg";
 import instagramIcon from "@/assets/instagram-icon.png";
