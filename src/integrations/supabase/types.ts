@@ -38,6 +38,35 @@ export type Database = {
         }
         Relationships: []
       }
+      bookmarks: {
+        Row: {
+          created_at: string
+          id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookmarks_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "community_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_signals: {
         Row: {
           call_type: string
@@ -587,6 +616,60 @@ export type Database = {
         }
         Relationships: []
       }
+      post_drafts: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          is_anonymous: boolean
+          media_urls: string[] | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          id?: string
+          is_anonymous?: boolean
+          media_urls?: string[] | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          is_anonymous?: boolean
+          media_urls?: string[] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profile_views: {
+        Row: {
+          id: string
+          profile_user_id: string
+          viewed_at: string
+          viewer_id: string | null
+          viewer_session_id: string | null
+        }
+        Insert: {
+          id?: string
+          profile_user_id: string
+          viewed_at?: string
+          viewer_id?: string | null
+          viewer_session_id?: string | null
+        }
+        Update: {
+          id?: string
+          profile_user_id?: string
+          viewed_at?: string
+          viewer_id?: string | null
+          viewer_session_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -598,6 +681,7 @@ export type Database = {
           id: string
           last_seen_at: string | null
           online_status: string
+          pinned_post_id: string | null
           updated_at: string
           user_id: string
         }
@@ -611,6 +695,7 @@ export type Database = {
           id?: string
           last_seen_at?: string | null
           online_status?: string
+          pinned_post_id?: string | null
           updated_at?: string
           user_id: string
         }
@@ -624,10 +709,19 @@ export type Database = {
           id?: string
           last_seen_at?: string | null
           online_status?: string
+          pinned_post_id?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_pinned_post_id_fkey"
+            columns: ["pinned_post_id"]
+            isOneToOne: false
+            referencedRelation: "community_posts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       push_subscriptions: {
         Row: {
