@@ -218,7 +218,7 @@ const Community = () => {
     if (!text) return;
     const { error } = await supabase.from("community_comments").insert({
       post_id: postId,
-      content: text.slice(0, 2000),
+      content: text.slice(0, 5000),
       anonymous_name: sessionId,
     });
     if (!error) {
