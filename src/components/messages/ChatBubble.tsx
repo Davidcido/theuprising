@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { Play, Pause, CornerDownRight } from "lucide-react";
+import { Play, Pause, CornerDownRight, Pencil, Trash2, EyeOff } from "lucide-react";
 import type { DirectMessage } from "@/hooks/useConversations";
 
 type Props = {
@@ -9,9 +9,14 @@ type Props = {
   replyMessage?: DirectMessage | null;
   onSwipeReply: (msg: DirectMessage) => void;
   onScrollToMessage?: (id: string) => void;
+  onEditMessage?: (msg: DirectMessage) => void;
+  onDeleteForMe?: (msg: DirectMessage) => void;
+  onDeleteForEveryone?: (msg: DirectMessage) => void;
 };
 
-const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage }: Props) => {
+const EDIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
+const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage, onEditMessage, onDeleteForMe, onDeleteForEveryone }: Props) => {
   const msgAny = msg as any;
   const touchStartX = useRef(0);
   const dragStartX = useRef(0);
@@ -19,18 +24,42 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioDuration, setAudioDuration] = useState<string>("");
   const [audioProgress, setAudioProgress] = useState(0);
+  const [showMenu, setShowMenu] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const animRef = useRef<number>(0);
+  const longPressRef = useRef<NodeJS.Timeout | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const isDeletedForEveryone = msgAny.deleted_for_everyone === true;
+  const isEdited = !!msgAny.edited_at;
+  const canEdit = isMine && !isDeletedForEveryone && !msgAny.attachment_url && (Date.now() - new Date(msg.created_at).getTime()) < EDIT_WINDOW_MS;
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!showMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showMenu]);
 
   // Touch handlers for swipe-to-reply
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
+    if (isMine && !isDeletedForEveryone) {
+      longPressRef.current = setTimeout(() => setShowMenu(true), 500);
+    }
   };
   const handleTouchMove = (e: React.TouchEvent) => {
+    if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
     const diff = e.touches[0].clientX - touchStartX.current;
     if (diff > 0) setOffsetX(Math.min(diff, 80));
   };
   const handleTouchEnd = () => {
+    if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
     if (offsetX > 50) onSwipeReply(msg);
     setOffsetX(0);
   };
@@ -50,6 +79,14 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
+  };
+
+  // Right-click context menu for own messages
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if (isMine && !isDeletedForEveryone) {
+      e.preventDefault();
+      setShowMenu(true);
+    }
   };
 
   const updateProgress = () => {
@@ -91,13 +128,30 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
     setAudioProgress(0);
   };
 
+  // Deleted for everyone placeholder
+  if (isDeletedForEveryone) {
+    return (
+      <div className={`flex ${isMine ? "justify-end" : "justify-start"}`} id={`msg-${msg.id}`}>
+        <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm italic ${
+          isMine ? "bg-emerald-600/20 text-white/40 rounded-br-md" : "bg-white/5 text-white/40 rounded-bl-md"
+        }`}>
+          <p>🚫 This message was deleted</p>
+          <p className={`text-[10px] mt-1 ${isMine ? "text-white/20" : "text-muted-foreground/40"}`}>
+            {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className={`flex ${isMine ? "justify-end" : "justify-start"} select-none`}
+      className={`flex ${isMine ? "justify-end" : "justify-start"} select-none relative`}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onMouseDown={handleMouseDown}
+      onContextMenu={handleContextMenu}
       style={{ transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? "transform 0.2s" : "none" }}
       id={`msg-${msg.id}`}
     >
@@ -107,12 +161,43 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
         </div>
       )}
       <div
-        className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm ${
+        className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm relative ${
           isMine
             ? "bg-emerald-600/40 text-white rounded-br-md"
             : "bg-white/10 text-foreground rounded-bl-md"
         }`}
       >
+        {/* Context menu */}
+        {showMenu && (
+          <div
+            ref={menuRef}
+            className="absolute z-50 bottom-full mb-1 right-0 bg-[#0F5132] border border-white/15 rounded-xl shadow-xl overflow-hidden min-w-[170px]"
+          >
+            {canEdit && (
+              <button
+                onClick={() => { setShowMenu(false); onEditMessage?.(msg); }}
+                className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-white/80 hover:bg-white/10 transition-colors"
+              >
+                <Pencil className="w-3.5 h-3.5" /> Edit message
+              </button>
+            )}
+            <button
+              onClick={() => { setShowMenu(false); onDeleteForMe?.(msg); }}
+              className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-yellow-400 hover:bg-white/10 transition-colors"
+            >
+              <EyeOff className="w-3.5 h-3.5" /> Delete for me
+            </button>
+            {isMine && (
+              <button
+                onClick={() => { setShowMenu(false); onDeleteForEveryone?.(msg); }}
+                className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-red-400 hover:bg-white/10 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete for everyone
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Reply preview */}
         {replyMessage && (
           <button
@@ -169,9 +254,14 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
         {!(msgAny.attachment_url && (msg.content === "📷 Image" || msg.content === "🎤 Voice note")) && (
           <p className="whitespace-pre-wrap break-words">{msg.content}</p>
         )}
-        <p className={`text-[10px] mt-1 ${isMine ? "text-white/40" : "text-muted-foreground/60"}`}>
-          {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
-        </p>
+        <div className={`flex items-center gap-1.5 mt-1`}>
+          {isEdited && (
+            <span className={`text-[10px] italic ${isMine ? "text-white/30" : "text-muted-foreground/50"}`}>(edited)</span>
+          )}
+          <p className={`text-[10px] ${isMine ? "text-white/40" : "text-muted-foreground/60"}`}>
+            {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -20,6 +20,8 @@ export type DirectMessage = {
   attachment_url?: string | null;
   attachment_type?: string | null;
   reply_to_message_id?: string | null;
+  edited_at?: string | null;
+  deleted_for_everyone?: boolean;
 };
 
 export const useConversations = (userId?: string) => {
@@ -122,6 +124,7 @@ export const useConversations = (userId?: string) => {
 
 export const useMessages = (conversationId?: string, userId?: string) => {
   const [messages, setMessages] = useState<DirectMessage[]>([]);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   // Mark all unread messages in this conversation as read
@@ -135,6 +138,18 @@ export const useMessages = (conversationId?: string, userId?: string) => {
       .neq("sender_id", userId);
   }, [conversationId, userId]);
 
+  // Fetch hidden message IDs for the current user
+  const fetchHiddenIds = useCallback(async () => {
+    if (!userId || !conversationId) return;
+    const { data } = await supabase
+      .from("message_hidden_for_user")
+      .select("message_id")
+      .eq("user_id", userId);
+    if (data) {
+      setHiddenIds(new Set(data.map((r: any) => r.message_id)));
+    }
+  }, [userId, conversationId]);
+
   const fetchMessages = useCallback(async () => {
     if (!conversationId) { setLoading(false); return; }
     const { data } = await supabase
@@ -146,8 +161,8 @@ export const useMessages = (conversationId?: string, userId?: string) => {
     setLoading(false);
   }, [conversationId]);
 
-  // Mark as read on mount and when conversationId changes
   useEffect(() => {
+    fetchHiddenIds();
     fetchMessages().then(() => markAsRead());
     if (!conversationId) return;
 
@@ -161,19 +176,26 @@ export const useMessages = (conversationId?: string, userId?: string) => {
       }, (payload) => {
         const newMsg = payload.new as DirectMessage;
         setMessages((prev) => {
-          // Prevent duplicate from realtime
           if (prev.some((m) => m.id === newMsg.id)) return prev;
           return [...prev, newMsg];
         });
-        // Immediately mark incoming messages as read since conversation is open
         if (userId && newMsg.sender_id !== userId) {
           supabase.from("direct_messages").update({ read: true }).eq("id", newMsg.id).then(() => {});
         }
       })
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "direct_messages",
+        filter: `conversation_id=eq.${conversationId}`,
+      }, (payload) => {
+        const updated = payload.new as DirectMessage;
+        setMessages((prev) => prev.map((m) => m.id === updated.id ? updated : m));
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [fetchMessages, conversationId, userId, markAsRead]);
+  }, [fetchMessages, fetchHiddenIds, conversationId, userId, markAsRead]);
 
   const sendMessage = async (content: string) => {
     if (!conversationId || !userId || !content.trim()) return;
@@ -183,9 +205,32 @@ export const useMessages = (conversationId?: string, userId?: string) => {
       content: content.trim(),
     });
     await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
-    // Mark all as read after sending a reply
     await markAsRead();
   };
 
-  return { messages, loading, sendMessage, markAsRead };
+  const editMessage = async (messageId: string, newContent: string) => {
+    if (!newContent.trim()) return;
+    await supabase
+      .from("direct_messages")
+      .update({ content: newContent.trim(), edited_at: new Date().toISOString() } as any)
+      .eq("id", messageId);
+  };
+
+  const deleteForMe = async (messageId: string) => {
+    if (!userId) return;
+    await supabase.from("message_hidden_for_user").insert({ message_id: messageId, user_id: userId } as any);
+    setHiddenIds((prev) => new Set(prev).add(messageId));
+  };
+
+  const deleteForEveryone = async (messageId: string) => {
+    await supabase
+      .from("direct_messages")
+      .update({ deleted_for_everyone: true, content: "" } as any)
+      .eq("id", messageId);
+  };
+
+  // Filter out hidden messages
+  const visibleMessages = messages.filter((m) => !hiddenIds.has(m.id));
+
+  return { messages: visibleMessages, loading, sendMessage, markAsRead, editMessage, deleteForMe, deleteForEveryone };
 };
