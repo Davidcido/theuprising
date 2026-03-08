@@ -423,11 +423,29 @@ const Community = () => {
                   >
                     {/* Post header */}
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="w-9 h-9 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xs font-bold">
-                        {post.anonymous_name.slice(0, 2)}
+                      <div
+                        className={`w-9 h-9 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xs font-bold ${!post.is_anonymous && post.author_id ? "cursor-pointer hover:ring-2 hover:ring-emerald-400/40" : ""}`}
+                        onClick={() => { if (!post.is_anonymous && post.author_id) navigate(`/profile/${post.author_id}`); }}
+                      >
+                        {post.author_profile?.avatar_url?.startsWith("emoji:")
+                          ? <span className="text-lg">{post.author_profile.avatar_url.replace("emoji:", "")}</span>
+                          : post.author_profile?.avatar_url
+                            ? <img src={post.author_profile.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                            : post.anonymous_name.slice(0, 2)
+                        }
                       </div>
                       <div>
-                        <span className="text-sm font-semibold text-foreground">{post.anonymous_name}</span>
+                        <span
+                          className={`text-sm font-semibold text-foreground ${!post.is_anonymous && post.author_id ? "cursor-pointer hover:underline" : ""}`}
+                          onClick={() => { if (!post.is_anonymous && post.author_id) navigate(`/profile/${post.author_id}`); }}
+                        >
+                          {!post.is_anonymous && post.author_profile?.display_name
+                            ? post.author_profile.display_name
+                            : post.anonymous_name}
+                        </span>
+                        {post.is_anonymous && (
+                          <span className="ml-1.5 text-[10px] text-muted-foreground/60 bg-white/5 px-1.5 py-0.5 rounded-full">anon</span>
+                        )}
                         <span className="text-xs text-muted-foreground ml-2">· {formatTime(post.created_at)}</span>
                       </div>
                     </div>
