@@ -11,11 +11,14 @@ import PostsTab from "@/components/admin/PostsTab";
 import CommentsTab from "@/components/admin/CommentsTab";
 import ReportsTab from "@/components/admin/ReportsTab";
 import BansTab from "@/components/admin/BansTab";
+import LoginsTab from "@/components/admin/LoginsTab";
+import { supabase } from "@/integrations/supabase/client";
 
 const Admin = () => {
   const { isAuthenticated, isAdmin, loading, error: authError, login, logout } = useAdminAuth();
   const {
     posts, comments, reports, bannedUsers, communityStatus, totalLikes,
+    loginSessions, loginsToday,
     dataLoading, dataError,
     fetchAllData, deletePost, deleteComment, updateReportStatus,
     banUser, unbanUser, toggleCommunityStatus,
@@ -23,6 +26,18 @@ const Admin = () => {
 
   useEffect(() => {
     if (isAdmin) fetchAllData();
+  }, [isAdmin, fetchAllData]);
+
+  // Realtime subscription for login_sessions
+  useEffect(() => {
+    if (!isAdmin) return;
+    const channel = supabase
+      .channel("admin-login-sessions")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "login_sessions" }, () => {
+        fetchAllData();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [isAdmin, fetchAllData]);
 
   if (loading) {
@@ -92,6 +107,8 @@ const Admin = () => {
               pendingReportsCount={reports.filter(r => r.status === "pending").length}
               bannedCount={bannedUsers.length}
               totalLikes={totalLikes}
+              totalLogins={loginSessions.length}
+              loginsToday={loginsToday}
             />
 
             <CommunityControl communityStatus={communityStatus} onToggle={toggleCommunityStatus} />
@@ -102,12 +119,14 @@ const Admin = () => {
                 <TabsTrigger value="comments" className="data-[state=active]:bg-emerald-700 text-emerald-300">Comments</TabsTrigger>
                 <TabsTrigger value="reports" className="data-[state=active]:bg-emerald-700 text-emerald-300">Reports</TabsTrigger>
                 <TabsTrigger value="bans" className="data-[state=active]:bg-emerald-700 text-emerald-300">Bans</TabsTrigger>
+                <TabsTrigger value="logins" className="data-[state=active]:bg-emerald-700 text-emerald-300">Logins</TabsTrigger>
               </TabsList>
 
               <TabsContent value="posts"><PostsTab posts={posts} onDelete={deletePost} /></TabsContent>
               <TabsContent value="comments"><CommentsTab comments={comments} onDelete={deleteComment} /></TabsContent>
               <TabsContent value="reports"><ReportsTab reports={reports} onUpdateStatus={updateReportStatus} /></TabsContent>
               <TabsContent value="bans"><BansTab bannedUsers={bannedUsers} onBan={banUser} onUnban={unbanUser} /></TabsContent>
+              <TabsContent value="logins"><LoginsTab logins={loginSessions} loginsToday={loginsToday} /></TabsContent>
             </Tabs>
           </>
         )}
