@@ -52,10 +52,13 @@ const EmojiPicker = ({ onSelect, className = "" }: EmojiPickerProps) => {
                     className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-0 bg-background/95 backdrop-blur-sm"
                     {...props}
                   >
-                    {category}
+                    {category.label}
                   </div>
                 ),
-                EmojiButton: ({ emoji, ...props }) => (
+                Row: (props) => (
+                  <div className="flex gap-0.5" {...props} />
+                ),
+                Emoji: ({ emoji, ...props }) => (
                   <button
                     className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-white/10 transition-colors text-xl cursor-pointer"
                     {...props}
