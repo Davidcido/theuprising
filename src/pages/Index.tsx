@@ -168,7 +168,7 @@ const Index = () => {
               Stay connected with the Uprising community outside the platform. Follow us on social media for daily encouragement, updates, and stories from the community.
             </p>
 
-            <div className="flex justify-center gap-8">
+            <div className="flex justify-center gap-10 mb-8">
               <a
                 href="https://www.instagram.com/p/DVMXGIfDHo6/?igsh=eGM1dmV1emwzdzB4"
                 target="_blank"
@@ -176,10 +176,10 @@ const Index = () => {
                 className="group flex flex-col items-center gap-3"
               >
                 <div
-                  className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:shadow-[0_0_30px_-5px_hsl(155_60%_38%/0.5)]"
-                  style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05))" }}
+                  className="w-20 h-20 rounded-3xl flex items-center justify-center shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:shadow-[0_0_30px_-5px_hsl(155_60%_38%/0.5)] border border-white/15"
+                  style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04))" }}
                 >
-                  📸
+                  <img src={instagramIcon} alt="Instagram" className="w-11 h-11 object-contain" />
                 </div>
                 <span className="text-sm font-medium text-white/70 group-hover:text-white transition-colors">Instagram</span>
               </a>
@@ -191,14 +191,18 @@ const Index = () => {
                 className="group flex flex-col items-center gap-3"
               >
                 <div
-                  className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:shadow-[0_0_30px_-5px_hsl(155_60%_38%/0.5)]"
-                  style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05))" }}
+                  className="w-20 h-20 rounded-3xl flex items-center justify-center shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:shadow-[0_0_30px_-5px_hsl(155_60%_38%/0.5)] border border-white/15"
+                  style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04))" }}
                 >
-                  👻
+                  <img src={snapchatIcon} alt="Snapchat" className="w-11 h-11 object-contain" />
                 </div>
                 <span className="text-sm font-medium text-white/70 group-hover:text-white transition-colors">Snapchat</span>
               </a>
             </div>
+
+            <p className="text-white/50 text-sm">
+              Tag us and share your story with the community 💚
+            </p>
           </motion.div>
         </div>
       </section>
