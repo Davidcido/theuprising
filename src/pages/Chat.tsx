@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Send } from "lucide-react";
+import { Send, Brain } from "lucide-react";
 import EmojiPicker from "@/components/EmojiPicker";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
