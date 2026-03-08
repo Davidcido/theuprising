@@ -63,6 +63,9 @@ const Community = () => {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
+  const { isBookmarked, toggleBookmark } = useBookmarks(currentUser?.id);
+  const { saveDraft } = useDrafts(currentUser?.id);
+
   const sessionId = getSessionId();
 
   useEffect(() => {
