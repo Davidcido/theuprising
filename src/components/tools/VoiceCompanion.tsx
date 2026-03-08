@@ -34,22 +34,46 @@ const modes = [
   { id: "calm", label: "Calm Mode", desc: "Breathing & grounding exercises" },
 ];
 
-const OPENAI_VOICES = [
-  { id: "nova", label: "Nova", desc: "Female warm voice" },
-  { id: "alloy", label: "Alloy", desc: "Neutral assistant voice" },
-  { id: "echo", label: "Echo", desc: "Male clear voice" },
-  { id: "onyx", label: "Onyx", desc: "Deep male voice" },
-  { id: "fable", label: "Fable", desc: "British accent" },
-  { id: "shimmer", label: "Shimmer", desc: "Soft female voice" },
-];
-
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
-const TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tts`;
 
 type TranscriptEntry = { role: "user" | "assistant"; text: string };
-
-// Strict state machine: IDLE -> LISTENING -> PROCESSING -> SPEAKING -> LISTENING
 type CallPhase = "idle" | "listening" | "processing" | "speaking";
+
+/* ── Voice helpers ── */
+
+function getVoiceLabel(v: SpeechSynthesisVoice): string {
+  // Extract accent/region from lang code
+  const langParts = v.lang.split("-");
+  const regionCode = langParts[1] || "";
+  const regionMap: Record<string, string> = {
+    US: "United States", GB: "United Kingdom", UK: "United Kingdom",
+    AU: "Australia", CA: "Canada", IN: "India", IE: "Ireland",
+    NZ: "New Zealand", ZA: "South Africa", SG: "Singapore",
+    NG: "Nigeria", PH: "Philippines", HK: "Hong Kong",
+  };
+  const accent = regionMap[regionCode.toUpperCase()] || regionCode;
+  const langName = langParts[0] === "en" ? "English" : v.lang;
+  return `${v.name} — ${langName}${accent ? ` — ${accent}` : ""}`;
+}
+
+function voicePriority(v: SpeechSynthesisVoice): number {
+  const name = v.name.toLowerCase();
+  if (name.includes("google")) return 0;
+  if (name.includes("microsoft")) return 1;
+  if (name.includes("neural") || name.includes("natural")) return 2;
+  if (v.lang.startsWith("en")) return 3;
+  return 4;
+}
+
+function sortVoices(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice[] {
+  return [...voices].sort((a, b) => voicePriority(a) - voicePriority(b));
+}
+
+function pickBestEnglishVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+  const english = voices.filter((v) => v.lang.startsWith("en"));
+  if (english.length === 0) return voices[0] || null;
+  return sortVoices(english)[0];
+}
 
 const VoiceCompanion = () => {
   const [callActive, setCallActive] = useState(false);
@@ -63,26 +87,28 @@ const VoiceCompanion = () => {
   const [audioLevel, setAudioLevel] = useState(0);
   const [textInput, setTextInput] = useState("");
   const [showTextInput, setShowTextInput] = useState(false);
-  const [selectedVoice, setSelectedVoice] = useState("nova");
+
+  // Browser voices
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState<string>("");
+  const userPickedVoiceRef = useRef(false);
 
   const phaseRef = useRef<CallPhase>("idle");
   const activeRef = useRef(false);
   const mutedRef = useRef(false);
   const recognitionRef = useRef<any>(null);
-  const recognitionBusyRef = useRef(false); // prevents overlapping recognition sessions
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const recognitionBusyRef = useRef(false);
   const conversationRef = useRef<{ role: string; content: string }[]>([]);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null); // stored for cleanup
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const animFrameRef = useRef<number>(0);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const emptyRetryRef = useRef(0);
-  const listenCycleRef = useRef(0); // increments each cycle to invalidate stale restarts
   const selectedLangRef = useRef(selectedLang);
   const selectedModeRef = useRef(selectedMode);
-  const selectedVoiceRef = useRef(selectedVoice);
+  const selectedVoiceURIRef = useRef(selectedVoiceURI);
 
   const setPhaseSync = useCallback((p: CallPhase) => {
     phaseRef.current = p;
@@ -92,13 +118,34 @@ const VoiceCompanion = () => {
   useEffect(() => { mutedRef.current = muted; }, [muted]);
   useEffect(() => { selectedLangRef.current = selectedLang; }, [selectedLang]);
   useEffect(() => { selectedModeRef.current = selectedMode; }, [selectedMode]);
-  useEffect(() => { selectedVoiceRef.current = selectedVoice; }, [selectedVoice]);
+  useEffect(() => { selectedVoiceURIRef.current = selectedVoiceURI; }, [selectedVoiceURI]);
 
   useEffect(() => {
     if (transcriptEndRef.current) {
       transcriptEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [transcript]);
+
+  // Load browser voices
+  useEffect(() => {
+    const loadVoices = () => {
+      const voices = speechSynthesis.getVoices();
+      if (voices.length > 0) {
+        const sorted = sortVoices(voices);
+        setAvailableVoices(sorted);
+        if (!userPickedVoiceRef.current) {
+          const best = pickBestEnglishVoice(voices);
+          if (best) {
+            setSelectedVoiceURI(best.voiceURI);
+            selectedVoiceURIRef.current = best.voiceURI;
+          }
+        }
+      }
+    };
+    loadVoices();
+    speechSynthesis.addEventListener("voiceschanged", loadVoices);
+    return () => speechSynthesis.removeEventListener("voiceschanged", loadVoices);
+  }, []);
 
   const processUtteranceRef = useRef<(text: string) => Promise<void>>();
   const startListeningRef = useRef<() => void>();
@@ -114,21 +161,11 @@ const VoiceCompanion = () => {
       }
       recognitionRef.current = null;
     }
+    recognitionBusyRef.current = false;
   }, []);
 
-  const killAudio = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      audioRef.current.onended = null;
-      audioRef.current.onerror = null;
-      audioRef.current.onplay = null;
-      // Revoke object URL to free memory
-      if (audioRef.current.src && audioRef.current.src.startsWith("blob:")) {
-        URL.revokeObjectURL(audioRef.current.src);
-      }
-      audioRef.current = null;
-    }
+  const killSpeech = useCallback(() => {
+    speechSynthesis.cancel();
   }, []);
 
   const setupAudioAnalyser = useCallback(async () => {
@@ -159,7 +196,6 @@ const VoiceCompanion = () => {
 
   const getAIResponse = useCallback(async (userText: string, retries = 1): Promise<string> => {
     conversationRef.current.push({ role: "user", content: userText });
-    console.log("[Voice] Transcript received:", userText);
 
     const mode = selectedModeRef.current;
     const lang = selectedLangRef.current;
@@ -168,73 +204,13 @@ const VoiceCompanion = () => {
     const langInfo = languages.find((l) => l.code === lang);
     let langInstruction = "";
     if (lang === "pcm") {
-      langInstruction = `The user is speaking Nigerian Pidgin English. The speech transcript may be imperfect — interpret the meaning naturally even if words are misspelled or run together.
-
-Common Pidgin vocabulary and phrases:
-- Greetings: "how far" (how are you), "how body" (how are you feeling), "how e dey go" (how's it going), "wetin dey sup" (what's up)
-- Emotions: "I no too good today" (I'm not feeling well), "my heart heavy" (I'm sad), "e dey pain me" (it hurts me), "I dey vex" (I'm angry), "I dey fear" (I'm scared), "I tire" / "I don tire" (I'm exhausted/fed up), "my mind no dey rest" (I'm anxious), "I dey feel somehow" (I feel off/uneasy), "e dey do me somehow" (something feels wrong), "I happy well well" (I'm very happy)
-- States: "I dey" (I'm here/I'm fine), "I dey kampe" (I'm good), "I no fit again" (I can't anymore), "I wan give up" (I want to give up), "e too much for me" (it's overwhelming), "I dey try" (I'm trying), "I dey manage" (I'm coping), "nothing dey happen" (nothing is working out)
-- Expressions: "no wahala" (no problem), "na so" (that's how it is), "e don tey" (it's been a while), "abeg" (please), "sha" (though/anyway), "abi" (right?/isn't it?), "shey" (is it that/right?), "ehen" (yes/go on), "walahi" (I swear), "na God" (it's God/only God), "e go better" (it will get better), "God dey" (God exists/is watching)
-- Actions: "I wan yarn" (I want to talk), "make we talk" (let's talk), "I need person wey go hear me" (I need someone to listen), "nobody dey hear me" (nobody listens to me), "I dey think too much" (I'm overthinking), "sleep no dey come" (I can't sleep), "I no fit chop" (I can't eat)
-- Relationships: "my person" (my partner/close one), "we dey quarrel" (we're fighting), "e leave me" / "she leave me" (they left me), "I dey lonely" (I'm lonely), "my family no understand" (my family doesn't understand), "dem dey pressure me" (they're pressuring me)
-- School/Work: "school wahala" (school stress), "I no fit cope" (I can't cope), "exam dey worry me" (exams stress me), "oga dey stress me" (my boss is stressing me)
-
-Language interpretation process:
-1. First, internally interpret the user's Pidgin into clear English meaning — even if the transcript has typos, merged words, or phonetic spelling.
-2. Understand the emotional intent and context behind what they said.
-3. Generate your response in natural Nigerian Pidgin that matches the user's tone.
-Never expose the English interpretation to the user — always reply fully in Pidgin. Be warm, supportive, and emotionally present.`;
+      langInstruction = `The user is speaking Nigerian Pidgin English. The speech transcript may be imperfect — interpret the meaning naturally even if words are misspelled or run together. Reply fully in Pidgin. Be warm, supportive, and emotionally present.`;
     } else if (lang === "yo") {
-      langInstruction = `The user is speaking Yoruba. The speech transcript may be imperfect — interpret the meaning naturally even if tonal marks are missing or words are transliterated.
-
-Common Yoruba vocabulary and phrases:
-- Greetings: "bawo ni" (how are you), "e kaaro" (good morning), "e kaasan" (good afternoon), "e kaaale" (good evening), "se daadaa ni" (are you well?), "pele o" (sorry/sympathy greeting)
-- Emotions: "inu mi dun" (I'm happy), "inu mi bajẹ" (I'm sad/upset), "mo n binu" (I'm angry), "mo n bẹru" (I'm scared), "ara mi ko da" (I'm not feeling well), "okan mi ko balẹ" (my heart is unsettled/I'm anxious), "mo ti arẹ" (I'm tired), "ori mi wu mi" (I'm confused/overwhelmed), "mo ni ireti" (I have hope), "aye mi daru" (my life is troubled)
-- States: "mo wa" (I'm here), "mo dara" (I'm fine), "ko si wahala" (no problem), "mo n gbiyanju" (I'm trying), "ko le ye mi" (I can't understand), "o ti pọ ju" (it's too much), "mi o le mọ" (I can't anymore), "mo fẹ fi silẹ" (I want to give up)
-- Expressions: "Oluwa maa je" (God will provide), "a o ni ku" (we won't die/it will be okay), "e ma binu" (don't be angry), "o da mi loju" (I'm sure), "Olorun lo mọ" (only God knows), "e jọọ" (please), "mo dupẹ" (thank you), "ẹ ku isẹ" (well done), "rara" (no), "bẹẹni" (yes)
-- Actions: "mo fẹ sọrọ" (I want to talk), "gbọ mi" (listen to me), "ẹ ran mi lọwọ" (help me), "mo n ronú pupọ" (I'm overthinking), "orun ko gba mi" (I can't sleep), "mi o le jẹun" (I can't eat)
-- Relationships: "ololufe mi" (my loved one), "a n ja" (we're fighting), "o fi mi silẹ" (they left me), "idile mi ko ye mi" (my family doesn't understand me), "mo ti sùn mọlẹ" (I feel alone), "wọn n fi ipa ba mi" (they're pressuring me)
-- School/Work: "ile-iwe n da mi lamu" (school is stressing me), "idanwo n ba mi ninu jẹ" (exams are worrying me), "isẹ n pa mi" (work is killing me)
-
-Language interpretation process:
-1. First, internally interpret the user's Yoruba into clear English meaning — even if tonal marks are missing, words are phonetically spelled, or the transcript is fragmented.
-2. Understand the emotional intent and context behind what they said.
-3. Generate your response in natural Yoruba that matches the user's tone.
-Never expose the English interpretation to the user — always reply fully in Yoruba. Be warm, supportive, and emotionally present.`;
+      langInstruction = `The user is speaking Yoruba. Interpret naturally even if tonal marks are missing. Reply fully in Yoruba. Be warm, supportive, and emotionally present.`;
     } else if (lang === "ig") {
-      langInstruction = `The user is speaking Igbo. The speech transcript may be imperfect — interpret the meaning naturally even if words are transliterated or tonal marks are missing.
-
-Common Igbo vocabulary and phrases:
-- Greetings: "kedu" (how are you), "nnọọ" (welcome), "ụtụtụ ọma" (good morning), "ehihie ọma" (good afternoon), "anyasị ọma" (good evening), "i meela" (thank you/well done), "kedu ka ị mere" (how are you doing)
-- Emotions: "obi dị m ụtọ" (I'm happy), "obi na-ewu m ewu" (I'm sad), "iwe na-ewe m" (I'm angry), "ụjọ na-atụ m" (I'm scared), "ahụ adịghị m mma" (I'm not well), "obi m adịghị mma" (my heart is not well/I'm upset), "ike gwụrụ m" (I'm exhausted), "isi na-awụ m" (I'm confused), "enweghị m olileanya" (I have no hope), "ndụ siri m ike" (life is hard for me)
-- States: "a nọ m" (I'm here), "ọ dị mma" (it's fine/I'm good), "enweghi nsogbu" (no problem), "a na m agba mbọ" (I'm trying), "ọ karịrị m" (it's beyond me), "a pụghị m ịnagide" (I can't endure anymore), "achọrọ m ịhapụ" (I want to quit)
-- Expressions: "Chukwu mara" (God knows), "ọ ga-adị mma" (it will be fine), "biko" (please), "nwanne" (sibling/friend), "daalụ" (thank you), "ọ dị egwu" (it's serious), "chineke m" (my God - exclamation), "ewoo" (exclamation of distress), "ndo" (sorry/sympathy)
-- Actions: "achọrọ m ịkọrọ gị" (I want to tell you), "gee m ntị" (listen to me), "nyere m aka" (help me), "a na m eche echiche ọtụtụ" (I'm overthinking), "ụra adịghị abịa m" (I can't sleep), "apụghị m iri nri" (I can't eat)
-- Relationships: "onye m hụrụ n'anya" (my loved one), "anyị na-alụ ọgụ" (we're fighting), "o hapụrụ m" (they left me), "ezinụlọ m aghọtaghị m" (my family doesn't understand me), "a nọ m naanị m" (I'm alone), "ha na-abọ m" (they're pressuring me)
-- School/Work: "akwụkwọ na-enye m nsogbu" (school is giving me problems), "ule na-enye m nchegbu" (exams are worrying me), "ọrụ na-egbu m" (work is killing me)
-
-Language interpretation process:
-1. First, internally interpret the user's Igbo into clear English meaning — even if diacritics are missing, words are phonetically spelled, or the transcript is fragmented.
-2. Understand the emotional intent and context behind what they said.
-3. Generate your response in natural Igbo that matches the user's tone.
-Never expose the English interpretation to the user — always reply fully in Igbo. Be warm, supportive, and emotionally present.`;
+      langInstruction = `The user is speaking Igbo. Interpret naturally even if diacritics are missing. Reply fully in Igbo. Be warm, supportive, and emotionally present.`;
     } else if (lang === "ha") {
-      langInstruction = `The user is speaking Hausa. The speech transcript may be imperfect — interpret the meaning naturally even if words are transliterated or diacritics are missing.
-
-Common Hausa vocabulary and phrases:
-- Greetings: "sannu" (hello), "ina kwana" (good morning/how did you sleep), "ina wuni" (good afternoon/how's your day), "yaya dai" (how are you), "lafiya lau" (I'm fine), "barka da zuwa" (welcome), "yaya gida" (how's home/family)
-- Emotions: "ina farin ciki" (I'm happy), "ba ni da daɗi" (I'm not happy), "ina baƙin ciki" (I'm sad), "ina fushi" (I'm angry), "ina tsoro" (I'm scared), "jiki na ba ni daɗi ba" (I'm not feeling well), "zuciya na cike" (my heart is full/overwhelmed), "na gaji" (I'm tired/exhausted), "kai na yi mini hauka" (I'm confused), "ban da bege" (I have no hope), "rayuwa ta yi mini wuya" (life is hard for me)
-- States: "ina nan" (I'm here), "lafiya" (I'm fine), "babu matsala" (no problem), "ina ƙoƙari" (I'm trying), "ya fi ƙarfi na" (it's beyond me), "ba zan iya ba" (I can't anymore), "ina so in daina" (I want to quit), "ina jurewa" (I'm enduring)
-- Expressions: "Allah ya sani" (God knows), "za a yi" (it will be done/it'll be okay), "don Allah" (please/for God's sake), "na gode" (thank you), "madalla" (well done), "ya isa" (it's enough), "wallahi" (I swear), "subhanallah" (exclamation of awe), "innalillahi" (exclamation of grief), "Allah ya taimaka" (God help)
-- Actions: "ina so in yi magana" (I want to talk), "ka saurare ni" (listen to me), "ka taimake ni" (help me), "ina tunani da yawa" (I'm overthinking), "barci ba ya zo mini" (I can't sleep), "ba zan iya ci ba" (I can't eat), "ina buƙatar wani" (I need someone)
-- Relationships: "ƙaunataccen na" (my loved one), "muna faɗa" (we're fighting), "ya/ta bar ni" (they left me), "iyali na ba su fahimce ni ba" (my family doesn't understand me), "ina kaɗaici" (I'm lonely), "suna matsa mini" (they're pressuring me)
-- School/Work: "makaranta na damun ni" (school is bothering me), "jarrabawa na ba ni tsoro" (exams scare me), "aiki ya yi mini yawa" (work is too much for me)
-
-Language interpretation process:
-1. First, internally interpret the user's Hausa into clear English meaning — even if diacritics are missing, words are phonetically spelled, or the transcript is fragmented.
-2. Understand the emotional intent and context behind what they said.
-3. Generate your response in natural Hausa that matches the user's tone.
-Never expose the English interpretation to the user — always reply fully in Hausa. Be warm, supportive, and emotionally present.`;
+      langInstruction = `The user is speaking Hausa. Interpret naturally even if diacritics are missing. Reply fully in Hausa. Be warm, supportive, and emotionally present.`;
     } else if (lang !== "en") {
       langInstruction = `The user is speaking in ${langInfo?.label}. Respond in the same language.`;
     }
@@ -291,7 +267,6 @@ Never expose the English interpretation to the user — always reply fully in Ha
         }
       }
 
-      // Flush remaining buffer
       if (buf.trim()) {
         for (let raw of buf.split("\n")) {
           if (!raw) continue;
@@ -304,7 +279,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
             const parsed = JSON.parse(jsonStr);
             const content = parsed.choices?.[0]?.delta?.content;
             if (content) fullText += content;
-          } catch { /* ignore partial leftovers */ }
+          } catch {}
         }
       }
 
@@ -316,125 +291,78 @@ Never expose the English interpretation to the user — always reply fully in Ha
       try {
         const result = await attempt();
         if (result.trim().length > 0) {
-          console.log("[Voice] AI response generated:", result.substring(0, 80) + "...");
           conversationRef.current.push({ role: "assistant", content: result });
           return result;
         }
-        // Empty result — treat as failure and retry
-        console.warn("[Voice] AI returned empty response, attempt", i + 1);
         lastError = new Error("AI returned empty response");
         if (i < retries) await new Promise((r) => setTimeout(r, 1000));
       } catch (err) {
         lastError = err as Error;
-        console.error("[Voice] AI attempt", i + 1, "failed:", err);
-        if (i < retries) {
-          await new Promise((r) => setTimeout(r, 1000));
-        }
+        if (i < retries) await new Promise((r) => setTimeout(r, 1000));
       }
     }
 
-    // Remove the user message we added since the response failed
     conversationRef.current.pop();
     throw lastError!;
   }, []);
 
-  const speakText = useCallback(async (text: string): Promise<void> => {
-    if (!activeRef.current) return;
+  /* ── Browser TTS via speechSynthesis ── */
+  const speakText = useCallback((text: string): Promise<void> => {
+    return new Promise<void>((resolve) => {
+      if (!activeRef.current) { resolve(); return; }
 
-    const cleanText = text
-      .replace(/\*\*(.*?)\*\*/g, "$1")
-      .replace(/\*(.*?)\*/g, "$1")
-      .replace(/#{1,6}\s/g, "")
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-      .replace(/[`~]/g, "")
-      .replace(/[💚🌱✨🫂]/g, "")
-      .trim();
+      const cleanText = text
+        .replace(/\*\*(.*?)\*\*/g, "$1")
+        .replace(/\*(.*?)\*/g, "$1")
+        .replace(/#{1,6}\s/g, "")
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+        .replace(/[`~]/g, "")
+        .replace(/[💚🌱✨🫂]/g, "")
+        .trim();
 
-    if (!cleanText || !activeRef.current) return;
+      if (!cleanText) { resolve(); return; }
 
-    console.log("[Voice] TTS playback starting for:", cleanText.substring(0, 60));
+      // Cancel any ongoing speech first
+      speechSynthesis.cancel();
 
-    try {
-      const resp = await fetch(TTS_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({
-          text: cleanText,
-          voice: selectedVoiceRef.current,
-        }),
-      });
+      // Wait a tick for cancel to clear
+      setTimeout(() => {
+        if (!activeRef.current) { resolve(); return; }
 
-      if (!resp.ok) {
-        console.error("[Voice] TTS error:", resp.status);
-        return;
-      }
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.volume = 1.0;
+        utterance.rate = 0.92;
+        utterance.pitch = 1.05;
 
-      if (!activeRef.current) return;
+        // Find the selected voice
+        const voices = speechSynthesis.getVoices();
+        const voiceURI = selectedVoiceURIRef.current;
+        const voice = voices.find((v) => v.voiceURI === voiceURI);
+        if (voice) utterance.voice = voice;
 
-      const blob = await resp.blob();
-      if (blob.size === 0) {
-        console.error("[Voice] TTS returned empty audio blob");
-        return;
-      }
-      const audioUrl = URL.createObjectURL(blob);
-
-      return new Promise<void>((resolve) => {
-        if (!activeRef.current) {
-          URL.revokeObjectURL(audioUrl);
-          resolve();
-          return;
-        }
-
-        const audio = new Audio(audioUrl);
-        audioRef.current = audio;
-        audio.volume = 1.0;
-
-        audio.onplay = () => {
-          console.log("[Voice] Audio playback started");
+        utterance.onstart = () => {
           if (activeRef.current) setPhaseSync("speaking");
         };
 
-        audio.onended = () => {
-          console.log("[Voice] Audio playback ended");
-          URL.revokeObjectURL(audioUrl);
-          audioRef.current = null;
+        utterance.onend = () => {
           resolve();
         };
 
-        audio.onerror = (e) => {
-          console.error("[Voice] Audio playback error:", e);
-          URL.revokeObjectURL(audioUrl);
-          audioRef.current = null;
+        utterance.onerror = (e) => {
+          console.warn("[Voice] speechSynthesis error:", e.error);
           resolve();
         };
 
-        audio.play().catch((err) => {
-          console.error("[Voice] Audio play failed:", err);
-          URL.revokeObjectURL(audioUrl);
-          audioRef.current = null;
-          resolve();
-        });
-      });
-    } catch (err) {
-      console.error("[Voice] TTS fetch failed:", err);
-    }
+        speechSynthesis.speak(utterance);
+      }, 50);
+    });
   }, [setPhaseSync]);
 
-  // The main listening function — simple and guarded
+  // The main listening function
   const startListening = useCallback(() => {
     if (!activeRef.current || mutedRef.current) return;
-    if (recognitionBusyRef.current) {
-      console.log("[Voice] Blocked: recognition already active");
-      return;
-    }
-    // Only allow from idle phase (after speaking ends or after greeting)
-    if (phaseRef.current !== "idle") {
-      console.log("[Voice] Blocked: phase is", phaseRef.current);
-      return;
-    }
+    if (recognitionBusyRef.current) return;
+    if (phaseRef.current !== "idle") return;
 
     killRecognition();
 
@@ -458,7 +386,6 @@ Never expose the English interpretation to the user — always reply fully in Ha
     recognition.onstart = () => {
       setPhaseSync("listening");
       setCurrentPartial("");
-      console.log("[Voice] Recognition started");
     };
 
     recognition.onresult = (event: any) => {
@@ -472,7 +399,6 @@ Never expose the English interpretation to the user — always reply fully in Ha
       if (finalText.trim().length >= 2) {
         captured = true;
         recognitionBusyRef.current = false;
-        console.log("[Voice] Captured transcript:", JSON.stringify(finalText.trim()));
         killRecognition();
         emptyRetryRef.current = 0;
         setPhaseSync("processing");
@@ -487,12 +413,8 @@ Never expose the English interpretation to the user — always reply fully in Ha
 
       if (!activeRef.current || captured) return;
 
-      console.log("[Voice] Recognition ended without capture");
-
-      // Retry once silently, then speak fallback
       if (emptyRetryRef.current < 1) {
         emptyRetryRef.current++;
-        console.log("[Voice] Empty transcript, retrying once...");
         setPhaseSync("idle");
         clearTimer();
         timerRef.current = setTimeout(() => {
@@ -528,7 +450,6 @@ Never expose the English interpretation to the user — always reply fully in Ha
         return;
       }
       if (e.error === "aborted") return;
-      console.warn("[Voice] Recognition error:", e.error);
       if (activeRef.current) {
         setPhaseSync("idle");
         clearTimer();
@@ -556,7 +477,6 @@ Never expose the English interpretation to the user — always reply fully in Ha
     }
   }, [killRecognition, setPhaseSync, clearTimer, speakText]);
 
-  // Process a complete utterance through AI + TTS pipeline — MUST always produce a response
   const processUtterance = useCallback(async (userText: string) => {
     if (!activeRef.current) return;
 
@@ -564,81 +484,64 @@ Never expose the English interpretation to the user — always reply fully in Ha
     setCurrentPartial("");
     setPhaseSync("processing");
     setTranscript((prev) => [...prev, { role: "user", text: userText }]);
-    console.log("[Voice] === PIPELINE START === Transcript:", userText);
 
-    // Step 1: Get AI response
     let aiResponse = "";
     try {
-      console.log("[Voice] Step 1: Calling AI chat model...");
       aiResponse = await getAIResponse(userText);
-      console.log("[Voice] Step 1 complete. AI response:", aiResponse?.substring(0, 100));
     } catch (err) {
-      console.error("[Voice] Step 1 FAILED:", err);
+      console.error("[Voice] AI failed:", err);
     }
 
     if (!activeRef.current) return;
 
-    // Guarantee an AI response — use fallback if empty
     if (!aiResponse || aiResponse.trim().length === 0) {
       aiResponse = "I hear you. Could you tell me a bit more about how you're feeling?";
-      console.warn("[Voice] Using fallback AI response (original was empty)");
       conversationRef.current.push({ role: "assistant", content: aiResponse });
     }
 
-    // Step 2: Show response in transcript
     setTranscript((prev) => [...prev, { role: "assistant", text: aiResponse }]);
 
-    // Step 3: Speak the response via TTS
-    console.log("[Voice] Step 2: Sending to TTS...");
     try {
       await speakText(aiResponse);
-      console.log("[Voice] Step 2 complete. TTS playback finished.");
     } catch (err) {
-      console.error("[Voice] Step 2 FAILED (TTS):", err);
+      console.error("[Voice] TTS failed:", err);
     }
 
     if (!activeRef.current) return;
 
-    // Step 4: Return to listening
-    console.log("[Voice] === PIPELINE COMPLETE === Returning to listening");
     recognitionBusyRef.current = false;
     setPhaseSync("idle");
     clearTimer();
     timerRef.current = setTimeout(() => {
       if (activeRef.current && !mutedRef.current) {
-        console.log("[Voice] Activating microphone for next turn");
         startListeningRef.current?.();
       }
     }, 700);
   }, [getAIResponse, speakText, killRecognition, setPhaseSync, clearTimer]);
 
-  // Keep refs updated
   useEffect(() => { startListeningRef.current = startListening; }, [startListening]);
   useEffect(() => { processUtteranceRef.current = processUtterance; }, [processUtterance]);
 
   const startCall = useCallback(async () => {
-    console.log("[Voice] Session start");
     activeRef.current = true;
     recognitionBusyRef.current = false;
-    listenCycleRef.current = 0;
     setCallActive(true);
     setTranscript([]);
     setPhaseSync("processing");
     conversationRef.current = [];
     emptyRetryRef.current = 0;
 
-    // iOS Safari audio unlock
+    // iOS audio unlock
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      await ctx.resume();
       const buf = ctx.createBuffer(1, 1, 22050);
       const src = ctx.createBufferSource();
       src.buffer = buf;
       src.connect(ctx.destination);
       src.start(0);
       setTimeout(() => ctx.close().catch(() => {}), 100);
-    } catch (e) {
-      console.warn("Audio unlock failed:", e);
-    }
+    } catch {}
 
     await setupAudioAnalyser();
 
@@ -647,17 +550,12 @@ Never expose the English interpretation to the user — always reply fully in Ha
     setTranscript([{ role: "assistant", text: greeting }]);
     conversationRef.current.push({ role: "assistant", content: greeting });
 
-    console.log("[Voice] Speaking greeting");
     try {
       await speakText(greeting);
-    } catch (err) {
-      console.error("[Voice] Greeting TTS failed:", err);
-    }
+    } catch {}
 
     if (!activeRef.current) return;
 
-    // Only AFTER greeting finishes, activate listening
-    console.log("[Voice] Greeting done, activating listening");
     setPhaseSync("idle");
     clearTimer();
     timerRef.current = setTimeout(() => {
@@ -668,13 +566,11 @@ Never expose the English interpretation to the user — always reply fully in Ha
   }, [setupAudioAnalyser, speakText, setPhaseSync, clearTimer]);
 
   const endCall = useCallback(() => {
-    console.log("[Voice] Ending call — full cleanup");
     activeRef.current = false;
-    listenCycleRef.current++; // invalidate any pending restarts
     recognitionBusyRef.current = false;
     clearTimer();
     killRecognition();
-    killAudio();
+    killSpeech(); // Cancel all browser speech immediately
 
     setCallActive(false);
     setMuted(false);
@@ -689,13 +585,12 @@ Never expose the English interpretation to the user — always reply fully in Ha
       mediaStreamRef.current.getTracks().forEach((t) => t.stop());
       mediaStreamRef.current = null;
     }
-    // Close AudioContext to prevent page freeze
     if (audioCtxRef.current) {
       audioCtxRef.current.close().catch(() => {});
       audioCtxRef.current = null;
     }
     analyserRef.current = null;
-  }, [clearTimer, killRecognition, killAudio, setPhaseSync]);
+  }, [clearTimer, killRecognition, killSpeech, setPhaseSync]);
 
   const toggleMute = useCallback(() => {
     setMuted((prev) => {
@@ -728,17 +623,10 @@ Never expose the English interpretation to the user — always reply fully in Ha
   useEffect(() => {
     return () => {
       activeRef.current = false;
-      listenCycleRef.current++;
       recognitionBusyRef.current = false;
       clearTimer();
+      speechSynthesis.cancel();
       if (recognitionRef.current) try { recognitionRef.current.abort(); } catch { try { recognitionRef.current.stop(); } catch {} }
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-        if (audioRef.current.src?.startsWith("blob:")) {
-          URL.revokeObjectURL(audioRef.current.src);
-        }
-      }
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((t) => t.stop());
@@ -752,6 +640,9 @@ Never expose the English interpretation to the user — always reply fully in Ha
   const isListening = phase === "listening";
   const isSpeaking = phase === "speaking";
   const isProcessing = phase === "processing";
+
+  // Get current voice name for display
+  const currentVoiceName = availableVoices.find((v) => v.voiceURI === selectedVoiceURI)?.name || "Default";
 
   if (!callActive) {
     return (
@@ -802,30 +693,40 @@ Never expose the English interpretation to the user — always reply fully in Ha
           </div>
         </div>
 
-        {/* Voice picker — OpenAI voices */}
+        {/* Voice picker — Browser voices */}
         <div className="space-y-2">
           <p className="text-white/70 text-xs font-medium uppercase tracking-wider flex items-center gap-1.5">
             <Volume2 className="w-3.5 h-3.5" /> Voice
           </p>
-          <Select value={selectedVoice} onValueChange={setSelectedVoice}>
-            <SelectTrigger className="w-full bg-white/10 border-white/20 text-white text-sm rounded-xl h-11 [&>span]:text-white/80">
-              <SelectValue placeholder="Select a voice" />
-            </SelectTrigger>
-            <SelectContent className="max-h-60 bg-[#1a2e23] border-white/20">
-              {OPENAI_VOICES.map((v) => (
-                <SelectItem
-                  key={v.id}
-                  value={v.id}
-                  className="text-white/80 text-sm focus:bg-white/10 focus:text-white"
-                >
-                  <span className="flex flex-col gap-0.5">
-                    <span className="font-medium">{v.label}</span>
-                    <span className="text-[11px] text-white/50">{v.desc}</span>
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {availableVoices.length > 0 ? (
+            <Select
+              value={selectedVoiceURI}
+              onValueChange={(uri) => {
+                userPickedVoiceRef.current = true;
+                setSelectedVoiceURI(uri);
+                selectedVoiceURIRef.current = uri;
+              }}
+            >
+              <SelectTrigger className="w-full bg-white/10 border-white/20 text-white text-sm rounded-xl h-11 [&>span]:text-white/80">
+                <SelectValue placeholder="Select a voice" />
+              </SelectTrigger>
+              <SelectContent className="max-h-60 bg-[#1a2e23] border-white/20">
+                {availableVoices.map((v) => (
+                  <SelectItem
+                    key={v.voiceURI}
+                    value={v.voiceURI}
+                    className="text-white/80 text-sm focus:bg-white/10 focus:text-white"
+                  >
+                    <span className="block truncate text-xs">
+                      {getVoiceLabel(v)}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="text-white/40 text-xs italic">Loading voices...</p>
+          )}
         </div>
 
         <motion.button
@@ -840,7 +741,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
         </motion.button>
 
         <p className="text-center text-white/40 text-xs">
-          🎙️ Microphone access required · OpenAI voice
+          🎙️ Microphone access required · Browser voice
         </p>
       </div>
     );
@@ -930,7 +831,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
         <p className="text-white/30 text-xs">
           {languages.find((l) => l.code === selectedLang)?.label} ·{" "}
           {modes.find((m) => m.id === selectedMode)?.label} ·{" "}
-          {OPENAI_VOICES.find((v) => v.id === selectedVoice)?.label}
+          {currentVoiceName}
         </p>
 
         {currentPartial && (
