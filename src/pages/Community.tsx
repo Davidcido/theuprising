@@ -447,40 +447,44 @@ const Community = () => {
                             {postComments.length === 0 && (
                               <p className="text-xs text-muted-foreground text-center py-2">No comments yet</p>
                             )}
-                            <div className="flex gap-2 mt-2 items-end">
-                              <EmojiPicker
-                                onSelect={(emoji) =>
-                                  setCommentInputs((prev) => ({ ...prev, [post.id]: (prev[post.id] || "") + emoji }))
-                                }
-                                className="p-1.5 shrink-0"
-                              />
-                              <textarea
-                                value={commentInputs[post.id] || ""}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  if (val.length <= 5000) setCommentInputs((prev) => ({ ...prev, [post.id]: val }));
-                                  e.target.style.height = "auto";
-                                  e.target.style.height = e.target.scrollHeight + "px";
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter" && !e.shiftKey) {
-                                    e.preventDefault();
-                                    addComment(post.id);
+                            {communityOpen ? (
+                              <div className="flex gap-2 mt-2 items-end">
+                                <EmojiPicker
+                                  onSelect={(emoji) =>
+                                    setCommentInputs((prev) => ({ ...prev, [post.id]: (prev[post.id] || "") + emoji }))
                                   }
-                                }}
-                                placeholder="Write a comment..."
-                                rows={1}
-                                className="flex-1 rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 resize-none overflow-hidden"
-                                style={{ minHeight: "32px" }}
-                              />
-                              <button
-                                onClick={() => addComment(post.id)}
-                                disabled={!commentInputs[post.id]?.trim()}
-                                className="p-2 rounded-full bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-30 transition-colors shrink-0"
-                              >
-                                <Send className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                                  className="p-1.5 shrink-0"
+                                />
+                                <textarea
+                                  value={commentInputs[post.id] || ""}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val.length <= 5000) setCommentInputs((prev) => ({ ...prev, [post.id]: val }));
+                                    e.target.style.height = "auto";
+                                    e.target.style.height = e.target.scrollHeight + "px";
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" && !e.shiftKey) {
+                                      e.preventDefault();
+                                      addComment(post.id);
+                                    }
+                                  }}
+                                  placeholder="Write a comment..."
+                                  rows={1}
+                                  className="flex-1 rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 resize-none overflow-hidden"
+                                  style={{ minHeight: "32px" }}
+                                />
+                                <button
+                                  onClick={() => addComment(post.id)}
+                                  disabled={!commentInputs[post.id]?.trim()}
+                                  className="p-2 rounded-full bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-30 transition-colors shrink-0"
+                                >
+                                  <Send className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-yellow-300/70 text-center py-2">Commenting is currently disabled.</p>
+                            )}
                           </div>
                         </motion.div>
                       )}
