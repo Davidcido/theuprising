@@ -36,6 +36,9 @@ export type Post = {
   is_anonymous?: boolean;
   engagement_score?: number;
   author_profile?: { display_name: string | null; avatar_url: string } | null;
+  original_post_id?: string | null;
+  reposted_by_name?: string | null;
+  original_post?: Post | null;
 };
 
 export type Reaction = {
