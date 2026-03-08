@@ -625,6 +625,10 @@ export type Database = {
     }
     Functions: {
       decrement_likes: { Args: { post_id_input: string }; Returns: undefined }
+      find_conversation_between: {
+        Args: { user_a: string; user_b: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

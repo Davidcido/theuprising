@@ -128,9 +128,17 @@ const Profile = () => {
   };
 
   const handleMessage = async () => {
-    if (!targetUserId) return;
+    if (!targetUserId || !currentUserId) return;
+    if (targetUserId === currentUserId) {
+      toast.error("You can't message yourself");
+      return;
+    }
     const convId = await getOrCreateConversation(targetUserId);
-    if (convId) navigate(`/messages/${convId}`);
+    if (convId) {
+      navigate(`/messages/${convId}`);
+    } else {
+      toast.error("Failed to open conversation");
+    }
   };
 
   if (loading) {
