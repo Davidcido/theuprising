@@ -65,9 +65,29 @@ const Community = () => {
   const [reactions, setReactions] = useState<Record<string, Reaction[]>>({});
   const [myReactions, setMyReactions] = useState<Set<string>>(new Set());
   const [communityOpen, setCommunityOpen] = useState(true);
+  const [postAnonymously, setPostAnonymously] = useState(true);
+  const [currentUser, setCurrentUser] = useState<{ id: string; displayName: string } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const navigate = useNavigate();
 
   const sessionId = getSessionId();
+
+  // Get current user
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("user_id", session.user.id)
+          .single();
+        setCurrentUser({
+          id: session.user.id,
+          displayName: profile?.display_name || session.user.email?.split("@")[0] || "User",
+        });
+      }
+    });
+  }, []);
 
   const fetchPosts = useCallback(async () => {
     const { data, error } = await supabase
