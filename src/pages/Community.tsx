@@ -59,7 +59,8 @@ const Community = () => {
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [posting, setPosting] = useState(false);
   const [reactions, setReactions] = useState<Record<string, Reaction[]>>({});
-  const [myReactions, setMyReactions] = useState<Set<string>>(new Set()); // "postId:emoji"
+  const [myReactions, setMyReactions] = useState<Set<string>>(new Set());
+  const [communityOpen, setCommunityOpen] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const sessionId = getSessionId();
@@ -101,6 +102,10 @@ const Community = () => {
     fetchLikedPosts();
     fetchReactions();
 
+    // Fetch community status
+    supabase.from("community_settings").select("value").eq("key", "community_status").single()
+      .then(({ data }) => { if (data) setCommunityOpen(data.value === "open"); });
+
     const postsChannel = supabase
       .channel("community-posts")
       .on("postgres_changes", { event: "*", schema: "public", table: "community_posts" }, () => {
@@ -126,10 +131,19 @@ const Community = () => {
       })
       .subscribe();
 
+    const settingsChannel = supabase
+      .channel("community-settings")
+      .on("postgres_changes", { event: "*", schema: "public", table: "community_settings" }, (payload) => {
+        const row = payload.new as { key: string; value: string };
+        if (row.key === "community_status") setCommunityOpen(row.value === "open");
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(postsChannel);
       supabase.removeChannel(commentsChannel);
       supabase.removeChannel(reactionsChannel);
+      supabase.removeChannel(settingsChannel);
     };
   }, [fetchPosts, fetchLikedPosts, fetchReactions]);
 
@@ -269,8 +283,15 @@ const Community = () => {
           </div>
         </div>
 
+        {/* Community Closed Banner */}
+        {!communityOpen && (
+          <div className="p-4 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 backdrop-blur-xl mb-6 text-center">
+            <p className="text-yellow-300 text-sm font-medium">🔒 Community posting is currently closed by the admin.</p>
+          </div>
+        )}
+
         {/* Composer */}
-        <div className="p-5 rounded-2xl backdrop-blur-xl border border-white/15 shadow-lg mb-6" style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)" }}>
+        <div className={`p-5 rounded-2xl backdrop-blur-xl border border-white/15 shadow-lg mb-6 ${!communityOpen ? "opacity-50 pointer-events-none" : ""}`} style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)" }}>
           <div className="flex gap-3">
             <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xs font-bold shrink-0">
               {sessionId.slice(0, 2)}
@@ -280,9 +301,10 @@ const Community = () => {
                 ref={textareaRef}
                 value={newPost}
                 onChange={handlePostChange}
-                placeholder="What's on your mind?"
+                placeholder={communityOpen ? "What's on your mind?" : "Community posting is currently closed."}
                 rows={2}
-                className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 resize-none overflow-hidden"
+                disabled={!communityOpen}
+                className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 resize-none overflow-hidden disabled:cursor-not-allowed"
                 style={{ minHeight: "60px" }}
               />
               <div className="flex justify-between items-center mt-2">
@@ -292,7 +314,7 @@ const Community = () => {
                 }} />
                 <button
                   onClick={addPost}
-                  disabled={!newPost.trim() || posting}
+                  disabled={!newPost.trim() || posting || !communityOpen}
                   className="inline-flex items-center gap-2 px-5 py-2 rounded-full text-white text-sm font-semibold disabled:opacity-40 transition-all hover:scale-105 active:scale-95"
                   style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
                 >
@@ -425,40 +447,44 @@ const Community = () => {
                             {postComments.length === 0 && (
                               <p className="text-xs text-muted-foreground text-center py-2">No comments yet</p>
                             )}
-                            <div className="flex gap-2 mt-2 items-end">
-                              <EmojiPicker
-                                onSelect={(emoji) =>
-                                  setCommentInputs((prev) => ({ ...prev, [post.id]: (prev[post.id] || "") + emoji }))
-                                }
-                                className="p-1.5 shrink-0"
-                              />
-                              <textarea
-                                value={commentInputs[post.id] || ""}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  if (val.length <= 5000) setCommentInputs((prev) => ({ ...prev, [post.id]: val }));
-                                  e.target.style.height = "auto";
-                                  e.target.style.height = e.target.scrollHeight + "px";
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter" && !e.shiftKey) {
-                                    e.preventDefault();
-                                    addComment(post.id);
+                            {communityOpen ? (
+                              <div className="flex gap-2 mt-2 items-end">
+                                <EmojiPicker
+                                  onSelect={(emoji) =>
+                                    setCommentInputs((prev) => ({ ...prev, [post.id]: (prev[post.id] || "") + emoji }))
                                   }
-                                }}
-                                placeholder="Write a comment..."
-                                rows={1}
-                                className="flex-1 rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 resize-none overflow-hidden"
-                                style={{ minHeight: "32px" }}
-                              />
-                              <button
-                                onClick={() => addComment(post.id)}
-                                disabled={!commentInputs[post.id]?.trim()}
-                                className="p-2 rounded-full bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-30 transition-colors shrink-0"
-                              >
-                                <Send className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                                  className="p-1.5 shrink-0"
+                                />
+                                <textarea
+                                  value={commentInputs[post.id] || ""}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val.length <= 5000) setCommentInputs((prev) => ({ ...prev, [post.id]: val }));
+                                    e.target.style.height = "auto";
+                                    e.target.style.height = e.target.scrollHeight + "px";
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" && !e.shiftKey) {
+                                      e.preventDefault();
+                                      addComment(post.id);
+                                    }
+                                  }}
+                                  placeholder="Write a comment..."
+                                  rows={1}
+                                  className="flex-1 rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 resize-none overflow-hidden"
+                                  style={{ minHeight: "32px" }}
+                                />
+                                <button
+                                  onClick={() => addComment(post.id)}
+                                  disabled={!commentInputs[post.id]?.trim()}
+                                  className="p-2 rounded-full bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-30 transition-colors shrink-0"
+                                >
+                                  <Send className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-yellow-300/70 text-center py-2">Commenting is currently disabled.</p>
+                            )}
                           </div>
                         </motion.div>
                       )}
