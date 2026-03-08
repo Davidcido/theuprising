@@ -165,6 +165,7 @@ export type Database = {
           is_anonymous: boolean
           likes_count: number
           shares_count: number
+          views_count: number
         }
         Insert: {
           anonymous_name: string
@@ -177,6 +178,7 @@ export type Database = {
           is_anonymous?: boolean
           likes_count?: number
           shares_count?: number
+          views_count?: number
         }
         Update: {
           anonymous_name?: string
@@ -189,6 +191,7 @@ export type Database = {
           is_anonymous?: boolean
           likes_count?: number
           shares_count?: number
+          views_count?: number
         }
         Relationships: []
       }
@@ -218,6 +221,38 @@ export type Database = {
           {
             foreignKeyName: "community_reactions_post_id_fkey"
             columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "community_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_reposts: {
+        Row: {
+          created_at: string
+          id: string
+          original_post_id: string
+          quote_content: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          original_post_id: string
+          quote_content?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          original_post_id?: string
+          quote_content?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_reposts_original_post_id_fkey"
+            columns: ["original_post_id"]
             isOneToOne: false
             referencedRelation: "community_posts"
             referencedColumns: ["id"]
