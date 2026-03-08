@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Camera, Edit2, MapPin, UserPlus, UserMinus, MessageCircle, Check, X, ImagePlus } from "lucide-react";
+import { Camera, Edit2, MapPin, UserPlus, UserMinus, MessageCircle, Check, X, ImagePlus, Flag, Ban } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
 import { useFollow } from "@/hooks/useFollow";
+import { useBlocks } from "@/hooks/useBlocks";
 import UserAvatar from "@/components/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
