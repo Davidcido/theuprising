@@ -5,6 +5,3 @@ verify_jwt = false
 
 [functions.voice-tts]
 verify_jwt = false
-
-[functions.tts]
-verify_jwt = false

@@ -37,43 +37,9 @@ const modes = [
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 type TranscriptEntry = { role: "user" | "assistant"; text: string };
-type CallPhase = "idle" | "listening" | "processing" | "speaking";
 
-/* ── Voice helpers ── */
-
-function getVoiceLabel(v: SpeechSynthesisVoice): string {
-  // Extract accent/region from lang code
-  const langParts = v.lang.split("-");
-  const regionCode = langParts[1] || "";
-  const regionMap: Record<string, string> = {
-    US: "United States", GB: "United Kingdom", UK: "United Kingdom",
-    AU: "Australia", CA: "Canada", IN: "India", IE: "Ireland",
-    NZ: "New Zealand", ZA: "South Africa", SG: "Singapore",
-    NG: "Nigeria", PH: "Philippines", HK: "Hong Kong",
-  };
-  const accent = regionMap[regionCode.toUpperCase()] || regionCode;
-  const langName = langParts[0] === "en" ? "English" : v.lang;
-  return `${v.name} — ${langName}${accent ? ` — ${accent}` : ""}`;
-}
-
-function voicePriority(v: SpeechSynthesisVoice): number {
-  const name = v.name.toLowerCase();
-  if (name.includes("google")) return 0;
-  if (name.includes("microsoft")) return 1;
-  if (name.includes("neural") || name.includes("natural")) return 2;
-  if (v.lang.startsWith("en")) return 3;
-  return 4;
-}
-
-function sortVoices(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice[] {
-  return [...voices].sort((a, b) => voicePriority(a) - voicePriority(b));
-}
-
-function pickBestEnglishVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
-  const english = voices.filter((v) => v.lang.startsWith("en"));
-  if (english.length === 0) return voices[0] || null;
-  return sortVoices(english)[0];
-}
+// Strict state machine: IDLE -> LISTENING -> PROCESSING -> SPEAKING -> COOLDOWN -> LISTENING
+type CallPhase = "idle" | "listening" | "processing" | "speaking" | "cooldown";
 
 const VoiceCompanion = () => {
   const [callActive, setCallActive] = useState(false);
@@ -87,28 +53,22 @@ const VoiceCompanion = () => {
   const [audioLevel, setAudioLevel] = useState(0);
   const [textInput, setTextInput] = useState("");
   const [showTextInput, setShowTextInput] = useState(false);
-
-  // Browser voices
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [selectedVoiceURI, setSelectedVoiceURI] = useState<string>("");
-  const userPickedVoiceRef = useRef(false);
+  const [selectedVoiceUri, setSelectedVoiceUri] = useState<string>("");
 
   const phaseRef = useRef<CallPhase>("idle");
   const activeRef = useRef(false);
   const mutedRef = useRef(false);
   const recognitionRef = useRef<any>(null);
-  const recognitionBusyRef = useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const conversationRef = useRef<{ role: string; content: string }[]>([]);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
   const animFrameRef = useRef<number>(0);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const emptyRetryRef = useRef(0);
   const selectedLangRef = useRef(selectedLang);
   const selectedModeRef = useRef(selectedMode);
-  const selectedVoiceURIRef = useRef(selectedVoiceURI);
 
   const setPhaseSync = useCallback((p: CallPhase) => {
     phaseRef.current = p;
@@ -118,34 +78,12 @@ const VoiceCompanion = () => {
   useEffect(() => { mutedRef.current = muted; }, [muted]);
   useEffect(() => { selectedLangRef.current = selectedLang; }, [selectedLang]);
   useEffect(() => { selectedModeRef.current = selectedMode; }, [selectedMode]);
-  useEffect(() => { selectedVoiceURIRef.current = selectedVoiceURI; }, [selectedVoiceURI]);
 
   useEffect(() => {
     if (transcriptEndRef.current) {
       transcriptEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [transcript]);
-
-  // Load browser voices
-  useEffect(() => {
-    const loadVoices = () => {
-      const voices = speechSynthesis.getVoices();
-      if (voices.length > 0) {
-        const sorted = sortVoices(voices);
-        setAvailableVoices(sorted);
-        if (!userPickedVoiceRef.current) {
-          const best = pickBestEnglishVoice(voices);
-          if (best) {
-            setSelectedVoiceURI(best.voiceURI);
-            selectedVoiceURIRef.current = best.voiceURI;
-          }
-        }
-      }
-    };
-    loadVoices();
-    speechSynthesis.addEventListener("voiceschanged", loadVoices);
-    return () => speechSynthesis.removeEventListener("voiceschanged", loadVoices);
-  }, []);
 
   const processUtteranceRef = useRef<(text: string) => Promise<void>>();
   const startListeningRef = useRef<() => void>();
@@ -161,11 +99,19 @@ const VoiceCompanion = () => {
       }
       recognitionRef.current = null;
     }
-    recognitionBusyRef.current = false;
   }, []);
 
-  const killSpeech = useCallback(() => {
-    speechSynthesis.cancel();
+  const killAudio = useCallback(() => {
+    // Cancel any browser TTS speech
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+      audioRef.current = null;
+    }
   }, []);
 
   const setupAudioAnalyser = useCallback(async () => {
@@ -173,7 +119,6 @@ const VoiceCompanion = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
       const audioCtx = new AudioContext();
-      audioCtxRef.current = audioCtx;
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
@@ -204,13 +149,73 @@ const VoiceCompanion = () => {
     const langInfo = languages.find((l) => l.code === lang);
     let langInstruction = "";
     if (lang === "pcm") {
-      langInstruction = `The user is speaking Nigerian Pidgin English. The speech transcript may be imperfect — interpret the meaning naturally even if words are misspelled or run together. Reply fully in Pidgin. Be warm, supportive, and emotionally present.`;
+      langInstruction = `The user is speaking Nigerian Pidgin English. The speech transcript may be imperfect — interpret the meaning naturally even if words are misspelled or run together.
+
+Common Pidgin vocabulary and phrases:
+- Greetings: "how far" (how are you), "how body" (how are you feeling), "how e dey go" (how's it going), "wetin dey sup" (what's up)
+- Emotions: "I no too good today" (I'm not feeling well), "my heart heavy" (I'm sad), "e dey pain me" (it hurts me), "I dey vex" (I'm angry), "I dey fear" (I'm scared), "I tire" / "I don tire" (I'm exhausted/fed up), "my mind no dey rest" (I'm anxious), "I dey feel somehow" (I feel off/uneasy), "e dey do me somehow" (something feels wrong), "I happy well well" (I'm very happy)
+- States: "I dey" (I'm here/I'm fine), "I dey kampe" (I'm good), "I no fit again" (I can't anymore), "I wan give up" (I want to give up), "e too much for me" (it's overwhelming), "I dey try" (I'm trying), "I dey manage" (I'm coping), "nothing dey happen" (nothing is working out)
+- Expressions: "no wahala" (no problem), "na so" (that's how it is), "e don tey" (it's been a while), "abeg" (please), "sha" (though/anyway), "abi" (right?/isn't it?), "shey" (is it that/right?), "ehen" (yes/go on), "walahi" (I swear), "na God" (it's God/only God), "e go better" (it will get better), "God dey" (God exists/is watching)
+- Actions: "I wan yarn" (I want to talk), "make we talk" (let's talk), "I need person wey go hear me" (I need someone to listen), "nobody dey hear me" (nobody listens to me), "I dey think too much" (I'm overthinking), "sleep no dey come" (I can't sleep), "I no fit chop" (I can't eat)
+- Relationships: "my person" (my partner/close one), "we dey quarrel" (we're fighting), "e leave me" / "she leave me" (they left me), "I dey lonely" (I'm lonely), "my family no understand" (my family doesn't understand), "dem dey pressure me" (they're pressuring me)
+- School/Work: "school wahala" (school stress), "I no fit cope" (I can't cope), "exam dey worry me" (exams stress me), "oga dey stress me" (my boss is stressing me)
+
+Language interpretation process:
+1. First, internally interpret the user's Pidgin into clear English meaning — even if the transcript has typos, merged words, or phonetic spelling.
+2. Understand the emotional intent and context behind what they said.
+3. Generate your response in natural Nigerian Pidgin that matches the user's tone.
+Never expose the English interpretation to the user — always reply fully in Pidgin. Be warm, supportive, and emotionally present.`;
     } else if (lang === "yo") {
-      langInstruction = `The user is speaking Yoruba. Interpret naturally even if tonal marks are missing. Reply fully in Yoruba. Be warm, supportive, and emotionally present.`;
+      langInstruction = `The user is speaking Yoruba. The speech transcript may be imperfect — interpret the meaning naturally even if tonal marks are missing or words are transliterated.
+
+Common Yoruba vocabulary and phrases:
+- Greetings: "bawo ni" (how are you), "e kaaro" (good morning), "e kaasan" (good afternoon), "e kaaale" (good evening), "se daadaa ni" (are you well?), "pele o" (sorry/sympathy greeting)
+- Emotions: "inu mi dun" (I'm happy), "inu mi bajẹ" (I'm sad/upset), "mo n binu" (I'm angry), "mo n bẹru" (I'm scared), "ara mi ko da" (I'm not feeling well), "okan mi ko balẹ" (my heart is unsettled/I'm anxious), "mo ti arẹ" (I'm tired), "ori mi wu mi" (I'm confused/overwhelmed), "mo ni ireti" (I have hope), "aye mi daru" (my life is troubled)
+- States: "mo wa" (I'm here), "mo dara" (I'm fine), "ko si wahala" (no problem), "mo n gbiyanju" (I'm trying), "ko le ye mi" (I can't understand), "o ti pọ ju" (it's too much), "mi o le mọ" (I can't anymore), "mo fẹ fi silẹ" (I want to give up)
+- Expressions: "Oluwa maa je" (God will provide), "a o ni ku" (we won't die/it will be okay), "e ma binu" (don't be angry), "o da mi loju" (I'm sure), "Olorun lo mọ" (only God knows), "e jọọ" (please), "mo dupẹ" (thank you), "ẹ ku isẹ" (well done), "rara" (no), "bẹẹni" (yes)
+- Actions: "mo fẹ sọrọ" (I want to talk), "gbọ mi" (listen to me), "ẹ ran mi lọwọ" (help me), "mo n ronú pupọ" (I'm overthinking), "orun ko gba mi" (I can't sleep), "mi o le jẹun" (I can't eat)
+- Relationships: "ololufe mi" (my loved one), "a n ja" (we're fighting), "o fi mi silẹ" (they left me), "idile mi ko ye mi" (my family doesn't understand me), "mo ti sùn mọlẹ" (I feel alone), "wọn n fi ipa ba mi" (they're pressuring me)
+- School/Work: "ile-iwe n da mi lamu" (school is stressing me), "idanwo n ba mi ninu jẹ" (exams are worrying me), "isẹ n pa mi" (work is killing me)
+
+Language interpretation process:
+1. First, internally interpret the user's Yoruba into clear English meaning — even if tonal marks are missing, words are phonetically spelled, or the transcript is fragmented.
+2. Understand the emotional intent and context behind what they said.
+3. Generate your response in natural Yoruba that matches the user's tone.
+Never expose the English interpretation to the user — always reply fully in Yoruba. Be warm, supportive, and emotionally present.`;
     } else if (lang === "ig") {
-      langInstruction = `The user is speaking Igbo. Interpret naturally even if diacritics are missing. Reply fully in Igbo. Be warm, supportive, and emotionally present.`;
+      langInstruction = `The user is speaking Igbo. The speech transcript may be imperfect — interpret the meaning naturally even if words are transliterated or tonal marks are missing.
+
+Common Igbo vocabulary and phrases:
+- Greetings: "kedu" (how are you), "nnọọ" (welcome), "ụtụtụ ọma" (good morning), "ehihie ọma" (good afternoon), "anyasị ọma" (good evening), "i meela" (thank you/well done), "kedu ka ị mere" (how are you doing)
+- Emotions: "obi dị m ụtọ" (I'm happy), "obi na-ewu m ewu" (I'm sad), "iwe na-ewe m" (I'm angry), "ụjọ na-atụ m" (I'm scared), "ahụ adịghị m mma" (I'm not well), "obi m adịghị mma" (my heart is not well/I'm upset), "ike gwụrụ m" (I'm exhausted), "isi na-awụ m" (I'm confused), "enweghị m olileanya" (I have no hope), "ndụ siri m ike" (life is hard for me)
+- States: "a nọ m" (I'm here), "ọ dị mma" (it's fine/I'm good), "enweghi nsogbu" (no problem), "a na m agba mbọ" (I'm trying), "ọ karịrị m" (it's beyond me), "a pụghị m ịnagide" (I can't endure anymore), "achọrọ m ịhapụ" (I want to quit)
+- Expressions: "Chukwu mara" (God knows), "ọ ga-adị mma" (it will be fine), "biko" (please), "nwanne" (sibling/friend), "daalụ" (thank you), "ọ dị egwu" (it's serious), "chineke m" (my God - exclamation), "ewoo" (exclamation of distress), "ndo" (sorry/sympathy)
+- Actions: "achọrọ m ịkọrọ gị" (I want to tell you), "gee m ntị" (listen to me), "nyere m aka" (help me), "a na m eche echiche ọtụtụ" (I'm overthinking), "ụra adịghị abịa m" (I can't sleep), "apụghị m iri nri" (I can't eat)
+- Relationships: "onye m hụrụ n'anya" (my loved one), "anyị na-alụ ọgụ" (we're fighting), "o hapụrụ m" (they left me), "ezinụlọ m aghọtaghị m" (my family doesn't understand me), "a nọ m naanị m" (I'm alone), "ha na-abọ m" (they're pressuring me)
+- School/Work: "akwụkwọ na-enye m nsogbu" (school is giving me problems), "ule na-enye m nchegbu" (exams are worrying me), "ọrụ na-egbu m" (work is killing me)
+
+Language interpretation process:
+1. First, internally interpret the user's Igbo into clear English meaning — even if diacritics are missing, words are phonetically spelled, or the transcript is fragmented.
+2. Understand the emotional intent and context behind what they said.
+3. Generate your response in natural Igbo that matches the user's tone.
+Never expose the English interpretation to the user — always reply fully in Igbo. Be warm, supportive, and emotionally present.`;
     } else if (lang === "ha") {
-      langInstruction = `The user is speaking Hausa. Interpret naturally even if diacritics are missing. Reply fully in Hausa. Be warm, supportive, and emotionally present.`;
+      langInstruction = `The user is speaking Hausa. The speech transcript may be imperfect — interpret the meaning naturally even if words are transliterated or diacritics are missing.
+
+Common Hausa vocabulary and phrases:
+- Greetings: "sannu" (hello), "ina kwana" (good morning/how did you sleep), "ina wuni" (good afternoon/how's your day), "yaya dai" (how are you), "lafiya lau" (I'm fine), "barka da zuwa" (welcome), "yaya gida" (how's home/family)
+- Emotions: "ina farin ciki" (I'm happy), "ba ni da daɗi" (I'm not happy), "ina baƙin ciki" (I'm sad), "ina fushi" (I'm angry), "ina tsoro" (I'm scared), "jiki na ba ni daɗi ba" (I'm not feeling well), "zuciya na cike" (my heart is full/overwhelmed), "na gaji" (I'm tired/exhausted), "kai na yi mini hauka" (I'm confused), "ban da bege" (I have no hope), "rayuwa ta yi mini wuya" (life is hard for me)
+- States: "ina nan" (I'm here), "lafiya" (I'm fine), "babu matsala" (no problem), "ina ƙoƙari" (I'm trying), "ya fi ƙarfi na" (it's beyond me), "ba zan iya ba" (I can't anymore), "ina so in daina" (I want to quit), "ina jurewa" (I'm enduring)
+- Expressions: "Allah ya sani" (God knows), "za a yi" (it will be done/it'll be okay), "don Allah" (please/for God's sake), "na gode" (thank you), "madalla" (well done), "ya isa" (it's enough), "wallahi" (I swear), "subhanallah" (exclamation of awe), "innalillahi" (exclamation of grief), "Allah ya taimaka" (God help)
+- Actions: "ina so in yi magana" (I want to talk), "ka saurare ni" (listen to me), "ka taimake ni" (help me), "ina tunani da yawa" (I'm overthinking), "barci ba ya zo mini" (I can't sleep), "ba zan iya ci ba" (I can't eat), "ina buƙatar wani" (I need someone)
+- Relationships: "ƙaunataccen na" (my loved one), "muna faɗa" (we're fighting), "ya/ta bar ni" (they left me), "iyali na ba su fahimce ni ba" (my family doesn't understand me), "ina kaɗaici" (I'm lonely), "suna matsa mini" (they're pressuring me)
+- School/Work: "makaranta na damun ni" (school is bothering me), "jarrabawa na ba ni tsoro" (exams scare me), "aiki ya yi mini yawa" (work is too much for me)
+
+Language interpretation process:
+1. First, internally interpret the user's Hausa into clear English meaning — even if diacritics are missing, words are phonetically spelled, or the transcript is fragmented.
+2. Understand the emotional intent and context behind what they said.
+3. Generate your response in natural Hausa that matches the user's tone.
+Never expose the English interpretation to the user — always reply fully in Hausa. Be warm, supportive, and emotionally present.`;
     } else if (lang !== "en") {
       langInstruction = `The user is speaking in ${langInfo?.label}. Respond in the same language.`;
     }
@@ -235,15 +240,12 @@ const VoiceCompanion = () => {
         throw new Error(err.error || "AI response failed");
       }
 
-      if (!resp.body) throw new Error("No response body");
-
       let fullText = "";
-      const reader = resp.body.getReader();
+      const reader = resp.body!.getReader();
       const decoder = new TextDecoder();
       let buf = "";
-      let streamDone = false;
 
-      while (!streamDone) {
+      while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         buf += decoder.decode(value, { stream: true });
@@ -253,10 +255,9 @@ const VoiceCompanion = () => {
           let line = buf.slice(0, nl);
           buf = buf.slice(nl + 1);
           if (line.endsWith("\r")) line = line.slice(0, -1);
-          if (line.startsWith(":") || line.trim() === "") continue;
           if (!line.startsWith("data: ")) continue;
           const json = line.slice(6).trim();
-          if (json === "[DONE]") { streamDone = true; break; }
+          if (json === "[DONE]") break;
           try {
             const c = JSON.parse(json).choices?.[0]?.delta?.content;
             if (c) fullText += c;
@@ -267,22 +268,6 @@ const VoiceCompanion = () => {
         }
       }
 
-      if (buf.trim()) {
-        for (let raw of buf.split("\n")) {
-          if (!raw) continue;
-          if (raw.endsWith("\r")) raw = raw.slice(0, -1);
-          if (raw.startsWith(":") || raw.trim() === "") continue;
-          if (!raw.startsWith("data: ")) continue;
-          const jsonStr = raw.slice(6).trim();
-          if (jsonStr === "[DONE]") continue;
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) fullText += content;
-          } catch {}
-        }
-      }
-
       return fullText;
     };
 
@@ -290,79 +275,295 @@ const VoiceCompanion = () => {
     for (let i = 0; i <= retries; i++) {
       try {
         const result = await attempt();
-        if (result.trim().length > 0) {
-          conversationRef.current.push({ role: "assistant", content: result });
-          return result;
-        }
-        lastError = new Error("AI returned empty response");
-        if (i < retries) await new Promise((r) => setTimeout(r, 1000));
+        conversationRef.current.push({ role: "assistant", content: result });
+        return result;
       } catch (err) {
         lastError = err as Error;
-        if (i < retries) await new Promise((r) => setTimeout(r, 1000));
+        if (i < retries) {
+          await new Promise((r) => setTimeout(r, 1000));
+        }
       }
     }
 
+    // Remove the user message we added since the response failed
     conversationRef.current.pop();
     throw lastError!;
   }, []);
 
-  /* ── Browser TTS via speechSynthesis ── */
-  const speakText = useCallback((text: string): Promise<void> => {
-    return new Promise<void>((resolve) => {
-      if (!activeRef.current) { resolve(); return; }
+  // Cached best voice ref to avoid repeated lookups
+  const bestVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  const voicesLoadedRef = useRef(false);
+  const voiceLoadPromiseRef = useRef<Promise<SpeechSynthesisVoice | null> | null>(null);
+  const selectedVoiceUriRef = useRef(selectedVoiceUri);
+  useEffect(() => { selectedVoiceUriRef.current = selectedVoiceUri; }, [selectedVoiceUri]);
 
-      const cleanText = text
-        .replace(/\*\*(.*?)\*\*/g, "$1")
-        .replace(/\*(.*?)\*/g, "$1")
-        .replace(/#{1,6}\s/g, "")
-        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-        .replace(/[`~]/g, "")
-        .replace(/[💚🌱✨🫂]/g, "")
-        .trim();
-
-      if (!cleanText) { resolve(); return; }
-
-      // Cancel any ongoing speech first
-      speechSynthesis.cancel();
-
-      // Wait a tick for cancel to clear
-      setTimeout(() => {
-        if (!activeRef.current) { resolve(); return; }
-
-        const utterance = new SpeechSynthesisUtterance(cleanText);
-        utterance.volume = 1.0;
-        utterance.rate = 0.92;
-        utterance.pitch = 1.05;
-
-        // Find the selected voice
-        const voices = speechSynthesis.getVoices();
-        const voiceURI = selectedVoiceURIRef.current;
-        const voice = voices.find((v) => v.voiceURI === voiceURI);
-        if (voice) utterance.voice = voice;
-
-        utterance.onstart = () => {
-          if (activeRef.current) setPhaseSync("speaking");
-        };
-
-        utterance.onend = () => {
-          resolve();
-        };
-
-        utterance.onerror = (e) => {
-          console.warn("[Voice] speechSynthesis error:", e.error);
-          resolve();
-        };
-
-        speechSynthesis.speak(utterance);
-      }, 50);
+  // Categorize and sort voices for display
+  const categorizeVoices = useCallback((voices: SpeechSynthesisVoice[]) => {
+    const scored = voices.map(v => {
+      let score = 0;
+      if (v.name.includes("Google")) score += 100;
+      if (v.name.includes("Microsoft")) score += 80;
+      if (/natural|neural|premium|enhanced/i.test(v.name)) score += 60;
+      if (v.lang.startsWith("en")) score += 40;
+      if (!v.localService) score += 20; // network voices are usually better
+      return { voice: v, score };
     });
-  }, [setPhaseSync]);
+    scored.sort((a, b) => b.score - a.score);
+    return scored.map(s => s.voice);
+  }, []);
 
-  // The main listening function
+  // Pick the best voice from available list
+  const pickBest = useCallback((voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null => {
+    if (!voices.length) return null;
+
+    // If user has selected a voice, use it
+    const uri = selectedVoiceUriRef.current;
+    if (uri) {
+      const userPick = voices.find(v => v.voiceURI === uri);
+      if (userPick) return userPick;
+    }
+
+    // Priority: Google English > Microsoft English (not David) > network English > local English > any English > first voice
+    const googleEn = voices.find(v => v.name.includes("Google") && v.lang.startsWith("en"));
+    if (googleEn) return googleEn;
+
+    const microsoftEn = voices.find(v => v.name.includes("Microsoft") && v.lang.startsWith("en") && !v.name.includes("David"));
+    if (microsoftEn) return microsoftEn;
+
+    const networkEn = voices.find(v => v.lang.startsWith("en") && !v.localService);
+    if (networkEn) return networkEn;
+
+    const localEn = voices.find(v => v.lang.startsWith("en") && v.localService);
+    if (localEn) return localEn;
+
+    const anyEn = voices.find(v => v.lang.startsWith("en"));
+    if (anyEn) return anyEn;
+
+    // Ultimate fallback: first available voice
+    return voices[0];
+  }, []);
+
+  // Load voices — returns a shared promise so multiple callers don't race
+  const loadBestVoice = useCallback((): Promise<SpeechSynthesisVoice | null> => {
+    // If already loaded, return immediately (but re-pick if user changed selection)
+    if (voicesLoadedRef.current) {
+      const voices = window.speechSynthesis?.getVoices() || [];
+      if (voices.length > 0) {
+        const picked = pickBest(voices);
+        bestVoiceRef.current = picked;
+        return Promise.resolve(picked);
+      }
+      if (bestVoiceRef.current) return Promise.resolve(bestVoiceRef.current);
+    }
+
+    // If a load is already in progress, return the existing promise
+    if (voiceLoadPromiseRef.current) {
+      return voiceLoadPromiseRef.current;
+    }
+
+    const promise = new Promise<SpeechSynthesisVoice | null>((resolve) => {
+      if (!window.speechSynthesis) { resolve(null); return; }
+
+      const finalize = (voices: SpeechSynthesisVoice[]) => {
+        setAvailableVoices(categorizeVoices(voices));
+        const voice = pickBest(voices);
+        bestVoiceRef.current = voice;
+        voicesLoadedRef.current = true;
+        voiceLoadPromiseRef.current = null;
+        // Auto-select the best voice in dropdown if none chosen
+        if (!selectedVoiceUriRef.current && voice) {
+          setSelectedVoiceUri(voice.voiceURI);
+        }
+        if (voice) {
+          console.log("TTS voice selected:", voice.name, voice.lang);
+        } else {
+          console.warn("No TTS voices available");
+        }
+        resolve(voice);
+      };
+
+      // Try immediately
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length > 0) {
+        finalize(voices);
+        return;
+      }
+
+      // Wait for voiceschanged event (critical for mobile browsers)
+      let settled = false;
+      const onChanged = () => {
+        if (settled) return;
+        settled = true;
+        window.speechSynthesis.removeEventListener("voiceschanged", onChanged);
+        finalize(window.speechSynthesis.getVoices());
+      };
+      window.speechSynthesis.addEventListener("voiceschanged", onChanged);
+
+      // Also poll every 100ms as some browsers don't fire voiceschanged reliably
+      const pollInterval = setInterval(() => {
+        const v = window.speechSynthesis.getVoices();
+        if (v.length > 0) {
+          clearInterval(pollInterval);
+          if (!settled) {
+            settled = true;
+            window.speechSynthesis.removeEventListener("voiceschanged", onChanged);
+            finalize(v);
+          }
+        }
+      }, 100);
+
+      // Safety timeout after 3s — resolve with whatever we have
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        if (!settled) {
+          settled = true;
+          window.speechSynthesis.removeEventListener("voiceschanged", onChanged);
+          finalize(window.speechSynthesis.getVoices());
+        }
+      }, 3000);
+    });
+
+    voiceLoadPromiseRef.current = promise;
+    return promise;
+  }, [pickBest, categorizeVoices]);
+
+  // Eagerly load voices on mount
+  useEffect(() => {
+    loadBestVoice();
+  }, [loadBestVoice]);
+
+  // When user changes voice selection, update the cached voice
+  useEffect(() => {
+    if (selectedVoiceUri && voicesLoadedRef.current) {
+      const voices = window.speechSynthesis?.getVoices() || [];
+      const picked = voices.find(v => v.voiceURI === selectedVoiceUri);
+      if (picked) {
+        bestVoiceRef.current = picked;
+        console.log("Voice manually set to:", picked.name);
+      }
+    }
+  }, [selectedVoiceUri]);
+
+  const speakWithBrowser = useCallback(async (text: string, isRetry = false): Promise<void> => {
+    if (!window.speechSynthesis) return;
+
+    // Cancel ALL queued and ongoing speech first
+    window.speechSynthesis.cancel();
+    // Delay after cancel to let the engine fully reset (critical on mobile Safari)
+    await new Promise(r => setTimeout(r, 200));
+
+    // Always wait for voices to be fully loaded before speaking
+    const voice = await loadBestVoice();
+
+    if (!voice) {
+      console.error("No TTS voice available. Voices:", window.speechSynthesis.getVoices());
+      return;
+    }
+
+    return new Promise<void>((resolve) => {
+      // Double-check cancel to prevent queue stacking
+      window.speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.9;
+      utterance.pitch = 1.1;
+      utterance.volume = 1.0;
+      utterance.voice = voice;
+
+      let resolved = false;
+      let speechStarted = false;
+      const finish = () => { if (!resolved) { resolved = true; resolve(); } };
+
+      // Chrome bug workaround: long utterances can pause silently
+      const keepAlive = setInterval(() => {
+        if (window.speechSynthesis.speaking) {
+          window.speechSynthesis.pause();
+          window.speechSynthesis.resume();
+        } else {
+          clearInterval(keepAlive);
+        }
+      }, 10000);
+
+      utterance.onstart = () => {
+        speechStarted = true;
+        console.log("TTS speaking started with voice:", voice.name);
+        // Only now update phase to speaking
+        if (activeRef.current) setPhaseSync("speaking");
+      };
+
+      utterance.onend = () => { clearInterval(keepAlive); finish(); };
+      utterance.onerror = (e) => {
+        clearInterval(keepAlive);
+        console.warn("Browser TTS error:", e.error, "| Available voices:", window.speechSynthesis.getVoices().map(v => v.name));
+        // Retry once on failure
+        if (!isRetry && !resolved) {
+          resolved = true;
+          console.log("Retrying TTS...");
+          // Reset voice cache to force re-selection
+          voicesLoadedRef.current = false;
+          bestVoiceRef.current = null;
+          voiceLoadPromiseRef.current = null;
+          setTimeout(() => {
+            speakWithBrowser(text, true).then(resolve).catch(() => finish());
+          }, 300);
+          return;
+        }
+        finish();
+      };
+
+      // Small delay after voice assignment before calling speak() — prevents mobile race condition
+      setTimeout(() => {
+        if (resolved) return;
+        window.speechSynthesis.speak(utterance);
+
+        // Safety: if speech hasn't started within 3s, retry once or resolve
+        setTimeout(() => {
+          if (!speechStarted && !resolved) {
+            clearInterval(keepAlive);
+            if (!isRetry) {
+              console.warn("TTS did not start — retrying once");
+              resolved = true;
+              voicesLoadedRef.current = false;
+              bestVoiceRef.current = null;
+              voiceLoadPromiseRef.current = null;
+              speakWithBrowser(text, true).then(resolve).catch(() => { resolved = false; finish(); });
+            } else {
+              console.warn("TTS did not start after retry — giving up");
+              finish();
+            }
+          }
+        }, 3000);
+      }, 150);
+    });
+  }, [loadBestVoice, setPhaseSync]);
+
+  const speakText = useCallback(async (text: string): Promise<void> => {
+    if (!activeRef.current) return;
+
+    const cleanText = text
+      .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/\*(.*?)\*/g, "$1")
+      .replace(/#{1,6}\s/g, "")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/[`~]/g, "")
+      .replace(/[💚🌱✨🫂]/g, "")
+      .trim();
+
+    if (!activeRef.current) return;
+
+    // Phase is set to "speaking" inside speakWithBrowser's onstart handler
+    // so UI only shows "Speaking" when audio actually begins
+    try {
+      await speakWithBrowser(cleanText);
+    } catch (err) {
+      console.error("Browser TTS failed:", err);
+    }
+  }, [speakWithBrowser]);
+
+  // The main listening function — only enters if phase allows
   const startListening = useCallback(() => {
     if (!activeRef.current || mutedRef.current) return;
-    if (recognitionBusyRef.current) return;
-    if (phaseRef.current !== "idle") return;
+    if (phaseRef.current !== "idle" && phaseRef.current !== "cooldown") return;
 
     killRecognition();
 
@@ -373,90 +574,68 @@ const VoiceCompanion = () => {
       return;
     }
 
-    recognitionBusyRef.current = true;
-
     const recognition = new SpeechRecognition();
+    // Always use English recognition for browser compatibility — AI interprets language internally
     recognition.lang = "en-US";
     recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.maxAlternatives = 1;
 
-    let captured = false;
+    let finalText = "";
 
     recognition.onstart = () => {
+      clearTimer(); // Clear the 2s safety timeout — we successfully started
       setPhaseSync("listening");
       setCurrentPartial("");
     };
 
     recognition.onresult = (event: any) => {
-      if (captured) return;
-      let finalText = "";
+      if (phaseRef.current !== "listening") return;
+
+      let interim = "";
+      finalText = "";
       for (let i = 0; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          finalText += event.results[i][0].transcript;
+        const result = event.results[i];
+        if (result.isFinal) {
+          finalText += result[0].transcript;
+        } else {
+          interim += result[0].transcript;
         }
       }
-      if (finalText.trim().length >= 2) {
-        captured = true;
-        recognitionBusyRef.current = false;
-        killRecognition();
-        emptyRetryRef.current = 0;
-        setPhaseSync("processing");
-        setCurrentPartial("");
-        processUtteranceRef.current?.(finalText.trim());
-      }
+      setCurrentPartial(interim || finalText);
     };
 
     recognition.onend = () => {
       recognitionRef.current = null;
-      recognitionBusyRef.current = false;
 
-      if (!activeRef.current || captured) return;
+      if (!activeRef.current) return;
+      if (phaseRef.current !== "listening") return;
 
-      if (emptyRetryRef.current < 1) {
-        emptyRetryRef.current++;
-        setPhaseSync("idle");
+      const userText = finalText.trim();
+      if (userText.length > 0) {
+        processUtteranceRef.current?.(userText);
+      } else {
+        // No speech detected — restart after short delay
+        setPhaseSync("cooldown");
         clearTimer();
         timerRef.current = setTimeout(() => {
-          if (activeRef.current && !mutedRef.current) {
-            startListeningRef.current?.();
-          }
-        }, 600);
-      } else {
-        emptyRetryRef.current = 0;
-        const retryMsg = "I didn't quite catch that. Could you say it again?";
-        setTranscript((prev) => [...prev, { role: "assistant", text: retryMsg }]);
-        setPhaseSync("processing");
-        speakText(retryMsg).then(() => {
-          if (!activeRef.current) return;
-          setPhaseSync("idle");
-          clearTimer();
-          timerRef.current = setTimeout(() => {
-            if (activeRef.current && !mutedRef.current) {
-              startListeningRef.current?.();
-            }
-          }, 700);
-        });
+          if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
+        }, 800);
       }
     };
 
     recognition.onerror = (e: any) => {
       recognitionRef.current = null;
-      recognitionBusyRef.current = false;
-
-      if (captured) return;
       if (e.error === "not-allowed") {
         toast.error("Microphone access denied.");
         return;
       }
-      if (e.error === "aborted") return;
+      // For no-speech, aborted, network — retry after delay
       if (activeRef.current) {
-        setPhaseSync("idle");
+        setPhaseSync("cooldown");
         clearTimer();
         timerRef.current = setTimeout(() => {
-          if (activeRef.current && !mutedRef.current) {
-            startListeningRef.current?.();
-          }
+          if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
         }, 1000);
       }
     };
@@ -464,19 +643,29 @@ const VoiceCompanion = () => {
     recognitionRef.current = recognition;
     try {
       recognition.start();
-    } catch {
-      recognitionRef.current = null;
-      recognitionBusyRef.current = false;
-      setPhaseSync("idle");
+      // Safety timeout: if we don't reach "listening" within 2s, force retry
       clearTimer();
       timerRef.current = setTimeout(() => {
-        if (activeRef.current && !mutedRef.current) {
-          startListeningRef.current?.();
+        if (activeRef.current && !mutedRef.current && phaseRef.current !== "listening") {
+          console.warn("SpeechRecognition stuck — retrying");
+          killRecognition();
+          // Retry after short delay
+          timerRef.current = setTimeout(() => {
+            if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
+          }, 500);
         }
+      }, 2000);
+    } catch {
+      recognitionRef.current = null;
+      // Retry once after a short delay
+      clearTimer();
+      timerRef.current = setTimeout(() => {
+        if (activeRef.current && !mutedRef.current) startListeningRef.current?.();
       }, 500);
     }
-  }, [killRecognition, setPhaseSync, clearTimer, speakText]);
+  }, [killRecognition, setPhaseSync, clearTimer]);
 
+  // Process a complete utterance through AI + TTS pipeline
   const processUtterance = useCallback(async (userText: string) => {
     if (!activeRef.current) return;
 
@@ -485,32 +674,21 @@ const VoiceCompanion = () => {
     setPhaseSync("processing");
     setTranscript((prev) => [...prev, { role: "user", text: userText }]);
 
-    let aiResponse = "";
     try {
-      aiResponse = await getAIResponse(userText);
-    } catch (err) {
-      console.error("[Voice] AI failed:", err);
-    }
+      const aiResponse = await getAIResponse(userText);
+      if (!activeRef.current) return;
 
-    if (!activeRef.current) return;
+      setTranscript((prev) => [...prev, { role: "assistant", text: aiResponse }]);
 
-    if (!aiResponse || aiResponse.trim().length === 0) {
-      aiResponse = "I hear you. Could you tell me a bit more about how you're feeling?";
-      conversationRef.current.push({ role: "assistant", content: aiResponse });
-    }
-
-    setTranscript((prev) => [...prev, { role: "assistant", text: aiResponse }]);
-
-    try {
       await speakText(aiResponse);
     } catch (err) {
-      console.error("[Voice] TTS failed:", err);
+      console.error("Voice flow error:", err);
+      toast.error("I couldn't process that. Let's try again. 💚");
     }
 
     if (!activeRef.current) return;
 
-    recognitionBusyRef.current = false;
-    setPhaseSync("idle");
+    setPhaseSync("cooldown");
     clearTimer();
     timerRef.current = setTimeout(() => {
       if (activeRef.current && !mutedRef.current) {
@@ -519,103 +697,74 @@ const VoiceCompanion = () => {
     }, 700);
   }, [getAIResponse, speakText, killRecognition, setPhaseSync, clearTimer]);
 
+  // Keep refs updated
   useEffect(() => { startListeningRef.current = startListening; }, [startListening]);
   useEffect(() => { processUtteranceRef.current = processUtterance; }, [processUtterance]);
 
-  const speakGreeting = useCallback(async () => {
-    if (!activeRef.current) return;
+  const startCall = useCallback(async () => {
+    activeRef.current = true;
+    setCallActive(true);
+    setTranscript([]);
+    setPhaseSync("idle");
+    conversationRef.current = [];
 
-    const greeting = "Hi, this is your Uprising Companion. I'm here to listen and support you. How are you doing today?";
+    // iOS Safari audio unlock: create and play a silent audio context on user tap
+    // This satisfies the browser's autoplay policy for subsequent speechSynthesis calls
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const buf = ctx.createBuffer(1, 1, 22050);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      src.start(0);
+      // Also do a dummy speechSynthesis speak to unlock it
+      const dummy = new SpeechSynthesisUtterance("");
+      dummy.volume = 0;
+      window.speechSynthesis?.speak(dummy);
+      setTimeout(() => window.speechSynthesis?.cancel(), 50);
+      setTimeout(() => ctx.close().catch(() => {}), 100);
+    } catch (e) {
+      console.warn("Audio unlock failed:", e);
+    }
+
+    // Pre-load voices while setting up audio
+    loadBestVoice();
+
+    await setupAudioAnalyser();
+
+    const mode = selectedModeRef.current;
+    const greeting =
+      mode === "vent"
+        ? "Hi, this is your Uprising Companion. I'm here to listen. Take your time, and say whatever's on your mind."
+        : mode === "calm"
+        ? "Hi, this is your Uprising Companion. Let's take a moment to breathe and find some calm together. I'm right here with you."
+        : "Hi, this is your Uprising Companion. I'm here with you. How are you doing today?";
 
     setTranscript([{ role: "assistant", text: greeting }]);
     conversationRef.current.push({ role: "assistant", content: greeting });
 
     try {
       await speakText(greeting);
-    } catch {}
+    } catch {
+      // Continue even if TTS fails
+    }
 
     if (!activeRef.current) return;
 
-    // Start listening only after greeting finishes
-    setPhaseSync("idle");
+    setPhaseSync("cooldown");
     clearTimer();
     timerRef.current = setTimeout(() => {
       if (activeRef.current && !mutedRef.current) {
         startListeningRef.current?.();
       }
-    }, 400);
-  }, [speakText, setPhaseSync, clearTimer]);
-
-  const startCall = useCallback(async () => {
-    activeRef.current = true;
-    recognitionBusyRef.current = true;
-    setCallActive(true);
-    setTranscript([]);
-    setPhaseSync("processing");
-    conversationRef.current = [];
-    emptyRetryRef.current = 0;
-
-    try {
-      // 1. Request microphone permission early
-      await navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
-        // Keep stream for analyser setup later, stop tracks for now
-        stream.getTracks().forEach((t) => t.stop());
-      });
-
-      // 2. Set up audio analyser
-      await setupAudioAnalyser();
-
-      // 3. Resume AudioContext for iOS
-      await audioCtxRef.current?.resume();
-
-      // 4. Unlock speechSynthesis + chain greeting in onend
-      let greetingTriggered = false;
-
-      const unlockUtterance = new SpeechSynthesisUtterance(" ");
-      unlockUtterance.volume = 0;
-      unlockUtterance.rate = 1;
-
-      unlockUtterance.onend = () => {
-        if (!greetingTriggered && activeRef.current) {
-          greetingTriggered = true;
-          speakGreeting();
-        }
-      };
-
-      unlockUtterance.onerror = () => {
-        if (!greetingTriggered && activeRef.current) {
-          greetingTriggered = true;
-          speakGreeting();
-        }
-      };
-
-      // 5. Safety fallback: force greeting if onend never fires
-      setTimeout(() => {
-        if (!greetingTriggered && activeRef.current) {
-          console.warn("[Voice] Silent utterance onend did not fire, forcing greeting.");
-          greetingTriggered = true;
-          speakGreeting();
-        }
-      }, 1000);
-
-      speechSynthesis.speak(unlockUtterance);
-
-    } catch (error) {
-      console.error("[Voice] Error starting call:", error);
-      toast.error("Could not start voice companion. Please allow microphone access.");
-      activeRef.current = false;
-      recognitionBusyRef.current = false;
-      setCallActive(false);
-      setPhaseSync("idle");
-    }
-  }, [setupAudioAnalyser, speakGreeting, setPhaseSync]);
+    }, 700);
+  }, [setupAudioAnalyser, speakText, setPhaseSync, clearTimer, loadBestVoice]);
 
   const endCall = useCallback(() => {
     activeRef.current = false;
-    recognitionBusyRef.current = false;
     clearTimer();
     killRecognition();
-    killSpeech(); // Cancel all browser speech immediately
+    killAudio();
 
     setCallActive(false);
     setMuted(false);
@@ -630,12 +779,7 @@ const VoiceCompanion = () => {
       mediaStreamRef.current.getTracks().forEach((t) => t.stop());
       mediaStreamRef.current = null;
     }
-    if (audioCtxRef.current) {
-      audioCtxRef.current.close().catch(() => {});
-      audioCtxRef.current = null;
-    }
-    analyserRef.current = null;
-  }, [clearTimer, killRecognition, killSpeech, setPhaseSync]);
+  }, [clearTimer, killRecognition, killAudio, setPhaseSync]);
 
   const toggleMute = useCallback(() => {
     setMuted((prev) => {
@@ -659,25 +803,23 @@ const VoiceCompanion = () => {
     if (!text || !activeRef.current) return;
     if (phaseRef.current === "processing" || phaseRef.current === "speaking") return;
 
+    // Stop any active listening
     killRecognition();
     setTextInput("");
     processUtterance(text);
   }, [textInput, killRecognition, processUtterance]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount — cancel ALL speech
   useEffect(() => {
     return () => {
       activeRef.current = false;
-      recognitionBusyRef.current = false;
       clearTimer();
-      speechSynthesis.cancel();
-      if (recognitionRef.current) try { recognitionRef.current.abort(); } catch { try { recognitionRef.current.stop(); } catch {} }
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      if (recognitionRef.current) try { recognitionRef.current.stop(); } catch {}
+      if (audioRef.current) audioRef.current.pause();
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((t) => t.stop());
-      }
-      if (audioCtxRef.current) {
-        audioCtxRef.current.close().catch(() => {});
       }
     };
   }, [clearTimer]);
@@ -685,9 +827,6 @@ const VoiceCompanion = () => {
   const isListening = phase === "listening";
   const isSpeaking = phase === "speaking";
   const isProcessing = phase === "processing";
-
-  // Get current voice name for display
-  const currentVoiceName = availableVoices.find((v) => v.voiceURI === selectedVoiceURI)?.name || "Default";
 
   if (!callActive) {
     return (
@@ -738,41 +877,56 @@ const VoiceCompanion = () => {
           </div>
         </div>
 
-        {/* Voice picker — Browser voices */}
-        <div className="space-y-2">
-          <p className="text-white/70 text-xs font-medium uppercase tracking-wider flex items-center gap-1.5">
-            <Volume2 className="w-3.5 h-3.5" /> Voice
-          </p>
-          {availableVoices.length > 0 ? (
-            <Select
-              value={selectedVoiceURI}
-              onValueChange={(uri) => {
-                userPickedVoiceRef.current = true;
-                setSelectedVoiceURI(uri);
-                selectedVoiceURIRef.current = uri;
-              }}
-            >
+        {/* Voice picker */}
+        {availableVoices.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-white/70 text-xs font-medium uppercase tracking-wider flex items-center gap-1.5">
+              <Volume2 className="w-3.5 h-3.5" /> Voice
+            </p>
+            <Select value={selectedVoiceUri} onValueChange={setSelectedVoiceUri}>
               <SelectTrigger className="w-full bg-white/10 border-white/20 text-white text-sm rounded-xl h-11 [&>span]:text-white/80">
-                <SelectValue placeholder="Select a voice" />
+                <SelectValue placeholder="Auto-select best voice" />
               </SelectTrigger>
               <SelectContent className="max-h-60 bg-[#1a2e23] border-white/20">
-                {availableVoices.map((v) => (
-                  <SelectItem
-                    key={v.voiceURI}
-                    value={v.voiceURI}
-                    className="text-white/80 text-sm focus:bg-white/10 focus:text-white"
-                  >
-                    <span className="block truncate text-xs">
-                      {getVoiceLabel(v)}
-                    </span>
-                  </SelectItem>
-                ))}
+                {availableVoices.map((v) => {
+                  const isGoogle = v.name.includes("Google");
+                  const isMicrosoft = v.name.includes("Microsoft");
+                  const isNatural = /natural|neural|premium|enhanced/i.test(v.name);
+                  const badge = isGoogle ? "⭐ Google" : isMicrosoft ? "⭐ Microsoft" : isNatural ? "✨ Natural" : "";
+                  
+                  // Parse language and accent from voice lang code
+                  const langParts = v.lang.split("-");
+                  const langName = langParts[0] === "en" ? "English" : langParts[0] === "es" ? "Spanish" : langParts[0] === "fr" ? "French" : langParts[0] === "de" ? "German" : langParts[0];
+                  const regionMap: Record<string, string> = {
+                    US: "United States", GB: "United Kingdom", UK: "United Kingdom",
+                    AU: "Australia", CA: "Canada", IN: "India", NZ: "New Zealand",
+                    IE: "Ireland", ZA: "South Africa", NG: "Nigeria", SG: "Singapore",
+                  };
+                  const region = langParts[1] ? (regionMap[langParts[1]] || langParts[1]) : "";
+                  const displayLabel = `${v.name}${langName ? ` — ${langName}` : ""}${region ? ` — ${region}` : ""}`;
+
+                  return (
+                    <SelectItem
+                      key={v.voiceURI}
+                      value={v.voiceURI}
+                      className="text-white/80 text-xs focus:bg-white/10 focus:text-white"
+                    >
+                      <span className="flex flex-col gap-0.5">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate max-w-[240px]">{displayLabel}</span>
+                        </span>
+                        {badge && (
+                          <span className="text-[10px] text-white/50">{badge}</span>
+                        )}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
-          ) : (
-            <p className="text-white/40 text-xs italic">Loading voices...</p>
-          )}
-        </div>
+          </div>
+        )}
+
 
         <motion.button
           whileHover={{ scale: 1.03 }}
@@ -786,7 +940,7 @@ const VoiceCompanion = () => {
         </motion.button>
 
         <p className="text-center text-white/40 text-xs">
-          🎙️ Microphone access required · Browser voice
+          🎙️ Microphone access required · Uses AI voice
         </p>
       </div>
     );
@@ -801,6 +955,8 @@ const VoiceCompanion = () => {
     ? "Listening..."
     : muted
     ? "Muted"
+    : phase === "cooldown"
+    ? "Getting ready..."
     : "Ready";
 
   return (
@@ -875,8 +1031,7 @@ const VoiceCompanion = () => {
         <p className="text-white/50 text-sm">{statusText}</p>
         <p className="text-white/30 text-xs">
           {languages.find((l) => l.code === selectedLang)?.label} ·{" "}
-          {modes.find((m) => m.id === selectedMode)?.label} ·{" "}
-          {currentVoiceName}
+          {modes.find((m) => m.id === selectedMode)?.label}
         </p>
 
         {currentPartial && (
