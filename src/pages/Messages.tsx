@@ -24,6 +24,8 @@ const Messages = () => {
   const [userId, setUserId] = useState<string | undefined>();
   const [newMessage, setNewMessage] = useState("");
   const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
+  const [editingMsg, setEditingMsg] = useState<DirectMessage | null>(null);
+  const [editText, setEditText] = useState("");
   const [pendingImage, setPendingImage] = useState<{ file: File; url: string } | null>(null);
   const [sendingImage, setSendingImage] = useState(false);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
