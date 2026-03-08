@@ -17,6 +17,8 @@ import { formatDistanceToNow } from "date-fns";
 import { useConversations } from "@/hooks/useConversations";
 import ProfileEmojiPicker from "@/components/profile/ProfileEmojiPicker";
 import ProfileCoverPhoto from "@/components/profile/ProfileCoverPhoto";
+import { useProfileViews } from "@/hooks/useProfileViews";
+import { usePinnedPost } from "@/hooks/usePinnedPost";
 
 const Profile = () => {
   const { userId: paramUserId } = useParams();
