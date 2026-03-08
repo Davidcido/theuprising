@@ -81,6 +81,9 @@ interface PostCardProps {
   onCommentUpdate: (postId: string, commentId: string, content: string) => void;
   onNavigate: (path: string) => void;
   onToggleCommentReaction: (commentId: string, emoji: string) => void;
+  onToggleBookmark?: (postId: string) => void;
+  onPinPost?: (postId: string) => void;
+  onUnpinPost?: () => void;
 }
 
 const formatTime = (ts: string) => {
