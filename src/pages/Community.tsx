@@ -316,8 +316,8 @@ const Community = () => {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchPosts();
-    setVisibleCount(POSTS_PER_PAGE);
+    setHasMore(true);
+    await fetchPosts(false);
     setRefreshing(false);
   };
 
