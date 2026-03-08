@@ -64,6 +64,9 @@ interface PostCardProps {
   reportMenuPost: string | null;
   commentReactionCounts: Record<string, Record<string, number>>;
   myCommentReactions: Set<string>;
+  isBookmarked?: boolean;
+  isPinned?: boolean;
+  isOwnPost?: boolean;
   onToggleLike: (postId: string) => void;
   onToggleReaction: (postId: string, emoji: string) => void;
   onToggleComments: (postId: string) => void;
