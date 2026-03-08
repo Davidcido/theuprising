@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Send, ArrowLeft, Mail, Image, Phone, Video, Flag, Ban, X, Check, Pencil } from "lucide-react";
+import { Send, ArrowLeft, Mail, Image, Phone, Video, Flag, Ban, X, Check, Pencil, Copy, CheckSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import UserAvatar from "@/components/UserAvatar";
 import { useConversations, useMessages, type DirectMessage } from "@/hooks/useConversations";
