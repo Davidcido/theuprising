@@ -176,12 +176,13 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
 
   return (
     <div
-      className={`flex ${isMine ? "justify-end" : "justify-start"} select-none relative`}
+      className={`flex ${isMine ? "justify-end" : "justify-start"} select-none relative ${selectionMode ? "cursor-pointer" : ""} ${isSelected ? "bg-emerald-500/10 rounded-xl -mx-2 px-2 py-1" : ""}`}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onMouseDown={handleMouseDown}
       onContextMenu={handleContextMenu}
+      onClick={handleClick}
       style={{ transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? "transform 0.2s" : "none" }}
       id={`msg-${msg.id}`}
     >
