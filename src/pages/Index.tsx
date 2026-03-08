@@ -76,8 +76,7 @@ const Index = () => {
             </h1>
 
             <p className="text-lg md:text-xl text-white/60 max-w-2xl mx-auto mb-10 font-body">
-              Uprising Companion is your AI-powered emotional support friend.
-              Talk freely, find calm, and connect with a community that cares.
+              Uprising Companion is your AI-powered emotional support friend and community space. Talk freely, share your story, connect with others, and grow in a place built on empathy, creativity, and positive energy.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
