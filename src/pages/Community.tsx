@@ -102,6 +102,10 @@ const Community = () => {
     fetchLikedPosts();
     fetchReactions();
 
+    // Fetch community status
+    supabase.from("community_settings").select("value").eq("key", "community_status").single()
+      .then(({ data }) => { if (data) setCommunityOpen(data.value === "open"); });
+
     const postsChannel = supabase
       .channel("community-posts")
       .on("postgres_changes", { event: "*", schema: "public", table: "community_posts" }, () => {
@@ -127,10 +131,19 @@ const Community = () => {
       })
       .subscribe();
 
+    const settingsChannel = supabase
+      .channel("community-settings")
+      .on("postgres_changes", { event: "*", schema: "public", table: "community_settings" }, (payload) => {
+        const row = payload.new as { key: string; value: string };
+        if (row.key === "community_status") setCommunityOpen(row.value === "open");
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(postsChannel);
       supabase.removeChannel(commentsChannel);
       supabase.removeChannel(reactionsChannel);
+      supabase.removeChannel(settingsChannel);
     };
   }, [fetchPosts, fetchLikedPosts, fetchReactions]);
 
