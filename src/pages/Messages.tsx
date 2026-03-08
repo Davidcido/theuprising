@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Send, ArrowLeft, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import UserAvatar from "@/components/UserAvatar";
 import { useConversations, useMessages } from "@/hooks/useConversations";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
