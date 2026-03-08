@@ -19,7 +19,7 @@ import ChatBubble from "@/components/messages/ChatBubble";
 import ReplyPreview from "@/components/messages/ReplyPreview";
 import ImagePreview from "@/components/messages/ImagePreview";
 import VoiceRecorder from "@/components/messages/VoiceRecorder";
-
+import EmojiPicker from "@/components/EmojiPicker";
 const Messages = () => {
   const { conversationId } = useParams();
   const [userId, setUserId] = useState<string | undefined>();
