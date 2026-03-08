@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Send, ArrowLeft, Mail, Image, Phone, Video, Flag, Ban, X, Check, Pencil } from "lucide-react";
+import { Send, ArrowLeft, Mail, Image, Phone, Video, Flag, Ban, X, Check, Pencil, Copy, CheckSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import UserAvatar from "@/components/UserAvatar";
 import { useConversations, useMessages, type DirectMessage } from "@/hooks/useConversations";
@@ -31,6 +31,8 @@ const Messages = () => {
   const [sendingImage, setSendingImage] = useState(false);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [sendingText, setSendingText] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedMsgIds, setSelectedMsgIds] = useState<Set<string>>(new Set());
   const sendingTextRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
@@ -213,6 +215,45 @@ const Messages = () => {
     toast({ title: "User reported" });
   };
 
+  // Selection mode handlers
+  const enterSelectionMode = (msgId: string) => {
+    setSelectionMode(true);
+    setSelectedMsgIds(new Set([msgId]));
+  };
+
+  const toggleSelectMsg = (msgId: string) => {
+    setSelectedMsgIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(msgId)) next.delete(msgId);
+      else next.add(msgId);
+      if (next.size === 0) setSelectionMode(false);
+      return next;
+    });
+  };
+
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedMsgIds(new Set());
+  };
+
+  const copySelectedMessages = async () => {
+    const selected = messages
+      .filter((m) => selectedMsgIds.has(m.id))
+      .map((m) => {
+        const senderName = m.sender_id === userId ? "You" : (currentConv?.other_user?.display_name || "User");
+        const anyM = m as any;
+        if (anyM.deleted_for_everyone) return `${senderName}: [deleted]`;
+        return `${senderName}: ${m.content}`;
+      });
+    try {
+      await navigator.clipboard.writeText(selected.join("\n"));
+      toast({ title: `${selected.length} message${selected.length > 1 ? "s" : ""} copied` });
+    } catch {
+      toast({ title: "Failed to copy", variant: "destructive" });
+    }
+    exitSelectionMode();
+  };
+
   // Conversation list view
   if (!conversationId) {
     return (
@@ -303,72 +344,92 @@ const Messages = () => {
         <IncomingCallModal signal={incomingCall} onAccept={acceptCall} onReject={rejectCall} />
       )}
 
+      {/* Selection toolbar */}
+      {selectionMode && (
+        <div
+          className="sticky top-16 z-50 border-b border-white/10 backdrop-blur-xl px-4 py-3 flex items-center gap-3"
+          style={{ background: "rgba(15, 81, 50, 0.9)" }}
+        >
+          <Button size="sm" variant="ghost" onClick={exitSelectionMode} className="text-white/60 hover:text-white">
+            <X className="w-4 h-4" />
+          </Button>
+          <span className="text-sm text-white font-medium flex-1">
+            {selectedMsgIds.size} message{selectedMsgIds.size !== 1 ? "s" : ""} selected
+          </span>
+          <Button size="sm" variant="ghost" onClick={copySelectedMessages} className="text-white/80 hover:text-white gap-1.5">
+            <Copy className="w-4 h-4" /> Copy
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
-      <div
-        className="sticky top-16 z-40 border-b border-white/10 backdrop-blur-xl px-4 py-3 flex items-center gap-3"
-        style={{ background: "rgba(15, 81, 50, 0.6)" }}
-      >
-        <Button size="sm" variant="ghost" onClick={() => navigate("/messages")} className="text-white/60 hover:text-white">
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <UserAvatar
-          displayName={currentConv?.other_user?.display_name}
-          avatarUrl={currentConv?.other_user?.avatar_url}
-          size="sm"
-          showStatus
-          onlineStatus={currentConv?.other_user?.online_status}
-          onClick={() => currentConv?.other_user && navigate(`/profile/${currentConv.other_user.user_id}`)}
-        />
-        <div className="flex-1 min-w-0">
-          <span
-            className="font-semibold text-sm text-white cursor-pointer hover:underline block"
+      {!selectionMode && (
+        <div
+          className="sticky top-16 z-40 border-b border-white/10 backdrop-blur-xl px-4 py-3 flex items-center gap-3"
+          style={{ background: "rgba(15, 81, 50, 0.6)" }}
+        >
+          <Button size="sm" variant="ghost" onClick={() => navigate("/messages")} className="text-white/60 hover:text-white">
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <UserAvatar
+            displayName={currentConv?.other_user?.display_name}
+            avatarUrl={currentConv?.other_user?.avatar_url}
+            size="sm"
+            showStatus
+            onlineStatus={currentConv?.other_user?.online_status}
             onClick={() => currentConv?.other_user && navigate(`/profile/${currentConv.other_user.user_id}`)}
-          >
-            {currentConv?.other_user?.display_name || "User"}
-          </span>
-          <span className="text-[10px] text-white/40">
-            {currentConv?.other_user?.online_status === "online"
-              ? "Online"
-              : currentConv?.other_user && (currentConv.other_user as any).last_seen_at
-                ? `Last seen ${formatDistanceToNow(new Date((currentConv.other_user as any).last_seen_at), { addSuffix: true })}`
-                : "Offline"}
-          </span>
-        </div>
-        <div className="flex items-center gap-1">
-          <Button size="sm" variant="ghost" onClick={() => otherUserId && conversationId && startCall(otherUserId, conversationId, "voice")} disabled={callState !== "idle" || isOtherBlocked} className="text-white/60 hover:text-white">
-            <Phone className="w-4 h-4" />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => otherUserId && conversationId && startCall(otherUserId, conversationId, "video")} disabled={callState !== "idle" || isOtherBlocked} className="text-white/60 hover:text-white">
-            <Video className="w-4 h-4" />
-          </Button>
-          {otherUserId && (
-            <div className="relative group">
-              <Button size="sm" variant="ghost" className="text-white/60 hover:text-white">
-                <Flag className="w-4 h-4" />
-              </Button>
-              <div className="absolute right-0 top-full mt-1 hidden group-hover:block bg-[#0F5132] border border-white/15 rounded-xl shadow-xl overflow-hidden min-w-[160px] z-50">
-                <button onClick={() => reportUser(otherUserId)} className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-yellow-400 hover:bg-white/10 transition-colors">
-                  <Flag className="w-3.5 h-3.5" /> Report User
-                </button>
-                <button
-                  onClick={async () => {
-                    if (isOtherBlocked) {
-                      await unblockUser(otherUserId);
-                      toast({ title: "User unblocked" });
-                    } else {
-                      await blockUser(otherUserId);
-                      toast({ title: "User blocked", description: "They can no longer message or follow you." });
-                    }
-                  }}
-                  className={`flex items-center gap-2 w-full px-4 py-2.5 text-xs ${isOtherBlocked ? "text-emerald-400" : "text-red-400"} hover:bg-white/10 transition-colors`}
-                >
-                  <Ban className="w-3.5 h-3.5" /> {isOtherBlocked ? "Unblock User" : "Block User"}
-                </button>
+          />
+          <div className="flex-1 min-w-0">
+            <span
+              className="font-semibold text-sm text-white cursor-pointer hover:underline block"
+              onClick={() => currentConv?.other_user && navigate(`/profile/${currentConv.other_user.user_id}`)}
+            >
+              {currentConv?.other_user?.display_name || "User"}
+            </span>
+            <span className="text-[10px] text-white/40">
+              {currentConv?.other_user?.online_status === "online"
+                ? "Online"
+                : currentConv?.other_user && (currentConv.other_user as any).last_seen_at
+                  ? `Last seen ${formatDistanceToNow(new Date((currentConv.other_user as any).last_seen_at), { addSuffix: true })}`
+                  : "Offline"}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="ghost" onClick={() => otherUserId && conversationId && startCall(otherUserId, conversationId, "voice")} disabled={callState !== "idle" || isOtherBlocked} className="text-white/60 hover:text-white">
+              <Phone className="w-4 h-4" />
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => otherUserId && conversationId && startCall(otherUserId, conversationId, "video")} disabled={callState !== "idle" || isOtherBlocked} className="text-white/60 hover:text-white">
+              <Video className="w-4 h-4" />
+            </Button>
+            {otherUserId && (
+              <div className="relative group">
+                <Button size="sm" variant="ghost" className="text-white/60 hover:text-white">
+                  <Flag className="w-4 h-4" />
+                </Button>
+                <div className="absolute right-0 top-full mt-1 hidden group-hover:block bg-[#0F5132] border border-white/15 rounded-xl shadow-xl overflow-hidden min-w-[160px] z-50">
+                  <button onClick={() => reportUser(otherUserId)} className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-yellow-400 hover:bg-white/10 transition-colors">
+                    <Flag className="w-3.5 h-3.5" /> Report User
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (isOtherBlocked) {
+                        await unblockUser(otherUserId);
+                        toast({ title: "User unblocked" });
+                      } else {
+                        await blockUser(otherUserId);
+                        toast({ title: "User blocked", description: "They can no longer message or follow you." });
+                      }
+                    }}
+                    className={`flex items-center gap-2 w-full px-4 py-2.5 text-xs ${isOtherBlocked ? "text-emerald-400" : "text-red-400"} hover:bg-white/10 transition-colors`}
+                  >
+                    <Ban className="w-3.5 h-3.5" /> {isOtherBlocked ? "Unblock User" : "Block User"}
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {isOtherBlocked && (
         <div className="px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-center">
@@ -396,13 +457,17 @@ const Messages = () => {
                 msg={msg}
                 isMine={msg.sender_id === userId}
                 replyMessage={replyMsg}
-                onSwipeReply={(m) => setReplyTo(m)}
+                onSwipeReply={(m) => { if (!selectionMode) setReplyTo(m); }}
                 onScrollToMessage={scrollToMessage}
                 onEditMessage={handleEditMessage}
                 onDeleteForMe={handleDeleteForMe}
                 onDeleteForEveryone={handleDeleteForEveryone}
                 onReact={toggleReaction}
                 reactions={getGroupedReactions(msg.id)}
+                selectionMode={selectionMode}
+                isSelected={selectedMsgIds.has(msg.id)}
+                onSelect={() => selectionMode ? toggleSelectMsg(msg.id) : undefined}
+                onLongPressSelect={() => enterSelectionMode(msg.id)}
               />
             );
           })

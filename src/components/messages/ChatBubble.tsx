@@ -17,12 +17,16 @@ type Props = {
   onDeleteForEveryone?: (msg: DirectMessage) => void;
   onReact?: (messageId: string, emoji: string) => void;
   reactions?: GroupedReaction[];
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onSelect?: () => void;
+  onLongPressSelect?: () => void;
 };
 
 const EDIT_WINDOW_MS = 15 * 60 * 1000;
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
 
-const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage, onEditMessage, onDeleteForMe, onDeleteForEveryone, onReact, reactions = [] }: Props) => {
+const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage, onEditMessage, onDeleteForMe, onDeleteForEveryone, onReact, reactions = [], selectionMode, isSelected, onSelect, onLongPressSelect }: Props) => {
   const msgAny = msg as any;
   const touchStartX = useRef(0);
   const dragStartX = useRef(0);
@@ -56,23 +60,29 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
   // Touch handlers for swipe-to-reply
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
+    if (selectionMode) return;
     if (!isDeletedForEveryone) {
-      longPressRef.current = setTimeout(() => setShowMenu(true), 500);
+      longPressRef.current = setTimeout(() => {
+        onLongPressSelect ? onLongPressSelect() : setShowMenu(true);
+      }, 500);
     }
   };
   const handleTouchMove = (e: React.TouchEvent) => {
     if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
+    if (selectionMode) return;
     const diff = e.touches[0].clientX - touchStartX.current;
     if (diff > 0) setOffsetX(Math.min(diff, 80));
   };
   const handleTouchEnd = () => {
     if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
+    if (selectionMode) return;
     if (offsetX > 50) onSwipeReply(msg);
     setOffsetX(0);
   };
 
   // Mouse drag for desktop
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (selectionMode) return;
     dragStartX.current = e.clientX;
     const onMove = (ev: MouseEvent) => {
       const diff = ev.clientX - dragStartX.current;
@@ -90,9 +100,17 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
 
   // Right-click context menu
   const handleContextMenu = (e: React.MouseEvent) => {
+    if (selectionMode) return;
     if (!isDeletedForEveryone) {
       e.preventDefault();
       setShowMenu(true);
+    }
+  };
+
+  // Click handler for selection mode
+  const handleClick = () => {
+    if (selectionMode && onSelect) {
+      onSelect();
     }
   };
 
@@ -158,12 +176,13 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
 
   return (
     <div
-      className={`flex ${isMine ? "justify-end" : "justify-start"} select-none relative`}
+      className={`flex ${isMine ? "justify-end" : "justify-start"} select-none relative ${selectionMode ? "cursor-pointer" : ""} ${isSelected ? "bg-emerald-500/10 rounded-xl -mx-2 px-2 py-1" : ""}`}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onMouseDown={handleMouseDown}
       onContextMenu={handleContextMenu}
+      onClick={handleClick}
       style={{ transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? "transform 0.2s" : "none" }}
       id={`msg-${msg.id}`}
     >
