@@ -323,7 +323,7 @@ const Profile = () => {
             )}
 
             {/* Stats */}
-            <div className="flex gap-6 mt-4 text-sm">
+            <div className="flex flex-wrap gap-4 mt-4 text-sm">
               <div className="text-center">
                 <span className="font-bold text-foreground">{followerCount}</span>
                 <span className="text-muted-foreground ml-1">Followers</span>
@@ -336,7 +336,41 @@ const Profile = () => {
                 <span className="font-bold text-foreground">{userPosts.length}</span>
                 <span className="text-muted-foreground ml-1">Posts</span>
               </div>
+              <div className="text-center">
+                <Eye className="w-3.5 h-3.5 inline mr-1 text-muted-foreground" />
+                <span className="font-bold text-foreground">{totalViews}</span>
+                <span className="text-muted-foreground ml-1">Views</span>
+              </div>
             </div>
+
+            {/* Profile views dashboard (owner only) */}
+            {isOwnProfile && totalViews > 0 && (
+              <div className="mt-3 p-3 rounded-xl bg-white/5 border border-white/10">
+                <p className="text-xs text-muted-foreground mb-1">
+                  <Eye className="w-3 h-3 inline mr-1" />
+                  {weeklyViews} profile views this week
+                </p>
+                {recentViewers.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-[10px] text-muted-foreground mb-1.5">Recent visitors</p>
+                    <div className="flex -space-x-2">
+                      {recentViewers.slice(0, 5).map(v => (
+                        <UserAvatar
+                          key={v.user_id}
+                          avatarUrl={v.avatar_url}
+                          displayName={v.display_name || "User"}
+                          size="xs"
+                          className="ring-2 ring-background"
+                        />
+                      ))}
+                      {recentViewers.length > 5 && (
+                        <span className="text-[10px] text-muted-foreground ml-2">+{recentViewers.length - 5} more</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </motion.div>
 
