@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Send, ArrowLeft, Mail, Image, Mic, MicOff, Phone, Video, Flag, Ban, Square } from "lucide-react";
+import { Send, ArrowLeft, Mail, Image, Phone, Video, Flag, Ban } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import UserAvatar from "@/components/UserAvatar";
-import { useConversations, useMessages } from "@/hooks/useConversations";
+import { useConversations, useMessages, type DirectMessage } from "@/hooks/useConversations";
 import { useCallSignaling } from "@/hooks/useCallSignaling";
 import { useBlocks } from "@/hooks/useBlocks";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
@@ -14,15 +14,19 @@ import { toast } from "@/hooks/use-toast";
 import CallOverlay from "@/components/calls/CallOverlay";
 import IncomingCallModal from "@/components/calls/IncomingCallModal";
 import { createNotification } from "@/lib/notifications";
+import ChatBubble from "@/components/messages/ChatBubble";
+import ReplyPreview from "@/components/messages/ReplyPreview";
+import ImagePreview from "@/components/messages/ImagePreview";
+import VoiceRecorder from "@/components/messages/VoiceRecorder";
 
 const Messages = () => {
   const { conversationId } = useParams();
   const [userId, setUserId] = useState<string | undefined>();
   const [newMessage, setNewMessage] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
+  const [pendingImage, setPendingImage] = useState<{ file: File; url: string } | null>(null);
+  const [sendingImage, setSendingImage] = useState(false);
+  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -35,36 +39,51 @@ const Messages = () => {
 
   const { conversations, loading: convsLoading } = useConversations(userId);
   const { messages, loading: msgsLoading, sendMessage } = useMessages(conversationId, userId);
-  const { callState, incomingCall, activeCallUserId, activeCallType, localMediaStream, remoteMediaStream, startCall, acceptCall, rejectCall, endCall } = useCallSignaling(userId);
+  const { callState, incomingCall, activeCallType, localMediaStream, remoteMediaStream, startCall, acceptCall, rejectCall, endCall } = useCallSignaling(userId);
   const { isBlocked, blockUser, unblockUser } = useBlocks(userId);
   const { isOtherTyping, typingUserName, sendTyping } = useTypingIndicator(conversationId, userId);
   const [displayName, setDisplayName] = useState<string>();
 
-  // Fetch own display name for typing indicator
   useEffect(() => {
     if (!userId) return;
     supabase.from("profiles").select("display_name").eq("user_id", userId).single()
       .then(({ data }) => { if (data) setDisplayName(data.display_name || undefined); });
   }, [userId]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Recording timer
-  useEffect(() => {
-    if (!isRecording) { setRecordingTime(0); return; }
-    const interval = setInterval(() => setRecordingTime(t => t + 1), 1000);
-    return () => clearInterval(interval);
-  }, [isRecording]);
+  // Build a map of messages by id for reply lookups
+  const messagesMap = useMemo(() => {
+    const map: Record<string, DirectMessage> = {};
+    for (const m of messages) map[m.id] = m;
+    return map;
+  }, [messages]);
+
+  const currentConv = conversations.find((c) => c.id === conversationId);
+  const convAny = currentConv as any;
+  const otherUserId = currentConv?.other_user?.user_id || (convAny?.user_one_id === userId ? convAny?.user_two_id : convAny?.user_one_id);
+  const isOtherBlocked = otherUserId ? isBlocked(otherUserId) : false;
 
   const handleSend = async () => {
-    if (!newMessage.trim()) return;
-    await sendMessage(newMessage);
-    // Notify recipient
-    if (otherUserId && userId && conversationId) {
+    if (!newMessage.trim() || !conversationId || !userId) return;
+    const replyId = (replyTo as any)?.id || null;
+    
+    // Insert with reply_to_message_id
+    await supabase.from("direct_messages").insert({
+      conversation_id: conversationId,
+      sender_id: userId,
+      content: newMessage.trim(),
+      ...(replyId ? { reply_to_message_id: replyId } : {}),
+    } as any);
+    await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
+
+    if (otherUserId && userId) {
       createNotification(otherUserId, userId, "message", "sent you a message", conversationId);
     }
     setNewMessage("");
+    setReplyTo(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -74,61 +93,51 @@ const Messages = () => {
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !conversationId || !userId) return;
+    if (!file) return;
+    const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      toast({ title: "Invalid format", description: "Use jpg, png, gif, or webp", variant: "destructive" });
+      return;
+    }
     if (file.size > 10 * 1024 * 1024) {
       toast({ title: "File too large", description: "Max 10MB", variant: "destructive" });
       return;
     }
+    setPendingImage({ file, url: URL.createObjectURL(file) });
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
-    const ext = file.name.split(".").pop();
+  const sendImage = async () => {
+    if (!pendingImage || !conversationId || !userId) return;
+    setSendingImage(true);
+    const ext = pendingImage.file.name.split(".").pop();
     const path = `${conversationId}/${Date.now()}.${ext}`;
-    const { error: uploadError } = await supabase.storage.from("dm-media").upload(path, file);
+    const { error: uploadError } = await supabase.storage.from("dm-media").upload(path, pendingImage.file);
     if (uploadError) {
       toast({ title: "Upload failed", variant: "destructive" });
+      setSendingImage(false);
       return;
     }
-
     const { data: urlData } = supabase.storage.from("dm-media").getPublicUrl(path);
-
+    const replyId = (replyTo as any)?.id || null;
     await supabase.from("direct_messages").insert({
       conversation_id: conversationId,
       sender_id: userId,
       content: "📷 Image",
       attachment_url: urlData.publicUrl,
       attachment_type: "image",
-    });
+      ...(replyId ? { reply_to_message_id: replyId } : {}),
+    } as any);
     await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
+    URL.revokeObjectURL(pendingImage.url);
+    setPendingImage(null);
+    setReplyTo(null);
+    setSendingImage(false);
   };
 
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      audioChunksRef.current = [];
-      recorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
-      recorder.onstop = async () => {
-        stream.getTracks().forEach(t => t.stop());
-        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        await uploadVoiceNote(blob);
-      };
-      recorder.start();
-      mediaRecorderRef.current = recorder;
-      setIsRecording(true);
-    } catch {
-      toast({ title: "Microphone access denied", variant: "destructive" });
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
-    }
-    setIsRecording(false);
-  };
-
-  const uploadVoiceNote = async (blob: Blob) => {
+  const sendVoiceNote = async (blob: Blob) => {
     if (!conversationId || !userId) return;
     const path = `${conversationId}/${Date.now()}.webm`;
     const { error } = await supabase.storage.from("dm-media").upload(path, blob);
@@ -143,8 +152,17 @@ const Messages = () => {
       content: "🎤 Voice note",
       attachment_url: urlData.publicUrl,
       attachment_type: "audio",
-    });
+    } as any);
     await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
+  };
+
+  const scrollToMessage = (id: string) => {
+    const el = document.getElementById(`msg-${id}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-emerald-400/40");
+      setTimeout(() => el.classList.remove("ring-2", "ring-emerald-400/40"), 2000);
+    }
   };
 
   const reportUser = async (targetId: string) => {
@@ -158,16 +176,10 @@ const Messages = () => {
     toast({ title: "User reported" });
   };
 
-  const currentConv = conversations.find((c) => c.id === conversationId);
-  const convAny = currentConv as any;
-  const otherUserId = currentConv?.other_user?.user_id || (convAny?.user_one_id === userId ? convAny?.user_two_id : convAny?.user_one_id);
-  const isOtherBlocked = otherUserId ? isBlocked(otherUserId) : false;
-
   // Conversation list view
   if (!conversationId) {
     return (
       <div className="min-h-screen py-12 pb-24">
-        {/* Incoming call modal */}
         {incomingCall && callState === "ringing" && (
           <IncomingCallModal signal={incomingCall} onAccept={acceptCall} onReject={rejectCall} />
         )}
@@ -239,7 +251,6 @@ const Messages = () => {
   // Chat view
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Call overlay */}
       {callState !== "idle" && callState !== "ringing" && (
         <CallOverlay
           callState={callState}
@@ -251,8 +262,6 @@ const Messages = () => {
           onEndCall={endCall}
         />
       )}
-
-      {/* Incoming call */}
       {incomingCall && callState === "ringing" && (
         <IncomingCallModal signal={incomingCall} onAccept={acceptCall} onReject={rejectCall} />
       )}
@@ -288,39 +297,20 @@ const Messages = () => {
                 : "Offline"}
           </span>
         </div>
-
-        {/* Call buttons */}
         <div className="flex items-center gap-1">
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => otherUserId && conversationId && startCall(otherUserId, conversationId, "voice")}
-            disabled={callState !== "idle" || isOtherBlocked}
-            className="text-white/60 hover:text-white"
-          >
+          <Button size="sm" variant="ghost" onClick={() => otherUserId && conversationId && startCall(otherUserId, conversationId, "voice")} disabled={callState !== "idle" || isOtherBlocked} className="text-white/60 hover:text-white">
             <Phone className="w-4 h-4" />
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => otherUserId && conversationId && startCall(otherUserId, conversationId, "video")}
-            disabled={callState !== "idle" || isOtherBlocked}
-            className="text-white/60 hover:text-white"
-          >
+          <Button size="sm" variant="ghost" onClick={() => otherUserId && conversationId && startCall(otherUserId, conversationId, "video")} disabled={callState !== "idle" || isOtherBlocked} className="text-white/60 hover:text-white">
             <Video className="w-4 h-4" />
           </Button>
-
-          {/* More options */}
           {otherUserId && (
             <div className="relative group">
               <Button size="sm" variant="ghost" className="text-white/60 hover:text-white">
                 <Flag className="w-4 h-4" />
               </Button>
               <div className="absolute right-0 top-full mt-1 hidden group-hover:block bg-[#0F5132] border border-white/15 rounded-xl shadow-xl overflow-hidden min-w-[160px] z-50">
-                <button
-                  onClick={() => reportUser(otherUserId)}
-                  className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-yellow-400 hover:bg-white/10 transition-colors"
-                >
+                <button onClick={() => reportUser(otherUserId)} className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-yellow-400 hover:bg-white/10 transition-colors">
                   <Flag className="w-3.5 h-3.5" /> Report User
                 </button>
                 <button
@@ -343,7 +333,6 @@ const Messages = () => {
         </div>
       </div>
 
-      {/* Blocked notice */}
       {isOtherBlocked && (
         <div className="px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-center">
           <p className="text-xs text-red-400">You have blocked this user. Unblock to resume messaging.</p>
@@ -362,38 +351,17 @@ const Messages = () => {
           </div>
         ) : (
           messages.map((msg) => {
-            const isMine = msg.sender_id === userId;
             const msgAny = msg as any;
+            const replyMsg = msgAny.reply_to_message_id ? messagesMap[msgAny.reply_to_message_id] || null : null;
             return (
-              <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm ${
-                    isMine
-                      ? "bg-emerald-600/40 text-white rounded-br-md"
-                      : "bg-white/10 text-foreground rounded-bl-md"
-                  }`}
-                >
-                  {/* Attachment */}
-                  {msgAny.attachment_url && msgAny.attachment_type === "image" && (
-                    <img
-                      src={msgAny.attachment_url}
-                      alt="Shared image"
-                      className="rounded-xl max-w-full mb-2 cursor-pointer hover:opacity-90"
-                      onClick={() => window.open(msgAny.attachment_url, "_blank")}
-                    />
-                  )}
-                  {msgAny.attachment_url && msgAny.attachment_type === "audio" && (
-                    <audio controls className="max-w-full mb-2" src={msgAny.attachment_url} />
-                  )}
-
-                  {!(msgAny.attachment_url && (msg.content === "📷 Image" || msg.content === "🎤 Voice note")) && (
-                    <p className="whitespace-pre-wrap break-words">{msg.content}</p>
-                  )}
-                  <p className={`text-[10px] mt-1 ${isMine ? "text-white/40" : "text-muted-foreground/60"}`}>
-                    {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
-                  </p>
-                </div>
-              </div>
+              <ChatBubble
+                key={msg.id}
+                msg={msg}
+                isMine={msg.sender_id === userId}
+                replyMessage={replyMsg}
+                onSwipeReply={(m) => setReplyTo(m)}
+                onScrollToMessage={scrollToMessage}
+              />
             );
           })
         )}
@@ -409,62 +377,66 @@ const Messages = () => {
         </div>
       )}
 
-      {/* Input */}
+      {/* Input area */}
       <div className="sticky bottom-0 border-t border-white/10 backdrop-blur-xl px-4 py-3" style={{ background: "rgba(15, 81, 50, 0.8)" }}>
         {isOtherBlocked ? (
           <p className="text-center text-xs text-muted-foreground py-2">Unblock this user to send messages</p>
         ) : (
-          <div className="flex gap-2 max-w-2xl mx-auto items-end">
-            {/* Image upload */}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="p-2.5 rounded-xl bg-white/10 border border-white/15 text-white/60 hover:text-white hover:bg-white/15 transition-colors shrink-0"
-            >
-              <Image className="w-4 h-4" />
-            </button>
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+          <div className="max-w-2xl mx-auto">
+            {/* Reply preview */}
+            {replyTo && <ReplyPreview message={replyTo} onCancel={() => setReplyTo(null)} />}
 
-            {/* Voice note */}
-            {isRecording ? (
-              <div className="flex-1 flex items-center gap-3 px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30">
-                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                <span className="text-sm text-red-400 font-medium">{Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}</span>
-                <div className="flex-1" />
-                <button onClick={stopRecording} className="p-1.5 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30">
-                  <Square className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <>
-                <input
-                  value={newMessage}
-                  onChange={(e) => {
-                    setNewMessage(e.target.value);
-                    if (e.target.value.trim()) sendTyping(displayName);
-                  }}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Type a message..."
-                  className="flex-1 rounded-xl bg-white/10 border border-white/15 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
-                />
-                <button
-                  onClick={startRecording}
-                  className="p-2.5 rounded-xl bg-white/10 border border-white/15 text-white/60 hover:text-white hover:bg-white/15 transition-colors shrink-0"
-                >
-                  <Mic className="w-4 h-4" />
-                </button>
-              </>
+            {/* Image preview */}
+            {pendingImage && (
+              <ImagePreview
+                file={pendingImage.file}
+                previewUrl={pendingImage.url}
+                onSend={sendImage}
+                onCancel={() => {
+                  URL.revokeObjectURL(pendingImage.url);
+                  setPendingImage(null);
+                }}
+                sending={sendingImage}
+              />
             )}
 
-            {!isRecording && (
+            <div className="flex gap-2 items-end">
+              {/* Image upload */}
               <button
-                onClick={handleSend}
-                disabled={!newMessage.trim()}
-                className="px-4 py-2.5 rounded-xl text-white font-semibold text-sm disabled:opacity-40 transition-all hover:scale-105"
-                style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
+                onClick={() => fileInputRef.current?.click()}
+                className="p-2.5 rounded-xl bg-white/10 border border-white/15 text-white/60 hover:text-white hover:bg-white/15 transition-colors shrink-0"
               >
-                <Send className="w-4 h-4" />
+                <Image className="w-4 h-4" />
               </button>
-            )}
+              <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.gif,.webp" className="hidden" onChange={handleFileSelect} />
+
+              {/* Voice recorder or text input */}
+              {showVoiceRecorder ? (
+                <VoiceRecorder onSend={sendVoiceNote} onCancel={() => setShowVoiceRecorder(false)} />
+              ) : (
+                <>
+                  <input
+                    value={newMessage}
+                    onChange={(e) => {
+                      setNewMessage(e.target.value);
+                      if (e.target.value.trim()) sendTyping(displayName);
+                    }}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Type a message..."
+                    className="flex-1 rounded-xl bg-white/10 border border-white/15 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
+                  />
+                  <VoiceRecorder onSend={sendVoiceNote} onCancel={() => setShowVoiceRecorder(false)} />
+                  <button
+                    onClick={handleSend}
+                    disabled={!newMessage.trim()}
+                    className="px-4 py-2.5 rounded-xl text-white font-semibold text-sm disabled:opacity-40 transition-all hover:scale-105"
+                    style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>
