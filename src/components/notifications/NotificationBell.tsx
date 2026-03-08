@@ -21,6 +21,20 @@ const NotificationBell = ({ userId }: NotificationBellProps) => {
   const { notifications, unreadCount, markAsRead, markAllRead } = useNotifications(userId);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+
+  const handleNotificationClick = (n: any) => {
+    if (!n.read) markAsRead(n.id);
+    // Navigate based on notification type
+    if (n.type === "follow" && n.actor_id) {
+      navigate(`/profile/${n.actor_id}`);
+    } else if ((n.type === "like" || n.type === "comment" || n.type === "reaction") && n.reference_id) {
+      navigate("/community");
+    } else if (n.type === "message" && n.reference_id) {
+      navigate(`/messages/${n.reference_id}`);
+    }
+    setOpen(false);
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
