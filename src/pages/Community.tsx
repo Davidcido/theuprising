@@ -349,6 +349,7 @@ const Community = () => {
         createNotification(parentAuthorId, currentUser.id, "reply", "replied to your comment", postId);
       }
     }
+  };
 
   const handleCommentDelete = (postId: string, commentId: string) => {
     setComments((prev) => ({
