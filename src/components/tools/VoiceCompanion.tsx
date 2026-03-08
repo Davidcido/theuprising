@@ -465,8 +465,8 @@ Never expose the English interpretation to the user — always reply fully in Ha
       window.speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.95;
-      utterance.pitch = 1.0;
+      utterance.rate = 0.9;
+      utterance.pitch = 1.1;
       utterance.volume = 1.0;
       utterance.voice = voice;
 
@@ -814,8 +814,9 @@ Never expose the English interpretation to the user — always reply fully in Ha
     return () => {
       activeRef.current = false;
       clearTimer();
-      if (recognitionRef.current) try { recognitionRef.current.stop(); } catch {}
-      if (audioRef.current) audioRef.current.pause();
+      if (recognitionRef.current) try { recognitionRef.current.abort(); } catch {}
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((t) => t.stop());
@@ -888,26 +889,31 @@ Never expose the English interpretation to the user — always reply fully in Ha
               </SelectTrigger>
               <SelectContent className="max-h-60 bg-[#1a2e23] border-white/20">
                 {availableVoices.map((v) => {
-                  const isGoogle = v.name.includes("Google");
-                  const isMicrosoft = v.name.includes("Microsoft");
-                  const isNatural = /natural|neural|premium|enhanced/i.test(v.name);
-                  const badge = isGoogle ? "⭐ Google" : isMicrosoft ? "⭐ Microsoft" : isNatural ? "✨ Natural" : "";
-                  return (
-                    <SelectItem
-                      key={v.voiceURI}
-                      value={v.voiceURI}
-                      className="text-white/80 text-xs focus:bg-white/10 focus:text-white"
-                    >
-                      <span className="flex items-center gap-2">
-                        <span className="truncate max-w-[180px]">{v.name}</span>
-                        {badge && (
-                          <span className="text-[10px] text-white/50 shrink-0">{badge}</span>
-                        )}
-                      </span>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
+                   const isGoogle = v.name.includes("Google");
+                   const isMicrosoft = v.name.includes("Microsoft");
+                   const isNatural = /natural|neural|premium|enhanced/i.test(v.name);
+                   const badge = isGoogle ? "⭐" : isMicrosoft ? "⭐" : isNatural ? "✨" : "";
+                   // Parse language and accent from lang code
+                   const langParts = v.lang.split("-");
+                   const langNames: Record<string, string> = { en: "English", es: "Spanish", fr: "French", de: "German", it: "Italian", pt: "Portuguese", ja: "Japanese", ko: "Korean", zh: "Chinese", ar: "Arabic", hi: "Hindi", ru: "Russian", nl: "Dutch", sv: "Swedish", da: "Danish", fi: "Finnish", nb: "Norwegian", pl: "Polish", tr: "Turkish" };
+                   const regionNames: Record<string, string> = { US: "United States", GB: "United Kingdom", AU: "Australia", CA: "Canada", IN: "India", IE: "Ireland", ZA: "South Africa", NZ: "New Zealand", NG: "Nigeria", SG: "Singapore", HK: "Hong Kong", PH: "Philippines", ES: "Spain", MX: "Mexico", AR: "Argentina", BR: "Brazil", FR: "France", DE: "Germany", IT: "Italy", JP: "Japan", KR: "Korea", CN: "China", TW: "Taiwan", SA: "Saudi Arabia", RU: "Russia", NL: "Netherlands", SE: "Sweden", DK: "Denmark", FI: "Finland", NO: "Norway", PL: "Poland", TR: "Turkey" };
+                   const langLabel = langNames[langParts[0]] || langParts[0];
+                   const regionLabel = langParts[1] ? (regionNames[langParts[1]] || langParts[1]) : "";
+                   const displayName = `${v.name}${langLabel ? ` — ${langLabel}` : ""}${regionLabel ? ` — ${regionLabel}` : ""}`;
+                   return (
+                     <SelectItem
+                       key={v.voiceURI}
+                       value={v.voiceURI}
+                       className="text-white/80 text-xs focus:bg-white/10 focus:text-white"
+                     >
+                       <span className="flex items-center gap-1.5">
+                         {badge && <span className="shrink-0">{badge}</span>}
+                         <span className="truncate">{displayName}</span>
+                       </span>
+                     </SelectItem>
+                   );
+                 })}
+               </SelectContent>
             </Select>
           </div>
         )}
