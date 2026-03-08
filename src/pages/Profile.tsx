@@ -290,7 +290,11 @@ const Profile = () => {
                     <span className={`w-1.5 h-1.5 rounded-full ${
                       profile.online_status === "online" ? "bg-primary" : "bg-muted-foreground/50"
                     }`} />
-                    {profile.online_status === "online" ? "Online" : "Offline"}
+                    {profile.online_status === "online"
+                      ? "Online"
+                      : profile.last_seen_at
+                        ? `Last seen ${formatDistanceToNow(new Date(profile.last_seen_at), { addSuffix: true })}`
+                        : "Offline"}
                   </span>
                 </div>
                 {profile.country && (

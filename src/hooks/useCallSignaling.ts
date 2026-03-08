@@ -145,12 +145,24 @@ export const useCallSignaling = (userId?: string) => {
   };
 
   const setupPeerConnection = async (callType: "voice" | "video") => {
-    const config: RTCConfiguration = {
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" },
-      ],
-    };
+    const iceServers: RTCIceServer[] = [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+    ];
+
+    // TURN server support — configure via environment variables when needed
+    const turnUrl = import.meta.env.VITE_TURN_SERVER_URL;
+    const turnUser = import.meta.env.VITE_TURN_SERVER_USERNAME;
+    const turnCred = import.meta.env.VITE_TURN_SERVER_CREDENTIAL;
+    if (turnUrl) {
+      iceServers.push({
+        urls: turnUrl,
+        username: turnUser || "",
+        credential: turnCred || "",
+      });
+    }
+
+    const config: RTCConfiguration = { iceServers };
 
     const pc = new RTCPeerConnection(config);
     peerConnection.current = pc;

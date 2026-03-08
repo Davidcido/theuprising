@@ -10,6 +10,7 @@ export type Profile = {
   avatar_url: string | null;
   cover_photo: string | null;
   online_status: string;
+  last_seen_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -46,15 +47,21 @@ export const useProfile = (userId?: string) => {
 
   useEffect(() => {
     if (!userId || !profile) return;
-    supabase.from("profiles").update({ online_status: "online" }).eq("user_id", userId).then();
+    supabase.from("profiles").update({ online_status: "online", last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
+
+    // Heartbeat to update last_seen_at periodically
+    const heartbeat = setInterval(() => {
+      supabase.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
+    }, 60000); // Every minute
 
     const handleBeforeUnload = () => {
-      supabase.from("profiles").update({ online_status: "offline" }).eq("user_id", userId);
+      supabase.from("profiles").update({ online_status: "offline", last_seen_at: new Date().toISOString() }).eq("user_id", userId);
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => {
+      clearInterval(heartbeat);
       window.removeEventListener("beforeunload", handleBeforeUnload);
-      supabase.from("profiles").update({ online_status: "offline" }).eq("user_id", userId).then();
+      supabase.from("profiles").update({ online_status: "offline", last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
     };
   }, [userId, profile]);
 

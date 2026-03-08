@@ -3,6 +3,7 @@ import { Bell, Check, CheckCheck, UserPlus, Heart, MessageCircle, Mail } from "l
 import { useNotifications } from "@/hooks/useNotifications";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 
 const ICON_MAP: Record<string, typeof Bell> = {
   follow: UserPlus,
@@ -20,6 +21,20 @@ const NotificationBell = ({ userId }: NotificationBellProps) => {
   const { notifications, unreadCount, markAsRead, markAllRead } = useNotifications(userId);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+
+  const handleNotificationClick = (n: any) => {
+    if (!n.read) markAsRead(n.id);
+    // Navigate based on notification type
+    if (n.type === "follow" && n.actor_id) {
+      navigate(`/profile/${n.actor_id}`);
+    } else if ((n.type === "like" || n.type === "comment" || n.type === "reaction") && n.reference_id) {
+      navigate("/community");
+    } else if (n.type === "message" && n.reference_id) {
+      navigate(`/messages/${n.reference_id}`);
+    }
+    setOpen(false);
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -75,7 +90,7 @@ const NotificationBell = ({ userId }: NotificationBellProps) => {
                   return (
                     <button
                       key={n.id}
-                      onClick={() => { if (!n.read) markAsRead(n.id); }}
+                      onClick={() => handleNotificationClick(n)}
                       className={`w-full text-left px-3 py-3 flex items-start gap-3 hover:bg-white/5 transition-colors ${
                         !n.read ? "bg-emerald-500/10" : ""
                       }`}

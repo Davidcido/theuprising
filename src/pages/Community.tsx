@@ -9,6 +9,7 @@ import { formatDistanceToNow } from "date-fns";
 import EmojiPicker from "@/components/EmojiPicker";
 import { useNavigate } from "react-router-dom";
 import CommentCard from "@/components/community/CommentCard";
+import { createNotification } from "@/lib/notifications";
 
 const REACTION_EMOJIS = [
   { emoji: "❤️", label: "Love" },
@@ -227,6 +228,7 @@ const Community = () => {
 
   const toggleLike = async (postId: string) => {
     const isLiked = likedPosts.has(postId);
+    const post = posts.find(p => p.id === postId);
     if (isLiked) {
       setLikedPosts((prev) => { const n = new Set(prev); n.delete(postId); return n; });
       setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, likes_count: Math.max(0, p.likes_count - 1) } : p));
@@ -237,6 +239,10 @@ const Community = () => {
       setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, likes_count: p.likes_count + 1 } : p));
       await supabase.from("community_likes").insert({ post_id: postId, session_id: sessionId });
       await supabase.rpc("increment_likes", { post_id_input: postId });
+      // Notify post author
+      if (currentUser && post?.author_id && post.author_id !== currentUser.id) {
+        createNotification(post.author_id, currentUser.id, "like", "liked your post", postId);
+      }
     }
   };
 
@@ -282,6 +288,7 @@ const Community = () => {
     const text = commentInputs[postId]?.trim();
     if (!text) return;
     const commentName = currentUser ? currentUser.displayName : sessionId;
+    const post = posts.find(p => p.id === postId);
     const insertData: any = {
       post_id: postId,
       content: text.slice(0, 5000),
@@ -295,6 +302,10 @@ const Community = () => {
       await supabase.rpc("increment_comments", { post_id_input: postId });
       setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
       setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
+      // Notify post author
+      if (currentUser && post?.author_id && post.author_id !== currentUser.id) {
+        createNotification(post.author_id, currentUser.id, "comment", "commented on your post", postId);
+      }
     }
   };
 

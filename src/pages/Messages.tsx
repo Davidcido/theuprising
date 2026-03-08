@@ -7,11 +7,13 @@ import UserAvatar from "@/components/UserAvatar";
 import { useConversations, useMessages } from "@/hooks/useConversations";
 import { useCallSignaling } from "@/hooks/useCallSignaling";
 import { useBlocks } from "@/hooks/useBlocks";
+import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import CallOverlay from "@/components/calls/CallOverlay";
 import IncomingCallModal from "@/components/calls/IncomingCallModal";
+import { createNotification } from "@/lib/notifications";
 
 const Messages = () => {
   const { conversationId } = useParams();
@@ -35,7 +37,15 @@ const Messages = () => {
   const { messages, loading: msgsLoading, sendMessage } = useMessages(conversationId, userId);
   const { callState, incomingCall, activeCallUserId, activeCallType, localMediaStream, remoteMediaStream, startCall, acceptCall, rejectCall, endCall } = useCallSignaling(userId);
   const { isBlocked, blockUser, unblockUser } = useBlocks(userId);
+  const { isOtherTyping, typingUserName, sendTyping } = useTypingIndicator(conversationId, userId);
+  const [displayName, setDisplayName] = useState<string>();
 
+  // Fetch own display name for typing indicator
+  useEffect(() => {
+    if (!userId) return;
+    supabase.from("profiles").select("display_name").eq("user_id", userId).single()
+      .then(({ data }) => { if (data) setDisplayName(data.display_name || undefined); });
+  }, [userId]);
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -50,6 +60,10 @@ const Messages = () => {
   const handleSend = async () => {
     if (!newMessage.trim()) return;
     await sendMessage(newMessage);
+    // Notify recipient
+    if (otherUserId && userId && conversationId) {
+      createNotification(otherUserId, userId, "message", "sent you a message", conversationId);
+    }
     setNewMessage("");
   };
 
@@ -258,12 +272,21 @@ const Messages = () => {
           onlineStatus={currentConv?.other_user?.online_status}
           onClick={() => currentConv?.other_user && navigate(`/profile/${currentConv.other_user.user_id}`)}
         />
-        <span
-          className="font-semibold text-sm text-white cursor-pointer hover:underline flex-1"
-          onClick={() => currentConv?.other_user && navigate(`/profile/${currentConv.other_user.user_id}`)}
-        >
-          {currentConv?.other_user?.display_name || "User"}
-        </span>
+        <div className="flex-1 min-w-0">
+          <span
+            className="font-semibold text-sm text-white cursor-pointer hover:underline block"
+            onClick={() => currentConv?.other_user && navigate(`/profile/${currentConv.other_user.user_id}`)}
+          >
+            {currentConv?.other_user?.display_name || "User"}
+          </span>
+          <span className="text-[10px] text-white/40">
+            {currentConv?.other_user?.online_status === "online"
+              ? "Online"
+              : currentConv?.other_user && (currentConv.other_user as any).last_seen_at
+                ? `Last seen ${formatDistanceToNow(new Date((currentConv.other_user as any).last_seen_at), { addSuffix: true })}`
+                : "Offline"}
+          </span>
+        </div>
 
         {/* Call buttons */}
         <div className="flex items-center gap-1">
@@ -376,6 +399,15 @@ const Messages = () => {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Typing indicator */}
+      {isOtherTyping && (
+        <div className="px-4 py-1.5">
+          <span className="text-xs text-emerald-400/80 italic animate-pulse">
+            {typingUserName || "User"} is typing…
+          </span>
+        </div>
+      )}
+
       {/* Input */}
       <div className="sticky bottom-0 border-t border-white/10 backdrop-blur-xl px-4 py-3" style={{ background: "rgba(15, 81, 50, 0.8)" }}>
         {isOtherBlocked ? (
@@ -405,7 +437,10 @@ const Messages = () => {
               <>
                 <input
                   value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
+                  onChange={(e) => {
+                    setNewMessage(e.target.value);
+                    if (e.target.value.trim()) sendTyping(displayName);
+                  }}
                   onKeyDown={handleKeyDown}
                   placeholder="Type a message..."
                   className="flex-1 rounded-xl bg-white/10 border border-white/15 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
