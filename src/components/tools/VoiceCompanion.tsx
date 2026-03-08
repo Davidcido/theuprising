@@ -601,9 +601,8 @@ Never expose the English interpretation to the user — always reply fully in Ha
 
     // Step 4: Return to listening
     console.log("[Voice] === PIPELINE COMPLETE === Returning to listening");
-    listenCycleRef.current++; // new cycle for next listen
     recognitionBusyRef.current = false;
-    setPhaseSync("cooldown");
+    setPhaseSync("idle");
     clearTimer();
     timerRef.current = setTimeout(() => {
       if (activeRef.current && !mutedRef.current) {
