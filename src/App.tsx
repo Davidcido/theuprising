@@ -48,7 +48,8 @@ const AppContent = () => {
   }, []);
 
   return (
-    <Routes>
+    <>
+      {showOnboarding && <OnboardingFlow onComplete={completeOnboarding} />}
       <Route element={<Layout />}>
         <Route path="/" element={<Index />} />
         <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
