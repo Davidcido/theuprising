@@ -487,6 +487,7 @@ const Messages = () => {
                     <VoiceRecorder onSend={sendVoiceNote} onCancel={() => setShowVoiceRecorder(false)} />
                   ) : (
                     <>
+                      <EmojiPicker onSelect={(emoji) => setNewMessage((prev) => prev + emoji)} />
                       <input
                         value={newMessage}
                         onChange={(e) => {
