@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Send, Heart } from "lucide-react";
+import { Send } from "lucide-react";
+import EmojiPicker from "@/components/EmojiPicker";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
 import uprisingLogo from "@/assets/uprising-logo.jpeg";
@@ -104,6 +105,7 @@ const Chat = () => {
     },
   ]);
   const [input, setInput] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   const [isTyping, setIsTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -230,9 +232,14 @@ const Chat = () => {
               e.preventDefault();
               handleSend();
             }}
-            className="flex gap-3"
+            className="flex items-center gap-2"
           >
+            <EmojiPicker onSelect={(emoji) => {
+              setInput((prev) => prev + emoji);
+              inputRef.current?.focus();
+            }} />
             <input
+              ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Share what's on your mind..."
