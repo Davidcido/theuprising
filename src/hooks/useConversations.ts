@@ -5,7 +5,7 @@ export type Conversation = {
   id: string;
   created_at: string;
   updated_at: string;
-  other_user: { user_id: string; display_name: string | null; avatar_url: string; online_status?: string } | null;
+  other_user: { user_id: string; display_name: string | null; avatar_url: string; online_status?: string; last_seen_at?: string } | null;
   last_message?: { content: string; created_at: string; sender_id: string } | null;
   unread_count: number;
 };
