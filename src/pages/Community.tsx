@@ -1,10 +1,19 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Heart, MessageCircle, Share2, Send, Shield, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import uprisingLogo from "@/assets/uprising-logo.jpeg";
 import { formatDistanceToNow } from "date-fns";
+import EmojiPicker from "@/components/EmojiPicker";
+
+const REACTION_EMOJIS = [
+  { emoji: "❤️", label: "Love" },
+  { emoji: "🙏", label: "Support" },
+  { emoji: "💪", label: "Strength" },
+  { emoji: "😊", label: "Encouragement" },
+  { emoji: "🔥", label: "Inspiration" },
+];
 
 type Comment = {
   id: string;
@@ -22,6 +31,13 @@ type Post = {
   comments_count: number;
   shares_count: number;
   created_at: string;
+};
+
+type Reaction = {
+  id: string;
+  post_id: string;
+  session_id: string;
+  emoji: string;
 };
 
 const getSessionId = () => {
@@ -42,6 +58,9 @@ const Community = () => {
   const [comments, setComments] = useState<Record<string, Comment[]>>({});
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [posting, setPosting] = useState(false);
+  const [reactions, setReactions] = useState<Record<string, Reaction[]>>({});
+  const [myReactions, setMyReactions] = useState<Set<string>>(new Set()); // "postId:emoji"
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const sessionId = getSessionId();
 
@@ -62,9 +81,25 @@ const Community = () => {
     if (data) setLikedPosts(new Set(data.map((l) => l.post_id)));
   }, [sessionId]);
 
+  const fetchReactions = useCallback(async () => {
+    const { data } = await supabase.from("community_reactions").select("*");
+    if (data) {
+      const grouped: Record<string, Reaction[]> = {};
+      const mine = new Set<string>();
+      for (const r of data) {
+        if (!grouped[r.post_id]) grouped[r.post_id] = [];
+        grouped[r.post_id].push(r);
+        if (r.session_id === sessionId) mine.add(`${r.post_id}:${r.emoji}`);
+      }
+      setReactions(grouped);
+      setMyReactions(mine);
+    }
+  }, [sessionId]);
+
   useEffect(() => {
     fetchPosts();
     fetchLikedPosts();
+    fetchReactions();
 
     const postsChannel = supabase
       .channel("community-posts")
@@ -84,23 +119,43 @@ const Community = () => {
       })
       .subscribe();
 
+    const reactionsChannel = supabase
+      .channel("community-reactions")
+      .on("postgres_changes", { event: "*", schema: "public", table: "community_reactions" }, () => {
+        fetchReactions();
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(postsChannel);
       supabase.removeChannel(commentsChannel);
+      supabase.removeChannel(reactionsChannel);
     };
-  }, [fetchPosts, fetchLikedPosts]);
+  }, [fetchPosts, fetchLikedPosts, fetchReactions]);
+
+  // Auto-expand textarea
+  const handlePostChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    if (val.length <= 10000) setNewPost(val);
+    // Auto resize
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + "px";
+    }
+  };
 
   const addPost = async () => {
     if (!newPost.trim() || posting) return;
     setPosting(true);
     const { error } = await supabase.from("community_posts").insert({
-      content: newPost.trim().slice(0, 500),
+      content: newPost.trim().slice(0, 10000),
       anonymous_name: sessionId,
     });
     if (error) {
       toast({ title: "Error", description: "Could not post. Try again.", variant: "destructive" });
     } else {
       setNewPost("");
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
     }
     setPosting(false);
   };
@@ -117,6 +172,27 @@ const Community = () => {
       setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, likes_count: p.likes_count + 1 } : p));
       await supabase.from("community_likes").insert({ post_id: postId, session_id: sessionId });
       await supabase.rpc("increment_likes", { post_id_input: postId });
+    }
+  };
+
+  const toggleReaction = async (postId: string, emoji: string) => {
+    const key = `${postId}:${emoji}`;
+    const hasReacted = myReactions.has(key);
+    if (hasReacted) {
+      setMyReactions((prev) => { const n = new Set(prev); n.delete(key); return n; });
+      setReactions((prev) => ({
+        ...prev,
+        [postId]: (prev[postId] || []).filter((r) => !(r.session_id === sessionId && r.emoji === emoji)),
+      }));
+      await supabase.from("community_reactions").delete().eq("post_id", postId).eq("session_id", sessionId).eq("emoji", emoji);
+    } else {
+      setMyReactions((prev) => new Set(prev).add(key));
+      const newReaction = { id: crypto.randomUUID(), post_id: postId, session_id: sessionId, emoji };
+      setReactions((prev) => ({
+        ...prev,
+        [postId]: [...(prev[postId] || []), newReaction],
+      }));
+      await supabase.from("community_reactions").insert({ post_id: postId, session_id: sessionId, emoji });
     }
   };
 
@@ -142,7 +218,7 @@ const Community = () => {
     if (!text) return;
     const { error } = await supabase.from("community_comments").insert({
       post_id: postId,
-      content: text.slice(0, 300),
+      content: text.slice(0, 2000),
       anonymous_name: sessionId,
     });
     if (!error) {
@@ -164,6 +240,15 @@ const Community = () => {
 
   const formatTime = (ts: string) => {
     try { return formatDistanceToNow(new Date(ts), { addSuffix: true }); } catch { return ts; }
+  };
+
+  const getReactionCounts = (postId: string) => {
+    const postReactions = reactions[postId] || [];
+    const counts: Record<string, number> = {};
+    for (const r of postReactions) {
+      counts[r.emoji] = (counts[r.emoji] || 0) + 1;
+    }
+    return counts;
   };
 
   return (
@@ -192,14 +277,19 @@ const Community = () => {
             </div>
             <div className="flex-1">
               <textarea
+                ref={textareaRef}
                 value={newPost}
-                onChange={(e) => setNewPost(e.target.value.slice(0, 500))}
+                onChange={handlePostChange}
                 placeholder="What's on your mind?"
-                rows={3}
-                className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 resize-none"
+                rows={2}
+                className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 resize-none overflow-hidden"
+                style={{ minHeight: "60px" }}
               />
               <div className="flex justify-between items-center mt-2">
-                <span className="text-xs text-muted-foreground">{newPost.length}/500</span>
+                <EmojiPicker onSelect={(emoji) => {
+                  setNewPost((prev) => prev + emoji);
+                  textareaRef.current?.focus();
+                }} />
                 <button
                   onClick={addPost}
                   disabled={!newPost.trim() || posting}
@@ -235,6 +325,7 @@ const Community = () => {
                 const isLiked = likedPosts.has(post.id);
                 const isExpanded = expandedComments.has(post.id);
                 const postComments = comments[post.id] || [];
+                const reactionCounts = getReactionCounts(post.id);
                 return (
                   <motion.div
                     key={post.id}
@@ -257,7 +348,30 @@ const Community = () => {
                     </div>
 
                     {/* Content */}
-                    <p className="text-foreground/90 text-sm leading-relaxed mb-4 whitespace-pre-wrap">{post.content}</p>
+                    <p className="text-foreground/90 text-sm leading-relaxed mb-3 whitespace-pre-wrap break-words">{post.content}</p>
+
+                    {/* Emoji Reactions */}
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {REACTION_EMOJIS.map(({ emoji, label }) => {
+                        const count = reactionCounts[emoji] || 0;
+                        const isMine = myReactions.has(`${post.id}:${emoji}`);
+                        return (
+                          <button
+                            key={emoji}
+                            onClick={() => toggleReaction(post.id, emoji)}
+                            title={label}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs transition-all hover:scale-105 border ${
+                              isMine
+                                ? "bg-emerald-500/20 border-emerald-500/40 text-foreground"
+                                : "bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10"
+                            }`}
+                          >
+                            <span className="text-sm">{emoji}</span>
+                            {count > 0 && <span>{count}</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
 
                     {/* Actions */}
                     <div className="flex items-center gap-6 border-t border-white/5 pt-3">
@@ -304,7 +418,7 @@ const Community = () => {
                                     <span className="text-xs font-semibold text-foreground">{c.anonymous_name}</span>
                                     <span className="text-[10px] text-muted-foreground">{formatTime(c.created_at)}</span>
                                   </div>
-                                  <p className="text-xs text-foreground/80 mt-0.5">{c.content}</p>
+                                  <p className="text-xs text-foreground/80 mt-0.5 break-words">{c.content}</p>
                                 </div>
                               </div>
                             ))}
@@ -314,7 +428,7 @@ const Community = () => {
                             <div className="flex gap-2 mt-2">
                               <input
                                 value={commentInputs[post.id] || ""}
-                                onChange={(e) => setCommentInputs((prev) => ({ ...prev, [post.id]: e.target.value.slice(0, 300) }))}
+                                onChange={(e) => setCommentInputs((prev) => ({ ...prev, [post.id]: e.target.value }))}
                                 onKeyDown={(e) => e.key === "Enter" && addComment(post.id)}
                                 placeholder="Write a comment..."
                                 className="flex-1 rounded-full bg-white/5 border border-white/10 px-4 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
