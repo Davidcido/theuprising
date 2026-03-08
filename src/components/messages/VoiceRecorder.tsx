@@ -127,7 +127,15 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
         ? "audio/webm"
         : "audio/mp4";
 
-      const recorder = new MediaRecorder(stream, { mimeType });
+      // Use lower bitrate for smaller files (48kbps opus is good quality for voice)
+      const recorderOptions: MediaRecorderOptions = { mimeType };
+      if (mimeType.includes("opus")) {
+        recorderOptions.audioBitsPerSecond = 48000;
+      } else {
+        recorderOptions.audioBitsPerSecond = 64000;
+      }
+
+      const recorder = new MediaRecorder(stream, recorderOptions);
       chunksRef.current = [];
 
       recorder.ondataavailable = (e) => {
