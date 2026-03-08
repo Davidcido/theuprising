@@ -11,6 +11,7 @@ import { createNotification } from "@/lib/notifications";
 import PostCard, { Post, Comment, Reaction } from "@/components/community/PostCard";
 import PostSkeleton from "@/components/community/PostSkeleton";
 import RepostDialog from "@/components/community/RepostDialog";
+import MediaUploader from "@/components/community/MediaUploader";
 
 type FeedTab = "foryou" | "following" | "trending";
 
@@ -52,6 +53,9 @@ const Community = () => {
   const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
   const [repostDialogPost, setRepostDialogPost] = useState<Post | null>(null);
+  const [mediaFiles, setMediaFiles] = useState<{ url: string; type: "image" | "video" }[]>([]);
+  const [commentReactions, setCommentReactions] = useState<Record<string, { emoji: string; session_id: string }[]>>({});
+  const [myCommentReactions, setMyCommentReactions] = useState<Set<string>>(new Set());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -97,7 +101,11 @@ const Community = () => {
     }
     const postsMap: Record<string, any> = {};
     const mappedPosts = data.map((p: any) => {
-      const mapped = { ...p, author_profile: p.author_id ? profilesMap[p.author_id] || null : null };
+      const mapped = {
+        ...p,
+        author_profile: p.author_id ? profilesMap[p.author_id] || null : null,
+        media_urls: p.media_urls || [],
+      };
       postsMap[p.id] = mapped;
       return mapped;
     });
@@ -125,7 +133,6 @@ const Community = () => {
       if (loadMore) {
         setAllPosts(prev => [...prev, ...enriched]);
       } else {
-        // On initial/refresh load, also fetch reposts
         const { data: reposts } = await supabase
           .from("community_reposts")
           .select("*")
@@ -191,10 +198,26 @@ const Community = () => {
     }
   }, [sessionId]);
 
+  const fetchCommentReactions = useCallback(async () => {
+    const { data } = await supabase.from("comment_reactions").select("*");
+    if (data) {
+      const grouped: Record<string, { emoji: string; session_id: string }[]> = {};
+      const mine = new Set<string>();
+      for (const r of data) {
+        if (!grouped[r.comment_id]) grouped[r.comment_id] = [];
+        grouped[r.comment_id].push({ emoji: r.emoji, session_id: r.session_id });
+        if (r.session_id === sessionId) mine.add(`${r.comment_id}:${r.emoji}`);
+      }
+      setCommentReactions(grouped);
+      setMyCommentReactions(mine);
+    }
+  }, [sessionId]);
+
   useEffect(() => {
     fetchPosts(false);
     fetchLikedPosts();
     fetchReactions();
+    fetchCommentReactions();
 
     supabase.from("community_settings").select("value").eq("key", "community_status").single()
       .then(({ data }) => { if (data) setCommunityOpen(data.value === "open"); });
@@ -242,6 +265,11 @@ const Community = () => {
       .on("postgres_changes", { event: "*", schema: "public", table: "community_reactions" }, () => fetchReactions())
       .subscribe();
 
+    const commentReactionsChannel = supabase
+      .channel("comment-reactions")
+      .on("postgres_changes", { event: "*", schema: "public", table: "comment_reactions" }, () => fetchCommentReactions())
+      .subscribe();
+
     const settingsChannel = supabase
       .channel("community-settings")
       .on("postgres_changes", { event: "*", schema: "public", table: "community_settings" }, (payload) => {
@@ -250,7 +278,6 @@ const Community = () => {
       })
       .subscribe();
 
-    // Real-time follows updates
     const followsChannel = supabase
       .channel("community-follows")
       .on("postgres_changes", { event: "*", schema: "public", table: "follows" }, async () => {
@@ -269,12 +296,12 @@ const Community = () => {
       supabase.removeChannel(postsChannel);
       supabase.removeChannel(commentsChannel);
       supabase.removeChannel(reactionsChannel);
+      supabase.removeChannel(commentReactionsChannel);
       supabase.removeChannel(settingsChannel);
       supabase.removeChannel(followsChannel);
     };
   }, []);
 
-  // Infinite scroll observer - loads more from DB
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
@@ -290,12 +317,10 @@ const Community = () => {
     return () => observer.disconnect();
   }, [hasMore, loadingMore, fetchPosts, activeTab]);
 
-  // Reset when tab changes
   useEffect(() => {
-    if (activeTab !== "foryou") return; // only foryou uses DB pagination
+    if (activeTab !== "foryou") return;
   }, [activeTab]);
 
-  // --- Feed sorting logic ---
   const displayPosts = useMemo(() => {
     let sorted: Post[];
     switch (activeTab) {
@@ -331,7 +356,6 @@ const Community = () => {
 
   const visiblePosts = displayPosts;
 
-  // Track post views
   const viewedPostsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     const newPostIds = visiblePosts
@@ -361,12 +385,13 @@ const Community = () => {
   };
 
   const addPost = async () => {
-    if (!newPost.trim() || posting) return;
+    if ((!newPost.trim() && mediaFiles.length === 0) || posting) return;
     setPosting(true);
     const insertData: any = {
-      content: newPost.trim().slice(0, 10000),
+      content: newPost.trim().slice(0, 10000) || (mediaFiles.length > 0 ? "" : ""),
       anonymous_name: postAnonymously ? sessionId : (currentUser?.displayName || sessionId),
       is_anonymous: postAnonymously,
+      media_urls: mediaFiles.map(m => m.url),
     };
     if (!postAnonymously && currentUser) {
       insertData.author_id = currentUser.id;
@@ -376,6 +401,7 @@ const Community = () => {
       toast({ title: "Error", description: "Could not post. Try again.", variant: "destructive" });
     } else {
       setNewPost("");
+      setMediaFiles([]);
       if (textareaRef.current) textareaRef.current.style.height = "auto";
     }
     setPosting(false);
@@ -418,6 +444,26 @@ const Community = () => {
         [postId]: [...(prev[postId] || []), newReaction],
       }));
       await supabase.from("community_reactions").insert({ post_id: postId, session_id: sessionId, emoji });
+    }
+  };
+
+  const toggleCommentReaction = async (commentId: string, emoji: string) => {
+    const key = `${commentId}:${emoji}`;
+    const hasReacted = myCommentReactions.has(key);
+    if (hasReacted) {
+      setMyCommentReactions((prev) => { const n = new Set(prev); n.delete(key); return n; });
+      setCommentReactions((prev) => ({
+        ...prev,
+        [commentId]: (prev[commentId] || []).filter((r) => !(r.session_id === sessionId && r.emoji === emoji)),
+      }));
+      await supabase.from("comment_reactions").delete().eq("comment_id", commentId).eq("session_id", sessionId).eq("emoji", emoji);
+    } else {
+      setMyCommentReactions((prev) => new Set(prev).add(key));
+      setCommentReactions((prev) => ({
+        ...prev,
+        [commentId]: [...(prev[commentId] || []), { emoji, session_id: sessionId }],
+      }));
+      await supabase.from("comment_reactions").insert({ comment_id: commentId, session_id: sessionId, emoji });
     }
   };
 
@@ -532,7 +578,6 @@ const Community = () => {
       return;
     }
     if (quoteContent) {
-      // Quote repost: create a new post with embedded original
       const { error } = await supabase.from("community_posts").insert({
         content: quoteContent,
         anonymous_name: currentUser.displayName,
@@ -544,14 +589,12 @@ const Community = () => {
         toast({ title: "Error", description: "Could not repost. Try again.", variant: "destructive" });
         return;
       }
-      // Also record in community_reposts for tracking
       await supabase.from("community_reposts").insert({
         user_id: currentUser.id,
         original_post_id: post.id,
         quote_content: quoteContent,
       });
     } else {
-      // Direct repost: just record in community_reposts
       const { error } = await supabase.from("community_reposts").insert({
         user_id: currentUser.id,
         original_post_id: post.id,
@@ -562,7 +605,6 @@ const Community = () => {
       }
     }
 
-    // Increment shares_count on original post
     await supabase.from("community_posts").update({ shares_count: post.shares_count + 1 }).eq("id", post.id);
     setAllPosts(prev => prev.map(p => p.id === post.id ? { ...p, shares_count: p.shares_count + 1 } : p));
     toast({ title: quoteContent ? "Quote reposted!" : "Reposted!" });
@@ -579,6 +621,17 @@ const Community = () => {
     }
     return counts;
   };
+
+  const getCommentReactionCounts = useMemo(() => {
+    const result: Record<string, Record<string, number>> = {};
+    for (const [commentId, rxns] of Object.entries(commentReactions)) {
+      result[commentId] = {};
+      for (const r of rxns) {
+        result[commentId][r.emoji] = (result[commentId][r.emoji] || 0) + 1;
+      }
+    }
+    return result;
+  }, [commentReactions]);
 
   return (
     <div className="min-h-screen py-12 pb-24">
@@ -619,6 +672,14 @@ const Community = () => {
                 className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 resize-none overflow-hidden disabled:cursor-not-allowed"
                 style={{ minHeight: "60px" }}
               />
+
+              {/* Media uploader */}
+              <MediaUploader
+                mediaFiles={mediaFiles}
+                onMediaChange={setMediaFiles}
+                disabled={!communityOpen}
+              />
+
               <div className="flex justify-between items-center mt-2">
                 <div className="flex items-center gap-2">
                   <EmojiPicker onSelect={(emoji) => { setNewPost((prev) => prev + emoji); textareaRef.current?.focus(); }} />
@@ -638,7 +699,7 @@ const Community = () => {
                 </div>
                 <button
                   onClick={addPost}
-                  disabled={!newPost.trim() || posting || !communityOpen}
+                  disabled={(!newPost.trim() && mediaFiles.length === 0) || posting || !communityOpen}
                   className="inline-flex items-center gap-2 px-5 py-2 rounded-full text-white text-sm font-semibold disabled:opacity-40 transition-all hover:scale-105 active:scale-95"
                   style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
                 >
@@ -727,6 +788,8 @@ const Community = () => {
                   currentUserName={currentUser?.displayName}
                   communityOpen={communityOpen}
                   reportMenuPost={reportMenuPost}
+                  commentReactionCounts={getCommentReactionCounts}
+                  myCommentReactions={myCommentReactions}
                   onToggleLike={toggleLike}
                   onToggleReaction={toggleReaction}
                   onToggleComments={toggleComments}
@@ -740,6 +803,7 @@ const Community = () => {
                   onCommentDelete={handleCommentDelete}
                   onCommentUpdate={handleCommentUpdate}
                   onNavigate={navigate}
+                  onToggleCommentReaction={toggleCommentReaction}
                 />
               ))}
             </AnimatePresence>
