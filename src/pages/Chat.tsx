@@ -197,6 +197,12 @@ const Chat = () => {
               {isTyping ? "typing..." : "Your safe space to talk"}
             </p>
           </div>
+          {memoryEnabled && (
+            <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/20 border border-primary/30">
+              <Brain className="w-3 h-3 text-primary" />
+              <span className="text-xs text-primary font-medium">Memory Enabled</span>
+            </div>
+          )}
         </div>
       </div>
 
