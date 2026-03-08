@@ -244,24 +244,26 @@ const Community = () => {
     };
   }, [fetchPosts, fetchLikedPosts, fetchReactions]);
 
-  // Infinite scroll observer
+  // Infinite scroll observer - loads more from DB
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisibleCount(prev => prev + POSTS_PER_PAGE);
+        if (entry.isIntersecting && hasMore && !loadingMore && activeTab === "foryou") {
+          fetchPosts(true);
         }
       },
       { rootMargin: "200px" }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, []);
+  }, [hasMore, loadingMore, fetchPosts, activeTab]);
 
-  // Reset visible count when tab changes
-  useEffect(() => { setVisibleCount(POSTS_PER_PAGE); }, [activeTab]);
+  // Reset when tab changes
+  useEffect(() => {
+    if (activeTab !== "foryou") return; // only foryou uses DB pagination
+  }, [activeTab]);
 
   // --- Feed sorting logic ---
   const displayPosts = useMemo(() => {
