@@ -4,6 +4,7 @@ import UserAvatar from "@/components/UserAvatar";
 import { formatDistanceToNow } from "date-fns";
 import EmojiPicker from "@/components/EmojiPicker";
 import CommentCard from "@/components/community/CommentCard";
+import MediaGallery from "@/components/community/MediaGallery";
 
 const REACTION_EMOJIS = [
   { emoji: "❤️", label: "Love" },
@@ -39,6 +40,7 @@ export type Post = {
   original_post_id?: string | null;
   reposted_by_name?: string | null;
   original_post?: Post | null;
+  media_urls?: string[];
 };
 
 export type Reaction = {
@@ -60,6 +62,8 @@ interface PostCardProps {
   currentUserName?: string;
   communityOpen: boolean;
   reportMenuPost: string | null;
+  commentReactionCounts: Record<string, Record<string, number>>;
+  myCommentReactions: Set<string>;
   onToggleLike: (postId: string) => void;
   onToggleReaction: (postId: string, emoji: string) => void;
   onToggleComments: (postId: string) => void;
@@ -73,6 +77,7 @@ interface PostCardProps {
   onCommentDelete: (postId: string, commentId: string) => void;
   onCommentUpdate: (postId: string, commentId: string, content: string) => void;
   onNavigate: (path: string) => void;
+  onToggleCommentReaction: (commentId: string, emoji: string) => void;
 }
 
 const formatTime = (ts: string) => {
@@ -88,9 +93,10 @@ const formatCount = (n: number) => {
 const PostCard = ({
   post, isLiked, isExpanded, postComments, reactionCounts, myReactions,
   commentInput, currentUserId, currentUserName, communityOpen, reportMenuPost,
+  commentReactionCounts, myCommentReactions,
   onToggleLike, onToggleReaction, onToggleComments, onShare, onRepost, onReport,
   onSetReportMenu, onCommentInputChange, onAddComment, onAddReply, onCommentDelete,
-  onCommentUpdate, onNavigate,
+  onCommentUpdate, onNavigate, onToggleCommentReaction,
 }: PostCardProps) => {
   return (
     <motion.div
@@ -157,6 +163,11 @@ const PostCard = ({
 
       {/* Content */}
       <p className="text-foreground/90 text-sm leading-relaxed mb-3 whitespace-pre-wrap break-words">{post.content}</p>
+
+      {/* Media Gallery */}
+      {post.media_urls && post.media_urls.length > 0 && (
+        <MediaGallery mediaUrls={post.media_urls} />
+      )}
 
       {/* Embedded original post (for quote reposts) */}
       {post.original_post && (
@@ -285,6 +296,9 @@ const PostCard = ({
                   onUpdate={(commentId, newContent) => onCommentUpdate(post.id, commentId, newContent)}
                   onReply={onAddReply}
                   allComments={postComments}
+                  commentReactionCounts={commentReactionCounts}
+                  myCommentReactions={myCommentReactions}
+                  onToggleCommentReaction={onToggleCommentReaction}
                 />
               ))}
               {postComments.length === 0 && (

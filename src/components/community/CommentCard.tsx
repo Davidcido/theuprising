@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import EmojiPicker from "@/components/EmojiPicker";
+import CommentReactions from "@/components/community/CommentReactions";
+import MediaGallery from "@/components/community/MediaGallery";
 
 export type Comment = {
   id: string;
@@ -15,6 +17,7 @@ export type Comment = {
   author_id?: string | null;
   parent_comment_id?: string | null;
   created_at: string;
+  media_url?: string | null;
 };
 
 interface CommentCardProps {
@@ -28,6 +31,9 @@ interface CommentCardProps {
   onUpdate: (commentId: string, newContent: string) => void;
   onReply: (postId: string, content: string, parentCommentId: string, parentAuthorId?: string | null) => void;
   allComments: Comment[];
+  commentReactionCounts: Record<string, Record<string, number>>;
+  myCommentReactions: Set<string>;
+  onToggleCommentReaction: (commentId: string, emoji: string) => void;
 }
 
 const formatTime = (ts: string) => {
@@ -37,6 +43,7 @@ const formatTime = (ts: string) => {
 const CommentCard = ({
   comment, replies, currentUserId, currentUserName, communityOpen, depth = 0,
   onDelete, onUpdate, onReply, allComments,
+  commentReactionCounts, myCommentReactions, onToggleCommentReaction,
 }: CommentCardProps) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -101,13 +108,11 @@ const CommentCard = ({
     setReplyContent(`@${comment.anonymous_name} `);
   };
 
-  // Get direct replies for this comment
   const directReplies = allComments.filter(c => c.parent_comment_id === comment.id);
 
   return (
     <div style={{ marginLeft: maxDepthIndent > 0 ? `${maxDepthIndent * 16}px` : undefined }}>
       <div className="flex gap-2.5 group relative">
-        {/* Thread line indicator for replies */}
         {depth > 0 && (
           <div className="absolute -left-3 top-0 bottom-0 w-px bg-white/10" />
         )}
@@ -133,7 +138,6 @@ const CommentCard = ({
                 <span className="text-[10px] text-white/40">{formatTime(comment.created_at)}</span>
               </div>
 
-              {/* 3-dot menu */}
               <div className="relative">
                 <button
                   onClick={() => setMenuOpen(!menuOpen)}
@@ -193,9 +197,24 @@ const CommentCard = ({
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-white/85 mt-1 break-words leading-relaxed">{comment.content}</p>
+              <>
+                <p className="text-xs text-white/85 mt-1 break-words leading-relaxed">{comment.content}</p>
+                {comment.media_url && (
+                  <div className="mt-2">
+                    <MediaGallery mediaUrls={[comment.media_url]} compact />
+                  </div>
+                )}
+              </>
             )}
           </div>
+
+          {/* Comment Reactions */}
+          <CommentReactions
+            commentId={comment.id}
+            reactionCounts={commentReactionCounts[comment.id] || {}}
+            myReactions={myCommentReactions}
+            onToggle={onToggleCommentReaction}
+          />
 
           {/* Reply button */}
           {communityOpen && !editing && (
@@ -276,6 +295,9 @@ const CommentCard = ({
                   onUpdate={onUpdate}
                   onReply={onReply}
                   allComments={allComments}
+                  commentReactionCounts={commentReactionCounts}
+                  myCommentReactions={myCommentReactions}
+                  onToggleCommentReaction={onToggleCommentReaction}
                 />
               ))}
             </div>
