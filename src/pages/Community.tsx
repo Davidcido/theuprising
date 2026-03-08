@@ -299,8 +299,7 @@ const Community = () => {
     return sorted;
   }, [allPosts, activeTab, followingIds]);
 
-  const visiblePosts = useMemo(() => displayPosts.slice(0, visibleCount), [displayPosts, visibleCount]);
-  const hasMore = visibleCount < displayPosts.length;
+  const visiblePosts = displayPosts;
 
   // Track post views
   const viewedPostsRef = useRef<Set<string>>(new Set());
