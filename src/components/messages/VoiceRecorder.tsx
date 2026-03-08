@@ -135,6 +135,7 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
     setAudioBlob(null);
     setAudioUrl("");
     setState("idle");
+    onStateChange?.(false);
     setTime(0);
     setPlaybackProgress(0);
     setIsPlaying(false);
