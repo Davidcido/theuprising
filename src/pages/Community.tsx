@@ -99,10 +99,62 @@ const Community = () => {
           }
         }
       }
-      setAllPosts(data.map((p: any) => ({
-        ...p,
-        author_profile: p.author_id ? profilesMap[p.author_id] || null : null,
-      })));
+
+      // Build posts map for resolving original_post references
+      const postsMap: Record<string, any> = {};
+      const mappedPosts = data.map((p: any) => {
+        const mapped = {
+          ...p,
+          author_profile: p.author_id ? profilesMap[p.author_id] || null : null,
+        };
+        postsMap[p.id] = mapped;
+        return mapped;
+      });
+
+      // Resolve original_post for quote reposts
+      for (const p of mappedPosts) {
+        if (p.original_post_id && postsMap[p.original_post_id]) {
+          p.original_post = postsMap[p.original_post_id];
+        }
+      }
+
+      // Fetch direct reposts and merge into feed
+      const { data: reposts } = await supabase
+        .from("community_reposts")
+        .select("*")
+        .is("quote_content", null)
+        .order("created_at", { ascending: false });
+
+      const directRepostPosts: Post[] = [];
+      if (reposts) {
+        // Get reposter profiles
+        const reposterIds = [...new Set(reposts.map(r => r.user_id))];
+        let reposterProfiles: Record<string, string> = {};
+        if (reposterIds.length > 0) {
+          const { data: rProfiles } = await supabase
+            .from("profiles")
+            .select("user_id, display_name")
+            .in("user_id", reposterIds);
+          if (rProfiles) {
+            for (const rp of rProfiles) {
+              reposterProfiles[rp.user_id] = rp.display_name || "Someone";
+            }
+          }
+        }
+        for (const r of reposts) {
+          const original = postsMap[r.original_post_id];
+          if (original) {
+            directRepostPosts.push({
+              ...original,
+              id: `repost-${r.id}`,
+              created_at: r.created_at,
+              reposted_by_name: reposterProfiles[r.user_id] || "Someone",
+            });
+          }
+        }
+      }
+
+      setAllPosts([...mappedPosts, ...directRepostPosts]);
     }
     setLoading(false);
   }, []);
