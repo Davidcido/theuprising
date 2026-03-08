@@ -15,6 +15,7 @@ import Admin from "./pages/Admin";
 import ResetPassword from "./pages/ResetPassword";
 import Profile from "./pages/Profile";
 import Messages from "./pages/Messages";
+import Explore from "./pages/Explore";
 import Bookmarks from "./pages/Bookmarks";
 import Drafts from "./pages/Drafts";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
@@ -56,6 +57,7 @@ const AppContent = () => {
         <Route path="/messages/:conversationId" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
         <Route path="/bookmarks" element={<ProtectedRoute><Bookmarks /></ProtectedRoute>} />
         <Route path="/drafts" element={<ProtectedRoute><Drafts /></ProtectedRoute>} />
+        <Route path="/explore" element={<Explore />} />
       </Route>
       <Route path="/admin" element={<Admin />} />
       <Route path="/reset-password" element={<ResetPassword />} />

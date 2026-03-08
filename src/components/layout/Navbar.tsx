@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Heart, MessageCircle, Sparkles, Users, Menu, X, LogIn, LogOut, User, Mail } from "lucide-react";
+import { Heart, MessageCircle, Sparkles, Users, Menu, X, LogIn, LogOut, User, Mail, Compass } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +16,7 @@ const navItems = [
   { to: "/chat", label: "Talk", icon: MessageCircle },
   { to: "/tools", label: "Healing Tools", icon: Sparkles },
   { to: "/community", label: "Community", icon: Users },
+  { to: "/explore", label: "Explore", icon: Compass },
   { to: "/vision", label: "The Uprising", icon: Heart },
 ];
 

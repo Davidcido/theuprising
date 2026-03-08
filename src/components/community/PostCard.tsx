@@ -5,6 +5,7 @@ import { formatDistanceToNow } from "date-fns";
 import EmojiPicker from "@/components/EmojiPicker";
 import CommentCard from "@/components/community/CommentCard";
 import MediaGallery from "@/components/community/MediaGallery";
+import HashtagText from "@/components/community/HashtagText";
 
 const REACTION_EMOJIS = [
   { emoji: "❤️", label: "Love" },
@@ -201,7 +202,7 @@ const PostCard = ({
       </div>
 
       {/* Content */}
-      <p className="text-foreground/90 text-sm leading-relaxed mb-3 whitespace-pre-wrap break-words">{post.content}</p>
+      <div className="text-foreground/90 text-sm leading-relaxed mb-3 whitespace-pre-wrap break-words"><HashtagText content={post.content} /></div>
 
       {/* Media Gallery */}
       {post.media_urls && post.media_urls.length > 0 && (
