@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, MessageCircle, Share2, Send, Shield, ChevronDown, ChevronUp } from "lucide-react";
+import { Heart, MessageCircle, Share2, Send, Shield, ChevronDown, ChevronUp, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import uprisingLogo from "@/assets/uprising-logo.jpeg";
 import { formatDistanceToNow } from "date-fns";
 import EmojiPicker from "@/components/EmojiPicker";
+import { useNavigate } from "react-router-dom";
 
 const REACTION_EMOJIS = [
   { emoji: "❤️", label: "Love" },
@@ -31,6 +32,9 @@ type Post = {
   comments_count: number;
   shares_count: number;
   created_at: string;
+  author_id?: string | null;
+  is_anonymous?: boolean;
+  author_profile?: { display_name: string | null; avatar_url: string } | null;
 };
 
 type Reaction = {
@@ -61,16 +65,55 @@ const Community = () => {
   const [reactions, setReactions] = useState<Record<string, Reaction[]>>({});
   const [myReactions, setMyReactions] = useState<Set<string>>(new Set());
   const [communityOpen, setCommunityOpen] = useState(true);
+  const [postAnonymously, setPostAnonymously] = useState(true);
+  const [currentUser, setCurrentUser] = useState<{ id: string; displayName: string } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const navigate = useNavigate();
 
   const sessionId = getSessionId();
+
+  // Get current user
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("user_id", session.user.id)
+          .single();
+        setCurrentUser({
+          id: session.user.id,
+          displayName: profile?.display_name || session.user.email?.split("@")[0] || "User",
+        });
+      }
+    });
+  }, []);
 
   const fetchPosts = useCallback(async () => {
     const { data, error } = await supabase
       .from("community_posts")
       .select("*")
       .order("created_at", { ascending: false });
-    if (!error && data) setPosts(data);
+    if (!error && data) {
+      // Enrich with author profiles
+      const authorIds = [...new Set(data.filter((p: any) => p.author_id).map((p: any) => p.author_id))];
+      let profilesMap: Record<string, { display_name: string | null; avatar_url: string }> = {};
+      if (authorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, display_name, avatar_url")
+          .in("user_id", authorIds);
+        if (profiles) {
+          for (const p of profiles) {
+            profilesMap[p.user_id] = { display_name: p.display_name, avatar_url: p.avatar_url };
+          }
+        }
+      }
+      setPosts(data.map((p: any) => ({
+        ...p,
+        author_profile: p.author_id ? profilesMap[p.author_id] || null : null,
+      })));
+    }
     setLoading(false);
   }, []);
 
@@ -161,10 +204,15 @@ const Community = () => {
   const addPost = async () => {
     if (!newPost.trim() || posting) return;
     setPosting(true);
-    const { error } = await supabase.from("community_posts").insert({
+    const insertData: any = {
       content: newPost.trim().slice(0, 10000),
-      anonymous_name: sessionId,
-    });
+      anonymous_name: postAnonymously ? sessionId : (currentUser?.displayName || sessionId),
+      is_anonymous: postAnonymously,
+    };
+    if (!postAnonymously && currentUser) {
+      insertData.author_id = currentUser.id;
+    }
+    const { error } = await supabase.from("community_posts").insert(insertData);
     if (error) {
       toast({ title: "Error", description: "Could not post. Try again.", variant: "destructive" });
     } else {
@@ -308,10 +356,25 @@ const Community = () => {
                 style={{ minHeight: "60px" }}
               />
               <div className="flex justify-between items-center mt-2">
-                <EmojiPicker onSelect={(emoji) => {
-                  setNewPost((prev) => prev + emoji);
-                  textareaRef.current?.focus();
-                }} />
+                <div className="flex items-center gap-2">
+                  <EmojiPicker onSelect={(emoji) => {
+                    setNewPost((prev) => prev + emoji);
+                    textareaRef.current?.focus();
+                  }} />
+                  {currentUser && (
+                    <button
+                      onClick={() => setPostAnonymously(!postAnonymously)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                        postAnonymously
+                          ? "bg-white/5 border-white/15 text-muted-foreground"
+                          : "bg-emerald-500/20 border-emerald-500/30 text-emerald-400"
+                      }`}
+                    >
+                      {postAnonymously ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      {postAnonymously ? "Anonymous" : currentUser.displayName}
+                    </button>
+                  )}
+                </div>
                 <button
                   onClick={addPost}
                   disabled={!newPost.trim() || posting || !communityOpen}
@@ -360,11 +423,29 @@ const Community = () => {
                   >
                     {/* Post header */}
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="w-9 h-9 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xs font-bold">
-                        {post.anonymous_name.slice(0, 2)}
+                      <div
+                        className={`w-9 h-9 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xs font-bold ${!post.is_anonymous && post.author_id ? "cursor-pointer hover:ring-2 hover:ring-emerald-400/40" : ""}`}
+                        onClick={() => { if (!post.is_anonymous && post.author_id) navigate(`/profile/${post.author_id}`); }}
+                      >
+                        {post.author_profile?.avatar_url?.startsWith("emoji:")
+                          ? <span className="text-lg">{post.author_profile.avatar_url.replace("emoji:", "")}</span>
+                          : post.author_profile?.avatar_url
+                            ? <img src={post.author_profile.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                            : post.anonymous_name.slice(0, 2)
+                        }
                       </div>
                       <div>
-                        <span className="text-sm font-semibold text-foreground">{post.anonymous_name}</span>
+                        <span
+                          className={`text-sm font-semibold text-foreground ${!post.is_anonymous && post.author_id ? "cursor-pointer hover:underline" : ""}`}
+                          onClick={() => { if (!post.is_anonymous && post.author_id) navigate(`/profile/${post.author_id}`); }}
+                        >
+                          {!post.is_anonymous && post.author_profile?.display_name
+                            ? post.author_profile.display_name
+                            : post.anonymous_name}
+                        </span>
+                        {post.is_anonymous && (
+                          <span className="ml-1.5 text-[10px] text-muted-foreground/60 bg-white/5 px-1.5 py-0.5 rounded-full">anon</span>
+                        )}
                         <span className="text-xs text-muted-foreground ml-2">· {formatTime(post.created_at)}</span>
                       </div>
                     </div>

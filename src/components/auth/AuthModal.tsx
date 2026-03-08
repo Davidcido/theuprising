@@ -3,19 +3,33 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { trackLogin, trackSignup } from "@/lib/trackLogin";
+import { COUNTRIES } from "@/lib/countries";
 
 interface AuthModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
+const ensureProfile = async (userId: string, email?: string) => {
+  const { data } = await supabase.from("profiles").select("id").eq("user_id", userId).maybeSingle();
+  if (!data) {
+    await supabase.from("profiles").insert({
+      user_id: userId,
+      display_name: email?.split("@")[0] || "User",
+    });
+  }
+};
+
 const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [country, setCountry] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -24,12 +38,15 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
 
     try {
       if (mode === "signup") {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-        });
+        const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         if (data.session) {
+          // Create/update profile with display name and country
+          await supabase.from("profiles").upsert({
+            user_id: data.session.user.id,
+            display_name: displayName || email.split("@")[0],
+            country: country || "",
+          }, { onConflict: "user_id" });
           toast.success("Account created! You're now logged in.");
           trackLogin(data.session.user.id);
           trackSignup(data.session.user.id);
@@ -40,12 +57,15 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        await ensureProfile(data.session.user.id, email);
         trackLogin(data.session?.user.id);
         toast.success("Welcome back!");
         onOpenChange(false);
       }
       setEmail("");
       setPassword("");
+      setDisplayName("");
+      setCountry("");
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -87,6 +107,37 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
               className="bg-white/10 border-white/20 text-white placeholder:text-white/40"
             />
           </div>
+
+          {mode === "signup" && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="displayName" className="text-white/80">Display Name</Label>
+                <Input
+                  id="displayName"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="How should we call you?"
+                  className="bg-white/10 border-white/20 text-white placeholder:text-white/40"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-white/80">Country</Label>
+                <Select value={country} onValueChange={setCountry}>
+                  <SelectTrigger className="bg-white/10 border-white/20 text-white">
+                    <SelectValue placeholder="Select your country" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-emerald-900 border-white/20 max-h-60">
+                    {COUNTRIES.map((c) => (
+                      <SelectItem key={c.code} value={c.code} className="text-white hover:bg-white/10">
+                        {c.flag} {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
+
           <Button type="submit" disabled={loading} className="w-full" variant="hero">
             {loading ? "Loading..." : mode === "login" ? "Log In" : "Sign Up"}
           </Button>

@@ -12,6 +12,8 @@ import Community from "./pages/Community";
 import Vision from "./pages/Vision";
 import NotFound from "./pages/NotFound";
 import Admin from "./pages/Admin";
+import Profile from "./pages/Profile";
+import Messages from "./pages/Messages";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import { trackVisit } from "./lib/trackLogin";
 
@@ -30,6 +32,10 @@ const AppContent = () => {
         <Route path="/tools" element={<ProtectedRoute><Tools /></ProtectedRoute>} />
         <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
         <Route path="/vision" element={<Vision />} />
+        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/profile/:userId" element={<Profile />} />
+        <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+        <Route path="/messages/:conversationId" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
       </Route>
       <Route path="/admin" element={<Admin />} />
       <Route path="*" element={<NotFound />} />
