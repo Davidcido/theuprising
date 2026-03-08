@@ -10,6 +10,7 @@ import Tools from "./pages/Tools";
 import Community from "./pages/Community";
 import Vision from "./pages/Vision";
 import NotFound from "./pages/NotFound";
+import Admin from "./pages/Admin";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/community" element={<Community />} />
             <Route path="/vision" element={<Vision />} />
           </Route>
+          <Route path="/admin" element={<Admin />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
