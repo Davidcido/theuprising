@@ -23,6 +23,8 @@ import { trackVisit } from "./lib/trackLogin";
 import { registerPushSubscription } from "./lib/pushNotifications";
 import { supabase } from "./integrations/supabase/client";
 import InstallPrompt from "./components/pwa/InstallPrompt";
+import OnboardingFlow from "./components/onboarding/OnboardingFlow";
+import { useOnboarding } from "./hooks/useOnboarding";
 
 const queryClient = new QueryClient();
 
