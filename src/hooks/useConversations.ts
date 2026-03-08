@@ -60,7 +60,7 @@ export const useConversations = (userId?: string) => {
       (allParticipants || []).filter((p) => p.user_id !== userId).map((p) => p.user_id)
     )];
 
-    let profilesMap: Record<string, { user_id: string; display_name: string | null; avatar_url: string; online_status?: string }> = {};
+    let profilesMap: Record<string, { user_id: string; display_name: string | null; avatar_url: string; online_status?: string; last_seen_at?: string }> = {};
     if (otherUserIds.length > 0) {
       const { data: profiles } = await supabase
         .from("profiles")
