@@ -27,6 +27,8 @@ const Messages = () => {
   const [pendingImage, setPendingImage] = useState<{ file: File; url: string } | null>(null);
   const [sendingImage, setSendingImage] = useState(false);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
+  const [sendingText, setSendingText] = useState(false);
+  const sendingTextRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -67,23 +69,32 @@ const Messages = () => {
   const isOtherBlocked = otherUserId ? isBlocked(otherUserId) : false;
 
   const handleSend = async () => {
-    if (!newMessage.trim() || !conversationId || !userId) return;
+    if (!newMessage.trim() || !conversationId || !userId || sendingTextRef.current) return;
+    sendingTextRef.current = true;
+    setSendingText(true);
     const replyId = (replyTo as any)?.id || null;
-    
-    // Insert with reply_to_message_id
-    await supabase.from("direct_messages").insert({
-      conversation_id: conversationId,
-      sender_id: userId,
-      content: newMessage.trim(),
-      ...(replyId ? { reply_to_message_id: replyId } : {}),
-    } as any);
-    await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
-
-    if (otherUserId && userId) {
-      createNotification(otherUserId, userId, "message", "sent you a message", conversationId);
-    }
+    const content = newMessage.trim();
     setNewMessage("");
     setReplyTo(null);
+    
+    try {
+      await supabase.from("direct_messages").insert({
+        conversation_id: conversationId,
+        sender_id: userId,
+        content,
+        ...(replyId ? { reply_to_message_id: replyId } : {}),
+      } as any);
+      await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
+
+      if (otherUserId && userId) {
+        createNotification(otherUserId, userId, "message", "sent you a message", conversationId);
+      }
+    } catch {
+      setNewMessage(content);
+    } finally {
+      sendingTextRef.current = false;
+      setSendingText(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -426,9 +437,9 @@ const Messages = () => {
                     className="flex-1 rounded-xl bg-white/10 border border-white/15 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
                   />
                   <VoiceRecorder onSend={sendVoiceNote} onCancel={() => setShowVoiceRecorder(false)} />
-                  <button
+                   <button
                     onClick={handleSend}
-                    disabled={!newMessage.trim()}
+                    disabled={!newMessage.trim() || sendingText}
                     className="px-4 py-2.5 rounded-xl text-white font-semibold text-sm disabled:opacity-40 transition-all hover:scale-105"
                     style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
                   >

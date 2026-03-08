@@ -29,7 +29,6 @@ export const useConversations = (userId?: string) => {
   const fetchConversations = useCallback(async () => {
     if (!userId) { setLoading(false); return; }
 
-    // Get conversations where user is participant (using user_one_id / user_two_id)
     const { data: convs } = await supabase
       .from("conversations")
       .select("*")
@@ -42,7 +41,6 @@ export const useConversations = (userId?: string) => {
       return;
     }
 
-    // Determine other user IDs
     const otherUserIds = [...new Set(
       convs.map((c: any) => c.user_one_id === userId ? c.user_two_id : c.user_one_id).filter(Boolean)
     )];
@@ -99,13 +97,11 @@ export const useConversations = (userId?: string) => {
     if (!userId) return null;
     if (userId === otherUserId) return null;
 
-    // Use security definer function to find existing conversation
     const { data: existingConvId } = await supabase
       .rpc("find_conversation_between", { user_a: userId, user_b: otherUserId });
 
     if (existingConvId) return existingConvId as string;
 
-    // Create new conversation with user_one_id and user_two_id
     const { data: newConv, error: convError } = await supabase
       .from("conversations")
       .insert({ user_one_id: userId, user_two_id: otherUserId } as any)
@@ -128,6 +124,17 @@ export const useMessages = (conversationId?: string, userId?: string) => {
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Mark all unread messages in this conversation as read
+  const markAsRead = useCallback(async () => {
+    if (!conversationId || !userId) return;
+    await supabase
+      .from("direct_messages")
+      .update({ read: true })
+      .eq("conversation_id", conversationId)
+      .eq("read", false)
+      .neq("sender_id", userId);
+  }, [conversationId, userId]);
+
   const fetchMessages = useCallback(async () => {
     if (!conversationId) { setLoading(false); return; }
     const { data } = await supabase
@@ -139,8 +146,9 @@ export const useMessages = (conversationId?: string, userId?: string) => {
     setLoading(false);
   }, [conversationId]);
 
+  // Mark as read on mount and when conversationId changes
   useEffect(() => {
-    fetchMessages();
+    fetchMessages().then(() => markAsRead());
     if (!conversationId) return;
 
     const channel = supabase
@@ -152,25 +160,20 @@ export const useMessages = (conversationId?: string, userId?: string) => {
         filter: `conversation_id=eq.${conversationId}`,
       }, (payload) => {
         const newMsg = payload.new as DirectMessage;
-        setMessages((prev) => [...prev, newMsg]);
+        setMessages((prev) => {
+          // Prevent duplicate from realtime
+          if (prev.some((m) => m.id === newMsg.id)) return prev;
+          return [...prev, newMsg];
+        });
+        // Immediately mark incoming messages as read since conversation is open
         if (userId && newMsg.sender_id !== userId) {
-          supabase.from("direct_messages").update({ read: true }).eq("id", newMsg.id);
+          supabase.from("direct_messages").update({ read: true }).eq("id", newMsg.id).then(() => {});
         }
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [fetchMessages, conversationId, userId]);
-
-  useEffect(() => {
-    if (!conversationId || !userId) return;
-    supabase
-      .from("direct_messages")
-      .update({ read: true })
-      .eq("conversation_id", conversationId)
-      .eq("read", false)
-      .neq("sender_id", userId);
-  }, [conversationId, userId]);
+  }, [fetchMessages, conversationId, userId, markAsRead]);
 
   const sendMessage = async (content: string) => {
     if (!conversationId || !userId || !content.trim()) return;
@@ -180,7 +183,9 @@ export const useMessages = (conversationId?: string, userId?: string) => {
       content: content.trim(),
     });
     await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
+    // Mark all as read after sending a reply
+    await markAsRead();
   };
 
-  return { messages, loading, sendMessage };
+  return { messages, loading, sendMessage, markAsRead };
 };
