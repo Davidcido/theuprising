@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Send, Heart } from "lucide-react";
+import { Send } from "lucide-react";
+import EmojiPicker from "@/components/EmojiPicker";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
 import uprisingLogo from "@/assets/uprising-logo.jpeg";
