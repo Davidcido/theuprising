@@ -5,6 +5,7 @@ import { toast } from "@/hooks/use-toast";
 type Props = {
   onSend: (blob: Blob) => Promise<void>;
   onCancel: () => void;
+  onStateChange?: (isActive: boolean) => void;
 };
 
 type RecordingState = "idle" | "recording" | "paused" | "preview";
