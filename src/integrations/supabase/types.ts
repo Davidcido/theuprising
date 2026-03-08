@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      banned_users: {
+        Row: {
+          banned_at: string
+          banned_by: string | null
+          id: string
+          reason: string | null
+          session_id: string
+        }
+        Insert: {
+          banned_at?: string
+          banned_by?: string | null
+          id?: string
+          reason?: string | null
+          session_id: string
+        }
+        Update: {
+          banned_at?: string
+          banned_by?: string | null
+          id?: string
+          reason?: string | null
+          session_id?: string
+        }
+        Relationships: []
+      }
       community_comments: {
         Row: {
           anonymous_name: string
@@ -137,12 +161,67 @@ export type Database = {
           },
         ]
       }
+      reported_content: {
+        Row: {
+          content_id: string
+          content_type: string
+          created_at: string
+          id: string
+          reason: string | null
+          reporter_session_id: string
+          status: string
+        }
+        Insert: {
+          content_id: string
+          content_type: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          reporter_session_id: string
+          status?: string
+        }
+        Update: {
+          content_id?: string
+          content_type?: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          reporter_session_id?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       decrement_likes: { Args: { post_id_input: string }; Returns: undefined }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       increment_comments: {
         Args: { post_id_input: string }
         Returns: undefined
@@ -150,7 +229,7 @@ export type Database = {
       increment_likes: { Args: { post_id_input: string }; Returns: undefined }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -277,6 +356,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+    },
   },
 } as const
