@@ -159,7 +159,8 @@ const Messages = () => {
   };
 
   const currentConv = conversations.find((c) => c.id === conversationId);
-  const otherUserId = currentConv?.other_user?.user_id;
+  const convAny = currentConv as any;
+  const otherUserId = currentConv?.other_user?.user_id || (convAny?.user_one_id === userId ? convAny?.user_two_id : convAny?.user_one_id);
   const isOtherBlocked = otherUserId ? isBlocked(otherUserId) : false;
 
   // Conversation list view

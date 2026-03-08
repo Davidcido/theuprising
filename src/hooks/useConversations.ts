@@ -26,41 +26,25 @@ export const useConversations = (userId?: string) => {
   const fetchConversations = useCallback(async () => {
     if (!userId) { setLoading(false); return; }
 
-    // Get my conversation IDs
-    const { data: participations } = await supabase
-      .from("conversation_participants")
-      .select("conversation_id")
-      .eq("user_id", userId);
+    // Get conversations where user is participant (using user_one_id / user_two_id)
+    const { data: convs } = await supabase
+      .from("conversations")
+      .select("*")
+      .or(`user_one_id.eq.${userId},user_two_id.eq.${userId}`)
+      .order("updated_at", { ascending: false });
 
-    if (!participations || participations.length === 0) {
+    if (!convs || convs.length === 0) {
       setConversations([]);
       setLoading(false);
       return;
     }
 
-    const convIds = participations.map((p) => p.conversation_id);
-
-    // Get conversations
-    const { data: convs } = await supabase
-      .from("conversations")
-      .select("*")
-      .in("id", convIds)
-      .order("updated_at", { ascending: false });
-
-    if (!convs) { setLoading(false); return; }
-
-    // Get other participants
-    const { data: allParticipants } = await supabase
-      .from("conversation_participants")
-      .select("conversation_id, user_id")
-      .in("conversation_id", convIds);
-
-    // Get profiles for other users
+    // Determine other user IDs
     const otherUserIds = [...new Set(
-      (allParticipants || []).filter((p) => p.user_id !== userId).map((p) => p.user_id)
+      convs.map((c: any) => c.user_one_id === userId ? c.user_two_id : c.user_one_id).filter(Boolean)
     )];
 
-    let profilesMap: Record<string, { user_id: string; display_name: string | null; avatar_url: string; online_status?: string; last_seen_at?: string }> = {};
+    let profilesMap: Record<string, any> = {};
     if (otherUserIds.length > 0) {
       const { data: profiles } = await supabase
         .from("profiles")
@@ -73,13 +57,11 @@ export const useConversations = (userId?: string) => {
       }
     }
 
-    // Get last messages and unread counts
     const result: Conversation[] = [];
     for (const conv of convs) {
-      const otherParticipant = (allParticipants || []).find(
-        (p) => p.conversation_id === conv.id && p.user_id !== userId
-      );
-      const otherProfile = otherParticipant ? profilesMap[otherParticipant.user_id] || null : null;
+      const convAny = conv as any;
+      const otherUserId = convAny.user_one_id === userId ? convAny.user_two_id : convAny.user_one_id;
+      const otherProfile = otherUserId ? profilesMap[otherUserId] || null : null;
 
       const { data: lastMsg } = await supabase
         .from("direct_messages")
@@ -112,7 +94,7 @@ export const useConversations = (userId?: string) => {
 
   const getOrCreateConversation = async (otherUserId: string) => {
     if (!userId) return null;
-    if (userId === otherUserId) return null; // Can't message yourself
+    if (userId === otherUserId) return null;
 
     // Use security definer function to find existing conversation
     const { data: existingConvId } = await supabase
@@ -120,21 +102,17 @@ export const useConversations = (userId?: string) => {
 
     if (existingConvId) return existingConvId as string;
 
-    // Create new conversation
+    // Create new conversation with user_one_id and user_two_id
     const { data: newConv, error: convError } = await supabase
       .from("conversations")
-      .insert({})
+      .insert({ user_one_id: userId, user_two_id: otherUserId } as any)
       .select("id")
       .single();
 
-    if (convError || !newConv) return null;
-
-    const { error: partError } = await supabase.from("conversation_participants").insert([
-      { conversation_id: newConv.id, user_id: userId },
-      { conversation_id: newConv.id, user_id: otherUserId },
-    ]);
-
-    if (partError) return null;
+    if (convError || !newConv) {
+      console.error("Failed to create conversation:", convError);
+      return null;
+    }
 
     await fetchConversations();
     return newConv.id;
@@ -172,7 +150,6 @@ export const useMessages = (conversationId?: string, userId?: string) => {
       }, (payload) => {
         const newMsg = payload.new as DirectMessage;
         setMessages((prev) => [...prev, newMsg]);
-        // Mark as read if it's from the other person
         if (userId && newMsg.sender_id !== userId) {
           supabase.from("direct_messages").update({ read: true }).eq("id", newMsg.id);
         }
@@ -182,7 +159,6 @@ export const useMessages = (conversationId?: string, userId?: string) => {
     return () => { supabase.removeChannel(channel); };
   }, [fetchMessages, conversationId, userId]);
 
-  // Mark existing unread as read
   useEffect(() => {
     if (!conversationId || !userId) return;
     supabase
@@ -200,7 +176,6 @@ export const useMessages = (conversationId?: string, userId?: string) => {
       sender_id: userId,
       content: content.trim(),
     });
-    // Update conversation timestamp
     await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
   };
 
