@@ -531,6 +531,7 @@ const Community = () => {
                   myReactions={myReactions}
                   commentInput={commentInputs[post.id] || ""}
                   currentUserId={currentUser?.id}
+                  currentUserName={currentUser?.displayName}
                   communityOpen={communityOpen}
                   reportMenuPost={reportMenuPost}
                   onToggleLike={toggleLike}
@@ -541,6 +542,7 @@ const Community = () => {
                   onSetReportMenu={setReportMenuPost}
                   onCommentInputChange={(pid, val) => setCommentInputs(prev => ({ ...prev, [pid]: val }))}
                   onAddComment={addComment}
+                  onAddReply={addReply}
                   onCommentDelete={handleCommentDelete}
                   onCommentUpdate={handleCommentUpdate}
                   onNavigate={navigate}
