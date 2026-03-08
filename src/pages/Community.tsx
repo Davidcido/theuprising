@@ -510,9 +510,7 @@ const Community = () => {
                           <div className="mt-4 pt-3 border-t border-white/5 space-y-3">
                             {postComments.map((c) => (
                               <div key={c.id} className="flex gap-2.5 pl-2">
-                                <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-muted-foreground text-[10px] font-bold shrink-0">
-                                  {c.anonymous_name.slice(0, 2)}
-                                </div>
+                              <UserAvatar displayName={c.anonymous_name} size="xs" />
                                 <div>
                                   <div className="flex items-center gap-2">
                                     <span className="text-xs font-semibold text-foreground">{c.anonymous_name}</span>
