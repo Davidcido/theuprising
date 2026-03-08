@@ -401,6 +401,8 @@ const Messages = () => {
                 onEditMessage={handleEditMessage}
                 onDeleteForMe={handleDeleteForMe}
                 onDeleteForEveryone={handleDeleteForEveryone}
+                onReact={toggleReaction}
+                reactions={getGroupedReactions(msg.id)}
               />
             );
           })
