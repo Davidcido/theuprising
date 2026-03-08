@@ -54,6 +54,7 @@ const AppContent = () => {
   return (
     <>
       {showOnboarding && <OnboardingFlow onComplete={completeOnboarding} />}
+      <DailyRisePopup open={showDailyRise && !showOnboarding} onClose={dismissDailyRise} />
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<Index />} />
