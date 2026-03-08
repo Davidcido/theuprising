@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { Play, Pause, CornerDownRight, Pencil, Trash2, EyeOff } from "lucide-react";
+import { Play, Pause, CornerDownRight, Pencil, Trash2, EyeOff, SmilePlus } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { EmojiPicker as FrimoussePicker } from "frimousse";
 import type { DirectMessage } from "@/hooks/useConversations";
+import type { GroupedReaction } from "@/hooks/useMessageReactions";
 
 type Props = {
   msg: DirectMessage;
@@ -12,11 +15,14 @@ type Props = {
   onEditMessage?: (msg: DirectMessage) => void;
   onDeleteForMe?: (msg: DirectMessage) => void;
   onDeleteForEveryone?: (msg: DirectMessage) => void;
+  onReact?: (messageId: string, emoji: string) => void;
+  reactions?: GroupedReaction[];
 };
 
-const EDIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const EDIT_WINDOW_MS = 15 * 60 * 1000;
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
 
-const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage, onEditMessage, onDeleteForMe, onDeleteForEveryone }: Props) => {
+const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage, onEditMessage, onDeleteForMe, onDeleteForEveryone, onReact, reactions = [] }: Props) => {
   const msgAny = msg as any;
   const touchStartX = useRef(0);
   const dragStartX = useRef(0);
@@ -25,6 +31,7 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
   const [audioDuration, setAudioDuration] = useState<string>("");
   const [audioProgress, setAudioProgress] = useState(0);
   const [showMenu, setShowMenu] = useState(false);
+  const [showFullPicker, setShowFullPicker] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const animRef = useRef<number>(0);
   const longPressRef = useRef<NodeJS.Timeout | null>(null);
@@ -49,7 +56,7 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
   // Touch handlers for swipe-to-reply
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
-    if (isMine && !isDeletedForEveryone) {
+    if (!isDeletedForEveryone) {
       longPressRef.current = setTimeout(() => setShowMenu(true), 500);
     }
   };
@@ -81,9 +88,9 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
     window.addEventListener("mouseup", onUp);
   };
 
-  // Right-click context menu for own messages
+  // Right-click context menu
   const handleContextMenu = (e: React.MouseEvent) => {
-    if (isMine && !isDeletedForEveryone) {
+    if (!isDeletedForEveryone) {
       e.preventDefault();
       setShowMenu(true);
     }
@@ -128,6 +135,11 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
     setAudioProgress(0);
   };
 
+  const handleQuickReact = (emoji: string) => {
+    onReact?.(msg.id, emoji);
+    setShowMenu(false);
+  };
+
   // Deleted for everyone placeholder
   if (isDeletedForEveryone) {
     return (
@@ -160,108 +172,193 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
           <CornerDownRight className="w-4 h-4" />
         </div>
       )}
-      <div
-        className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm relative ${
-          isMine
-            ? "bg-emerald-600/40 text-white rounded-br-md"
-            : "bg-white/10 text-foreground rounded-bl-md"
-        }`}
-      >
-        {/* Context menu */}
-        {showMenu && (
-          <div
-            ref={menuRef}
-            className="absolute z-50 bottom-full mb-1 right-0 bg-[#0F5132] border border-white/15 rounded-xl shadow-xl overflow-hidden min-w-[170px]"
-          >
-            {canEdit && (
-              <button
-                onClick={() => { setShowMenu(false); onEditMessage?.(msg); }}
-                className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-white/80 hover:bg-white/10 transition-colors"
-              >
-                <Pencil className="w-3.5 h-3.5" /> Edit message
-              </button>
-            )}
-            <button
-              onClick={() => { setShowMenu(false); onDeleteForMe?.(msg); }}
-              className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-yellow-400 hover:bg-white/10 transition-colors"
+      <div className="flex flex-col">
+        <div
+          className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm relative ${
+            isMine
+              ? "bg-emerald-600/40 text-white rounded-br-md ml-auto"
+              : "bg-white/10 text-foreground rounded-bl-md"
+          }`}
+        >
+          {/* Context menu with quick reactions */}
+          {showMenu && (
+            <div
+              ref={menuRef}
+              className="absolute z-50 bottom-full mb-1 right-0 bg-[#0F5132] border border-white/15 rounded-xl shadow-xl overflow-hidden min-w-[200px]"
             >
-              <EyeOff className="w-3.5 h-3.5" /> Delete for me
-            </button>
-            {isMine && (
-              <button
-                onClick={() => { setShowMenu(false); onDeleteForEveryone?.(msg); }}
-                className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-red-400 hover:bg-white/10 transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" /> Delete for everyone
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Reply preview */}
-        {replyMessage && (
-          <button
-            onClick={() => onScrollToMessage?.(replyMessage.id)}
-            className="flex items-start gap-1.5 mb-2 p-2 rounded-lg bg-white/5 border-l-2 border-emerald-400/60 text-left w-full"
-          >
-            <CornerDownRight className="w-3 h-3 mt-0.5 text-emerald-400/60 shrink-0" />
-            <span className="text-xs text-white/50 line-clamp-2">{replyMessage.content}</span>
-          </button>
-        )}
-
-        {/* Image attachment */}
-        {msgAny.attachment_url && msgAny.attachment_type === "image" && (
-          <img
-            src={msgAny.attachment_url}
-            alt="Shared image"
-            className="rounded-xl max-w-full mb-2 cursor-pointer hover:opacity-90"
-            onClick={() => window.open(msgAny.attachment_url, "_blank")}
-          />
-        )}
-
-        {/* Audio attachment */}
-        {msgAny.attachment_url && msgAny.attachment_type === "audio" && (
-          <div className="flex items-center gap-2 mb-1 min-w-[180px]">
-            <button
-              onClick={toggleAudio}
-              className="w-8 h-8 rounded-full bg-emerald-500/30 flex items-center justify-center shrink-0"
-            >
-              {isPlaying ? <Pause className="w-3.5 h-3.5 text-white" /> : <Play className="w-3.5 h-3.5 text-white ml-0.5" />}
-            </button>
-            <div className="flex-1">
-              <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-emerald-400 rounded-full transition-[width] duration-100"
-                  style={{ width: `${audioProgress}%` }}
-                />
+              {/* Quick reaction bar */}
+              <div className="flex items-center gap-1 px-3 py-2 border-b border-white/10">
+                {QUICK_REACTIONS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={() => handleQuickReact(emoji)}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/15 transition-colors text-lg"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+                <Popover open={showFullPicker} onOpenChange={setShowFullPicker}>
+                  <PopoverTrigger asChild>
+                    <button className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/15 transition-colors">
+                      <SmilePlus className="w-4 h-4 text-white/50" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-[300px] p-0 bg-background/95 backdrop-blur-xl border-white/15 overflow-hidden"
+                    side="top"
+                    align="end"
+                  >
+                    <FrimoussePicker.Root
+                      className="flex flex-col h-[300px]"
+                      onEmojiSelect={(emoji) => {
+                        handleQuickReact(emoji.emoji);
+                        setShowFullPicker(false);
+                      }}
+                    >
+                      <FrimoussePicker.Search
+                        className="w-full px-3 py-2 text-sm bg-transparent border-b border-white/10 text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+                        placeholder="Search emojis..."
+                      />
+                      <FrimoussePicker.Viewport className="flex-1 overflow-y-auto p-1">
+                        <FrimoussePicker.Loading className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                          Loading…
+                        </FrimoussePicker.Loading>
+                        <FrimoussePicker.Empty className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                          No emoji found
+                        </FrimoussePicker.Empty>
+                        <FrimoussePicker.List
+                          className="select-none"
+                          components={{
+                            CategoryHeader: ({ category, ...props }) => (
+                              <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-0 bg-background/95 backdrop-blur-sm" {...props}>
+                                {category.label}
+                              </div>
+                            ),
+                            Row: (props) => <div className="flex gap-0.5" {...props} />,
+                            Emoji: ({ emoji, ...props }) => (
+                              <button className="flex items-center justify-center w-7 h-7 rounded-lg hover:bg-white/10 transition-colors text-lg cursor-pointer" {...props}>
+                                {emoji.emoji}
+                              </button>
+                            ),
+                          }}
+                        />
+                      </FrimoussePicker.Viewport>
+                    </FrimoussePicker.Root>
+                  </PopoverContent>
+                </Popover>
               </div>
-              <span className="text-[10px] text-white/40 mt-0.5 block">
-                🎤 {audioDuration || "0:00"}
-              </span>
+
+              {/* Action items */}
+              {canEdit && (
+                <button
+                  onClick={() => { setShowMenu(false); onEditMessage?.(msg); }}
+                  className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-white/80 hover:bg-white/10 transition-colors"
+                >
+                  <Pencil className="w-3.5 h-3.5" /> Edit message
+                </button>
+              )}
+              <button
+                onClick={() => { setShowMenu(false); onDeleteForMe?.(msg); }}
+                className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-yellow-400 hover:bg-white/10 transition-colors"
+              >
+                <EyeOff className="w-3.5 h-3.5" /> Delete for me
+              </button>
+              {isMine && (
+                <button
+                  onClick={() => { setShowMenu(false); onDeleteForEveryone?.(msg); }}
+                  className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-red-400 hover:bg-white/10 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Delete for everyone
+                </button>
+              )}
             </div>
-            <audio
-              ref={audioRef}
+          )}
+
+          {/* Reply preview */}
+          {replyMessage && (
+            <button
+              onClick={() => onScrollToMessage?.(replyMessage.id)}
+              className="flex items-start gap-1.5 mb-2 p-2 rounded-lg bg-white/5 border-l-2 border-emerald-400/60 text-left w-full"
+            >
+              <CornerDownRight className="w-3 h-3 mt-0.5 text-emerald-400/60 shrink-0" />
+              <span className="text-xs text-white/50 line-clamp-2">{replyMessage.content}</span>
+            </button>
+          )}
+
+          {/* Image attachment */}
+          {msgAny.attachment_url && msgAny.attachment_type === "image" && (
+            <img
               src={msgAny.attachment_url}
-              preload="metadata"
-              onLoadedMetadata={handleAudioLoaded}
-              onEnded={handleAudioEnded}
-              className="hidden"
+              alt="Shared image"
+              className="rounded-xl max-w-full mb-2 cursor-pointer hover:opacity-90"
+              onClick={() => window.open(msgAny.attachment_url, "_blank")}
             />
+          )}
+
+          {/* Audio attachment */}
+          {msgAny.attachment_url && msgAny.attachment_type === "audio" && (
+            <div className="flex items-center gap-2 mb-1 min-w-[180px]">
+              <button
+                onClick={toggleAudio}
+                className="w-8 h-8 rounded-full bg-emerald-500/30 flex items-center justify-center shrink-0"
+              >
+                {isPlaying ? <Pause className="w-3.5 h-3.5 text-white" /> : <Play className="w-3.5 h-3.5 text-white ml-0.5" />}
+              </button>
+              <div className="flex-1">
+                <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-400 rounded-full transition-[width] duration-100"
+                    style={{ width: `${audioProgress}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-white/40 mt-0.5 block">
+                  🎤 {audioDuration || "0:00"}
+                </span>
+              </div>
+              <audio
+                ref={audioRef}
+                src={msgAny.attachment_url}
+                preload="metadata"
+                onLoadedMetadata={handleAudioLoaded}
+                onEnded={handleAudioEnded}
+                className="hidden"
+              />
+            </div>
+          )}
+
+          {/* Text content */}
+          {!(msgAny.attachment_url && (msg.content === "📷 Image" || msg.content === "🎤 Voice note")) && (
+            <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+          )}
+          <div className="flex items-center gap-1.5 mt-1">
+            {isEdited && (
+              <span className={`text-[10px] italic ${isMine ? "text-white/30" : "text-muted-foreground/50"}`}>(edited)</span>
+            )}
+            <p className={`text-[10px] ${isMine ? "text-white/40" : "text-muted-foreground/60"}`}>
+              {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
+            </p>
+          </div>
+        </div>
+
+        {/* Reactions display */}
+        {reactions.length > 0 && (
+          <div className={`flex flex-wrap gap-1 mt-1 ${isMine ? "justify-end" : "justify-start"}`}>
+            {reactions.map((r) => (
+              <button
+                key={r.emoji}
+                onClick={() => onReact?.(msg.id, r.emoji)}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
+                  r.userReacted
+                    ? "bg-emerald-500/30 border border-emerald-500/40"
+                    : "bg-white/10 border border-white/10 hover:bg-white/15"
+                }`}
+              >
+                <span className="text-sm">{r.emoji}</span>
+                {r.count > 1 && <span className="text-[10px] text-white/60">{r.count}</span>}
+              </button>
+            ))}
           </div>
         )}
-
-        {/* Text content */}
-        {!(msgAny.attachment_url && (msg.content === "📷 Image" || msg.content === "🎤 Voice note")) && (
-          <p className="whitespace-pre-wrap break-words">{msg.content}</p>
-        )}
-        <div className={`flex items-center gap-1.5 mt-1`}>
-          {isEdited && (
-            <span className={`text-[10px] italic ${isMine ? "text-white/30" : "text-muted-foreground/50"}`}>(edited)</span>
-          )}
-          <p className={`text-[10px] ${isMine ? "text-white/40" : "text-muted-foreground/60"}`}>
-            {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
-          </p>
-        </div>
       </div>
     </div>
   );
