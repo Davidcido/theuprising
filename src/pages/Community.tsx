@@ -32,6 +32,9 @@ type Post = {
   comments_count: number;
   shares_count: number;
   created_at: string;
+  author_id?: string | null;
+  is_anonymous?: boolean;
+  author_profile?: { display_name: string | null; avatar_url: string } | null;
 };
 
 type Reaction = {
