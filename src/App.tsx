@@ -24,12 +24,16 @@ import { registerPushSubscription } from "./lib/pushNotifications";
 import { supabase } from "./integrations/supabase/client";
 import InstallPrompt from "./components/pwa/InstallPrompt";
 import OnboardingFlow from "./components/onboarding/OnboardingFlow";
+import DailyRisePopup from "./components/dailyrise/DailyRisePopup";
+import DailyRise from "./pages/DailyRise";
 import { useOnboarding } from "./hooks/useOnboarding";
+import { useDailyRise } from "./hooks/useDailyRise";
 
 const queryClient = new QueryClient();
 
 const AppContent = () => {
   const { showOnboarding, completeOnboarding } = useOnboarding();
+  const { showPopup: showDailyRise, dismissPopup: dismissDailyRise } = useDailyRise();
 
   useEffect(() => {
     trackVisit();
@@ -50,6 +54,7 @@ const AppContent = () => {
   return (
     <>
       {showOnboarding && <OnboardingFlow onComplete={completeOnboarding} />}
+      <DailyRisePopup open={showDailyRise && !showOnboarding} onClose={dismissDailyRise} />
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<Index />} />
@@ -64,6 +69,7 @@ const AppContent = () => {
           <Route path="/bookmarks" element={<ProtectedRoute><Bookmarks /></ProtectedRoute>} />
           <Route path="/drafts" element={<ProtectedRoute><Drafts /></ProtectedRoute>} />
           <Route path="/explore" element={<Explore />} />
+          <Route path="/daily-rise" element={<DailyRise />} />
         </Route>
         <Route path="/admin" element={<Admin />} />
         <Route path="/reset-password" element={<ResetPassword />} />
