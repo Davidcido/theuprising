@@ -8,6 +8,7 @@ export type Profile = {
   bio: string | null;
   country: string | null;
   avatar_url: string | null;
+  cover_photo: string | null;
   online_status: string;
   created_at: string;
   updated_at: string;
@@ -28,7 +29,6 @@ export const useProfile = (userId?: string) => {
     if (data) {
       setProfile(data as unknown as Profile);
     } else {
-      // Auto-create profile if it doesn't exist
       const { data: session } = await supabase.auth.getSession();
       const email = session?.session?.user?.email;
       const defaultName = email?.split("@")[0] || `user_${userId.slice(0, 4)}`;
@@ -44,13 +44,12 @@ export const useProfile = (userId?: string) => {
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
-  // Set online status
   useEffect(() => {
     if (!userId || !profile) return;
     supabase.from("profiles").update({ online_status: "online" }).eq("user_id", userId).then();
 
     const handleBeforeUnload = () => {
-      navigator.sendBeacon && supabase.from("profiles").update({ online_status: "offline" }).eq("user_id", userId);
+      supabase.from("profiles").update({ online_status: "offline" }).eq("user_id", userId);
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => {
@@ -59,7 +58,7 @@ export const useProfile = (userId?: string) => {
     };
   }, [userId, profile]);
 
-  const updateProfile = async (updates: Partial<Pick<Profile, "display_name" | "bio" | "country" | "avatar_url">>) => {
+  const updateProfile = async (updates: Partial<Pick<Profile, "display_name" | "bio" | "country" | "avatar_url" | "cover_photo">>) => {
     if (!userId) return { error: "Not authenticated" };
     const { error } = await supabase
       .from("profiles")
@@ -68,7 +67,7 @@ export const useProfile = (userId?: string) => {
     if (!error) {
       setProfile((prev) => prev ? { ...prev, ...updates } : prev);
     }
-    return { error };
+    return { error: error?.message || null };
   };
 
   const uploadAvatar = async (file: File) => {
@@ -83,5 +82,17 @@ export const useProfile = (userId?: string) => {
     return { url, error: null };
   };
 
-  return { profile, loading, updateProfile, uploadAvatar, refetch: fetchProfile };
+  const uploadCoverPhoto = async (file: File) => {
+    if (!userId) return { url: null, error: "Not authenticated" };
+    const ext = file.name.split(".").pop();
+    const path = `${userId}/cover.${ext}`;
+    const { error } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
+    if (error) return { url: null, error: error.message };
+    const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
+    const url = urlData.publicUrl + "?t=" + Date.now();
+    await updateProfile({ cover_photo: url });
+    return { url, error: null };
+  };
+
+  return { profile, loading, updateProfile, uploadAvatar, uploadCoverPhoto, refetch: fetchProfile };
 };
