@@ -17,12 +17,16 @@ type Props = {
   onDeleteForEveryone?: (msg: DirectMessage) => void;
   onReact?: (messageId: string, emoji: string) => void;
   reactions?: GroupedReaction[];
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onSelect?: () => void;
+  onLongPressSelect?: () => void;
 };
 
 const EDIT_WINDOW_MS = 15 * 60 * 1000;
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
 
-const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage, onEditMessage, onDeleteForMe, onDeleteForEveryone, onReact, reactions = [] }: Props) => {
+const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage, onEditMessage, onDeleteForMe, onDeleteForEveryone, onReact, reactions = [], selectionMode, isSelected, onSelect, onLongPressSelect }: Props) => {
   const msgAny = msg as any;
   const touchStartX = useRef(0);
   const dragStartX = useRef(0);
