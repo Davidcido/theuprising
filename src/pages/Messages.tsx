@@ -37,7 +37,15 @@ const Messages = () => {
   const { messages, loading: msgsLoading, sendMessage } = useMessages(conversationId, userId);
   const { callState, incomingCall, activeCallUserId, activeCallType, localMediaStream, remoteMediaStream, startCall, acceptCall, rejectCall, endCall } = useCallSignaling(userId);
   const { isBlocked, blockUser, unblockUser } = useBlocks(userId);
+  const { isOtherTyping, typingUserName, sendTyping } = useTypingIndicator(conversationId, userId);
+  const [displayName, setDisplayName] = useState<string>();
 
+  // Fetch own display name for typing indicator
+  useEffect(() => {
+    if (!userId) return;
+    supabase.from("profiles").select("display_name").eq("user_id", userId).single()
+      .then(({ data }) => { if (data) setDisplayName(data.display_name || undefined); });
+  }, [userId]);
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
