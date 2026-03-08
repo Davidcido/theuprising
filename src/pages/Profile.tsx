@@ -212,17 +212,23 @@ const Profile = () => {
                   )
                 ) : currentUserId ? (
                   <>
-                    <Button size="sm" variant="ghost" onClick={handleMessage} className="text-muted-foreground hover:text-foreground">
+                    <Button size="sm" variant="ghost" onClick={handleMessage} className="text-muted-foreground hover:text-foreground" disabled={isTargetBlocked}>
                       <MessageCircle className="w-4 h-4" />
                     </Button>
                     <Button
                       size="sm"
                       variant={isFollowing ? "ghost" : "hero"}
                       onClick={toggleFollow}
-                      disabled={followLoading}
+                      disabled={followLoading || isTargetBlocked}
                       className={isFollowing ? "text-muted-foreground hover:text-foreground border border-white/20" : ""}
                     >
                       {isFollowing ? <><UserMinus className="w-4 h-4 mr-1" /> Unfollow</> : <><UserPlus className="w-4 h-4 mr-1" /> Follow</>}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={handleReport} className="text-yellow-400 hover:text-yellow-300">
+                      <Flag className="w-4 h-4" />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={handleBlock} className={isTargetBlocked ? "text-emerald-400 hover:text-emerald-300" : "text-red-400 hover:text-red-300"}>
+                      <Ban className="w-4 h-4" />
                     </Button>
                   </>
                 ) : null}
