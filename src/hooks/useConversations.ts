@@ -17,6 +17,9 @@ export type DirectMessage = {
   content: string;
   read: boolean;
   created_at: string;
+  attachment_url?: string | null;
+  attachment_type?: string | null;
+  reply_to_message_id?: string | null;
 };
 
 export const useConversations = (userId?: string) => {
