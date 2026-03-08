@@ -437,9 +437,9 @@ const Messages = () => {
                     className="flex-1 rounded-xl bg-white/10 border border-white/15 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
                   />
                   <VoiceRecorder onSend={sendVoiceNote} onCancel={() => setShowVoiceRecorder(false)} />
-                  <button
+                   <button
                     onClick={handleSend}
-                    disabled={!newMessage.trim()}
+                    disabled={!newMessage.trim() || sendingText}
                     className="px-4 py-2.5 rounded-xl text-white font-semibold text-sm disabled:opacity-40 transition-all hover:scale-105"
                     style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
                   >
