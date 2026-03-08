@@ -421,60 +421,92 @@ const Messages = () => {
           <p className="text-center text-xs text-muted-foreground py-2">Unblock this user to send messages</p>
         ) : (
           <div className="max-w-2xl mx-auto">
-            {/* Reply preview */}
-            {replyTo && <ReplyPreview message={replyTo} onCancel={() => setReplyTo(null)} />}
-
-            {/* Image preview */}
-            {pendingImage && (
-              <ImagePreview
-                file={pendingImage.file}
-                previewUrl={pendingImage.url}
-                onSend={sendImage}
-                onCancel={() => {
-                  URL.revokeObjectURL(pendingImage.url);
-                  setPendingImage(null);
-                }}
-                sending={sendingImage}
-              />
-            )}
-
-            <div className="flex gap-2 items-end">
-              {/* Image upload */}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="p-2.5 rounded-xl bg-white/10 border border-white/15 text-white/60 hover:text-white hover:bg-white/15 transition-colors shrink-0"
-              >
-                <Image className="w-4 h-4" />
-              </button>
-              <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.gif,.webp" className="hidden" onChange={handleFileSelect} />
-
-              {/* Voice recorder or text input */}
-              {showVoiceRecorder ? (
-                <VoiceRecorder onSend={sendVoiceNote} onCancel={() => setShowVoiceRecorder(false)} />
-              ) : (
-                <>
+            {/* Edit mode */}
+            {editingMsg ? (
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2 text-xs text-emerald-400">
+                  <Pencil className="w-3 h-3" />
+                  <span>Editing message</span>
+                  <button onClick={() => { setEditingMsg(null); setEditText(""); }} className="ml-auto p-1 rounded hover:bg-white/10">
+                    <X className="w-3.5 h-3.5 text-white/40" />
+                  </button>
+                </div>
+                <div className="flex gap-2 items-end">
                   <input
-                    value={newMessage}
-                    onChange={(e) => {
-                      setNewMessage(e.target.value);
-                      if (e.target.value.trim()) sendTyping(displayName);
-                    }}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Type a message..."
-                    className="flex-1 rounded-xl bg-white/10 border border-white/15 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSaveEdit(); } }}
+                    autoFocus
+                    className="flex-1 rounded-xl bg-white/10 border border-emerald-500/40 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
                   />
-                  <VoiceRecorder onSend={sendVoiceNote} onCancel={() => setShowVoiceRecorder(false)} />
-                   <button
-                    onClick={handleSend}
-                    disabled={!newMessage.trim() || sendingText}
+                  <button
+                    onClick={handleSaveEdit}
+                    disabled={!editText.trim()}
                     className="px-4 py-2.5 rounded-xl text-white font-semibold text-sm disabled:opacity-40 transition-all hover:scale-105"
                     style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
                   >
-                    <Send className="w-4 h-4" />
+                    <Check className="w-4 h-4" />
                   </button>
-                </>
-              )}
-            </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Reply preview */}
+                {replyTo && <ReplyPreview message={replyTo} onCancel={() => setReplyTo(null)} />}
+
+                {/* Image preview */}
+                {pendingImage && (
+                  <ImagePreview
+                    file={pendingImage.file}
+                    previewUrl={pendingImage.url}
+                    onSend={sendImage}
+                    onCancel={() => {
+                      URL.revokeObjectURL(pendingImage.url);
+                      setPendingImage(null);
+                    }}
+                    sending={sendingImage}
+                  />
+                )}
+
+                <div className="flex gap-2 items-end">
+                  {/* Image upload */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-2.5 rounded-xl bg-white/10 border border-white/15 text-white/60 hover:text-white hover:bg-white/15 transition-colors shrink-0"
+                  >
+                    <Image className="w-4 h-4" />
+                  </button>
+                  <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.gif,.webp" className="hidden" onChange={handleFileSelect} />
+
+                  {/* Voice recorder or text input */}
+                  {showVoiceRecorder ? (
+                    <VoiceRecorder onSend={sendVoiceNote} onCancel={() => setShowVoiceRecorder(false)} />
+                  ) : (
+                    <>
+                      <input
+                        value={newMessage}
+                        onChange={(e) => {
+                          setNewMessage(e.target.value);
+                          if (e.target.value.trim()) sendTyping(displayName);
+                        }}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Type a message..."
+                        className="flex-1 rounded-xl bg-white/10 border border-white/15 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
+                      />
+                      <VoiceRecorder onSend={sendVoiceNote} onCancel={() => setShowVoiceRecorder(false)} />
+                       <button
+                        onClick={handleSend}
+                        disabled={!newMessage.trim() || sendingText}
+                        className="px-4 py-2.5 rounded-xl text-white font-semibold text-sm disabled:opacity-40 transition-all hover:scale-105"
+                        style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
