@@ -112,39 +112,31 @@ export const useConversations = (userId?: string) => {
 
   const getOrCreateConversation = async (otherUserId: string) => {
     if (!userId) return null;
+    if (userId === otherUserId) return null; // Can't message yourself
 
-    // Check if conversation already exists
-    const { data: myConvs } = await supabase
-      .from("conversation_participants")
-      .select("conversation_id")
-      .eq("user_id", userId);
+    // Use security definer function to find existing conversation
+    const { data: existingConvId } = await supabase
+      .rpc("find_conversation_between", { user_a: userId, user_b: otherUserId });
 
-    if (myConvs) {
-      for (const mc of myConvs) {
-        const { data: otherPart } = await supabase
-          .from("conversation_participants")
-          .select("id")
-          .eq("conversation_id", mc.conversation_id)
-          .eq("user_id", otherUserId)
-          .maybeSingle();
-        if (otherPart) return mc.conversation_id;
-      }
-    }
+    if (existingConvId) return existingConvId as string;
 
     // Create new conversation
-    const { data: newConv } = await supabase
+    const { data: newConv, error: convError } = await supabase
       .from("conversations")
       .insert({})
       .select("id")
       .single();
 
-    if (!newConv) return null;
+    if (convError || !newConv) return null;
 
-    await supabase.from("conversation_participants").insert([
+    const { error: partError } = await supabase.from("conversation_participants").insert([
       { conversation_id: newConv.id, user_id: userId },
       { conversation_id: newConv.id, user_id: otherUserId },
     ]);
 
+    if (partError) return null;
+
+    await fetchConversations();
     return newConv.id;
   };
 
