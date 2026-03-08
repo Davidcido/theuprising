@@ -90,7 +90,7 @@ const NotificationBell = ({ userId }: NotificationBellProps) => {
                   return (
                     <button
                       key={n.id}
-                      onClick={() => { if (!n.read) markAsRead(n.id); }}
+                      onClick={() => handleNotificationClick(n)}
                       className={`w-full text-left px-3 py-3 flex items-start gap-3 hover:bg-white/5 transition-colors ${
                         !n.read ? "bg-emerald-500/10" : ""
                       }`}
