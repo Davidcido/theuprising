@@ -48,8 +48,8 @@ const TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tts`;
 
 type TranscriptEntry = { role: "user" | "assistant"; text: string };
 
-// Strict state machine: IDLE -> LISTENING -> PROCESSING -> SPEAKING -> COOLDOWN -> LISTENING
-type CallPhase = "idle" | "listening" | "processing" | "speaking" | "cooldown";
+// Strict state machine: IDLE -> LISTENING -> PROCESSING -> SPEAKING -> LISTENING
+type CallPhase = "idle" | "listening" | "processing" | "speaking";
 
 const VoiceCompanion = () => {
   const [callActive, setCallActive] = useState(false);
