@@ -74,6 +74,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AppContent />
+        <InstallPrompt />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
