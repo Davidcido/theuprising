@@ -69,23 +69,32 @@ const Messages = () => {
   const isOtherBlocked = otherUserId ? isBlocked(otherUserId) : false;
 
   const handleSend = async () => {
-    if (!newMessage.trim() || !conversationId || !userId) return;
+    if (!newMessage.trim() || !conversationId || !userId || sendingTextRef.current) return;
+    sendingTextRef.current = true;
+    setSendingText(true);
     const replyId = (replyTo as any)?.id || null;
-    
-    // Insert with reply_to_message_id
-    await supabase.from("direct_messages").insert({
-      conversation_id: conversationId,
-      sender_id: userId,
-      content: newMessage.trim(),
-      ...(replyId ? { reply_to_message_id: replyId } : {}),
-    } as any);
-    await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
-
-    if (otherUserId && userId) {
-      createNotification(otherUserId, userId, "message", "sent you a message", conversationId);
-    }
+    const content = newMessage.trim();
     setNewMessage("");
     setReplyTo(null);
+    
+    try {
+      await supabase.from("direct_messages").insert({
+        conversation_id: conversationId,
+        sender_id: userId,
+        content,
+        ...(replyId ? { reply_to_message_id: replyId } : {}),
+      } as any);
+      await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
+
+      if (otherUserId && userId) {
+        createNotification(otherUserId, userId, "message", "sent you a message", conversationId);
+      }
+    } catch {
+      setNewMessage(content);
+    } finally {
+      sendingTextRef.current = false;
+      setSendingText(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
