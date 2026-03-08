@@ -79,6 +79,38 @@ export type Database = {
           },
         ]
       }
+      comment_reactions: {
+        Row: {
+          comment_id: string
+          created_at: string
+          emoji: string
+          id: string
+          session_id: string
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string
+          emoji: string
+          id?: string
+          session_id: string
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string
+          emoji?: string
+          id?: string
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comment_reactions_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "community_comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       community_comments: {
         Row: {
           anonymous_name: string
@@ -86,6 +118,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          media_url: string | null
           parent_comment_id: string | null
           post_id: string
         }
@@ -95,6 +128,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          media_url?: string | null
           parent_comment_id?: string | null
           post_id: string
         }
@@ -104,6 +138,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          media_url?: string | null
           parent_comment_id?: string | null
           post_id?: string
         }
@@ -164,6 +199,7 @@ export type Database = {
           id: string
           is_anonymous: boolean
           likes_count: number
+          media_urls: string[] | null
           original_post_id: string | null
           reposted_by_name: string | null
           shares_count: number
@@ -179,6 +215,7 @@ export type Database = {
           id?: string
           is_anonymous?: boolean
           likes_count?: number
+          media_urls?: string[] | null
           original_post_id?: string | null
           reposted_by_name?: string | null
           shares_count?: number
@@ -194,6 +231,7 @@ export type Database = {
           id?: string
           is_anonymous?: boolean
           likes_count?: number
+          media_urls?: string[] | null
           original_post_id?: string | null
           reposted_by_name?: string | null
           shares_count?: number
