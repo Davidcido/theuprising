@@ -36,6 +36,15 @@ interface BannedUser {
   banned_at: string;
 }
 
+interface LoginSession {
+  id: string;
+  user_id: string | null;
+  session_id: string;
+  login_time: string;
+  country: string | null;
+  device_type: string | null;
+}
+
 export const useAdminData = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -43,6 +52,8 @@ export const useAdminData = () => {
   const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([]);
   const [communityStatus, setCommunityStatus] = useState<string>("open");
   const [totalLikes, setTotalLikes] = useState(0);
+  const [loginSessions, setLoginSessions] = useState<LoginSession[]>([]);
+  const [loginsToday, setLoginsToday] = useState(0);
   const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
 
