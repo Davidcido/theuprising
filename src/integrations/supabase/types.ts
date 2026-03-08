@@ -816,6 +816,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_onboarding: {
+        Row: {
+          completed_at: string
+          id: string
+          onboarding_reason: string | null
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          id?: string
+          onboarding_reason?: string | null
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          id?: string
+          onboarding_reason?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string

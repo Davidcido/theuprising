@@ -23,10 +23,14 @@ import { trackVisit } from "./lib/trackLogin";
 import { registerPushSubscription } from "./lib/pushNotifications";
 import { supabase } from "./integrations/supabase/client";
 import InstallPrompt from "./components/pwa/InstallPrompt";
+import OnboardingFlow from "./components/onboarding/OnboardingFlow";
+import { useOnboarding } from "./hooks/useOnboarding";
 
 const queryClient = new QueryClient();
 
 const AppContent = () => {
+  const { showOnboarding, completeOnboarding } = useOnboarding();
+
   useEffect(() => {
     trackVisit();
   }, []);
@@ -35,7 +39,6 @@ const AppContent = () => {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN") {
-        // Small delay to ensure session is ready
         setTimeout(() => {
           registerPushSubscription().catch(console.error);
         }, 2000);
@@ -45,25 +48,28 @@ const AppContent = () => {
   }, []);
 
   return (
-    <Routes>
-      <Route element={<Layout />}>
-        <Route path="/" element={<Index />} />
-        <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
-        <Route path="/tools" element={<ProtectedRoute><Tools /></ProtectedRoute>} />
-        <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
-        <Route path="/vision" element={<Vision />} />
-        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-        <Route path="/profile/:userId" element={<Profile />} />
-        <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
-        <Route path="/messages/:conversationId" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
-        <Route path="/bookmarks" element={<ProtectedRoute><Bookmarks /></ProtectedRoute>} />
-        <Route path="/drafts" element={<ProtectedRoute><Drafts /></ProtectedRoute>} />
-        <Route path="/explore" element={<Explore />} />
-      </Route>
-      <Route path="/admin" element={<Admin />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <>
+      {showOnboarding && <OnboardingFlow onComplete={completeOnboarding} />}
+      <Routes>
+        <Route element={<Layout />}>
+          <Route path="/" element={<Index />} />
+          <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+          <Route path="/tools" element={<ProtectedRoute><Tools /></ProtectedRoute>} />
+          <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
+          <Route path="/vision" element={<Vision />} />
+          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/profile/:userId" element={<Profile />} />
+          <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+          <Route path="/messages/:conversationId" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+          <Route path="/bookmarks" element={<ProtectedRoute><Bookmarks /></ProtectedRoute>} />
+          <Route path="/drafts" element={<ProtectedRoute><Drafts /></ProtectedRoute>} />
+          <Route path="/explore" element={<Explore />} />
+        </Route>
+        <Route path="/admin" element={<Admin />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </>
   );
 };
 
