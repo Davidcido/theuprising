@@ -239,6 +239,19 @@ const Community = () => {
   const visiblePosts = useMemo(() => displayPosts.slice(0, visibleCount), [displayPosts, visibleCount]);
   const hasMore = visibleCount < displayPosts.length;
 
+  // Track post views
+  const viewedPostsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const newPostIds = visiblePosts
+      .map(p => p.id)
+      .filter(id => !viewedPostsRef.current.has(id));
+    if (newPostIds.length === 0) return;
+    newPostIds.forEach(id => viewedPostsRef.current.add(id));
+    newPostIds.forEach(id => {
+      supabase.rpc("increment_views", { post_id_input: id });
+    });
+  }, [visiblePosts]);
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await fetchPosts();
