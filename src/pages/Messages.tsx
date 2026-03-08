@@ -27,6 +27,8 @@ const Messages = () => {
   const [pendingImage, setPendingImage] = useState<{ file: File; url: string } | null>(null);
   const [sendingImage, setSendingImage] = useState(false);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
+  const [sendingText, setSendingText] = useState(false);
+  const sendingTextRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
