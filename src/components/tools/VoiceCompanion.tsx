@@ -531,7 +531,10 @@ const VoiceCompanion = () => {
     conversationRef.current = [];
     emptyRetryRef.current = 0;
 
-    // iOS audio unlock
+    // 1. Request microphone permission early (also unlocks AudioContext on iOS)
+    await setupAudioAnalyser();
+
+    // 2. Unlock AudioContext explicitly for iOS
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       await ctx.resume();
@@ -543,8 +546,21 @@ const VoiceCompanion = () => {
       setTimeout(() => ctx.close().catch(() => {}), 100);
     } catch {}
 
-    await setupAudioAnalyser();
+    // 3. Unlock speechSynthesis with a silent utterance (required on iOS Safari)
+    await new Promise<void>((resolve) => {
+      const silent = new SpeechSynthesisUtterance(" ");
+      silent.volume = 0;
+      silent.rate = 1;
+      silent.onend = () => resolve();
+      silent.onerror = () => resolve();
+      speechSynthesis.speak(silent);
+      // Fallback in case onend never fires
+      setTimeout(resolve, 500);
+    });
 
+    if (!activeRef.current) return;
+
+    // 4. Speak greeting after audio is fully unlocked
     const greeting = "Hi, this is your Uprising Companion. I'm here to listen and support you. How are you doing today?";
 
     setTranscript([{ role: "assistant", text: greeting }]);
@@ -556,13 +572,14 @@ const VoiceCompanion = () => {
 
     if (!activeRef.current) return;
 
+    // 5. Start listening only after greeting finishes
     setPhaseSync("idle");
     clearTimer();
     timerRef.current = setTimeout(() => {
       if (activeRef.current && !mutedRef.current) {
         startListeningRef.current?.();
       }
-    }, 700);
+    }, 400);
   }, [setupAudioAnalyser, speakText, setPhaseSync, clearTimer]);
 
   const endCall = useCallback(() => {
