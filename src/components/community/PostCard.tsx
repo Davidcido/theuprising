@@ -62,6 +62,8 @@ interface PostCardProps {
   currentUserName?: string;
   communityOpen: boolean;
   reportMenuPost: string | null;
+  commentReactionCounts: Record<string, Record<string, number>>;
+  myCommentReactions: Set<string>;
   onToggleLike: (postId: string) => void;
   onToggleReaction: (postId: string, emoji: string) => void;
   onToggleComments: (postId: string) => void;
@@ -75,6 +77,7 @@ interface PostCardProps {
   onCommentDelete: (postId: string, commentId: string) => void;
   onCommentUpdate: (postId: string, commentId: string, content: string) => void;
   onNavigate: (path: string) => void;
+  onToggleCommentReaction: (commentId: string, emoji: string) => void;
 }
 
 const formatTime = (ts: string) => {
