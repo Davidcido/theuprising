@@ -24,7 +24,10 @@ import { registerPushSubscription } from "./lib/pushNotifications";
 import { supabase } from "./integrations/supabase/client";
 import InstallPrompt from "./components/pwa/InstallPrompt";
 import OnboardingFlow from "./components/onboarding/OnboardingFlow";
+import DailyRisePopup from "./components/dailyrise/DailyRisePopup";
+import DailyRise from "./pages/DailyRise";
 import { useOnboarding } from "./hooks/useOnboarding";
+import { useDailyRise } from "./hooks/useDailyRise";
 
 const queryClient = new QueryClient();
 
