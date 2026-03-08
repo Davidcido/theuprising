@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Shield, Eye, EyeOff, Sparkles, Users, TrendingUp } from "lucide-react";
+import { Send, Shield, Eye, EyeOff, Sparkles, Users, TrendingUp, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import UserAvatar from "@/components/UserAvatar";
 import { toast } from "@/hooks/use-toast";
@@ -9,6 +9,8 @@ import EmojiPicker from "@/components/EmojiPicker";
 import { useNavigate } from "react-router-dom";
 import { createNotification } from "@/lib/notifications";
 import PostCard, { Post, Comment, Reaction } from "@/components/community/PostCard";
+import PostSkeleton from "@/components/community/PostSkeleton";
+import RepostDialog from "@/components/community/RepostDialog";
 
 type FeedTab = "foryou" | "following" | "trending";
 
@@ -17,6 +19,8 @@ const FEED_TABS: { key: FeedTab; label: string; icon: typeof Sparkles }[] = [
   { key: "following", label: "Following", icon: Users },
   { key: "trending", label: "Trending", icon: TrendingUp },
 ];
+
+const POSTS_PER_PAGE = 15;
 
 const getSessionId = () => {
   let id = localStorage.getItem("uprising_session_id");
@@ -44,7 +48,11 @@ const Community = () => {
   const [reportMenuPost, setReportMenuPost] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<FeedTab>("foryou");
   const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
+  const [visibleCount, setVisibleCount] = useState(POSTS_PER_PAGE);
+  const [refreshing, setRefreshing] = useState(false);
+  const [repostDialogPost, setRepostDialogPost] = useState<Post | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   const sessionId = getSessionId();
@@ -61,7 +69,6 @@ const Community = () => {
           id: session.user.id,
           displayName: profile?.display_name || session.user.email?.split("@")[0] || "User",
         });
-        // Fetch following list
         const { data: follows } = await supabase
           .from("follows")
           .select("following_id")
@@ -88,7 +95,7 @@ const Community = () => {
           .in("user_id", authorIds);
         if (profiles) {
           for (const p of profiles) {
-            profilesMap[p.user_id] = { display_name: p.display_name, avatar_url: p.avatar_url };
+            profilesMap[p.user_id] = { display_name: p.display_name, avatar_url: p.avatar_url ?? "" };
           }
         }
       }
@@ -176,26 +183,43 @@ const Community = () => {
     };
   }, [fetchPosts, fetchLikedPosts, fetchReactions]);
 
+  // Infinite scroll observer
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisibleCount(prev => prev + POSTS_PER_PAGE);
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
+
+  // Reset visible count when tab changes
+  useEffect(() => { setVisibleCount(POSTS_PER_PAGE); }, [activeTab]);
+
   // --- Feed sorting logic ---
   const displayPosts = useMemo(() => {
+    let sorted: Post[];
     switch (activeTab) {
-      case "foryou": {
-        // Smart ranked feed: sort by engagement_score descending, with follow boost
-        return [...allPosts].sort((a, b) => {
+      case "foryou":
+        sorted = [...allPosts].sort((a, b) => {
           const scoreA = (a.engagement_score || 0) + (a.author_id && followingIds.has(a.author_id) ? 20 : 0);
           const scoreB = (b.engagement_score || 0) + (b.author_id && followingIds.has(b.author_id) ? 20 : 0);
           return scoreB - scoreA;
         });
-      }
-      case "following": {
-        // Only posts from followed users, chronological
-        return allPosts.filter(p => p.author_id && followingIds.has(p.author_id));
-      }
+        break;
+      case "following":
+        sorted = allPosts.filter(p => p.author_id && followingIds.has(p.author_id));
+        break;
       case "trending": {
-        // Trending: high engagement velocity — posts from last 48h sorted by engagement per hour
         const now = Date.now();
         const cutoff = now - 48 * 60 * 60 * 1000;
-        return [...allPosts]
+        sorted = [...allPosts]
           .filter(p => new Date(p.created_at).getTime() > cutoff)
           .sort((a, b) => {
             const hoursA = Math.max(1, (now - new Date(a.created_at).getTime()) / 3600000);
@@ -204,11 +228,23 @@ const Community = () => {
             const velocityB = ((b.likes_count * 3) + (b.comments_count * 4) + (b.shares_count * 5)) / hoursB;
             return velocityB - velocityA;
           });
+        break;
       }
       default:
-        return allPosts;
+        sorted = allPosts;
     }
+    return sorted;
   }, [allPosts, activeTab, followingIds]);
+
+  const visiblePosts = useMemo(() => displayPosts.slice(0, visibleCount), [displayPosts, visibleCount]);
+  const hasMore = visibleCount < displayPosts.length;
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchPosts();
+    setVisibleCount(POSTS_PER_PAGE);
+    setRefreshing(false);
+  };
 
   const handlePostChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
@@ -337,14 +373,12 @@ const Community = () => {
     if (!error) {
       await supabase.rpc("increment_comments", { post_id_input: postId });
       setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
-      // Re-fetch comments for this post to get the new reply
       const { data } = await supabase
         .from("community_comments")
         .select("*")
         .eq("post_id", postId)
         .order("created_at", { ascending: true });
       if (data) setComments((prev) => ({ ...prev, [postId]: data as Comment[] }));
-      // Notify parent comment author
       if (currentUser && parentAuthorId && parentAuthorId !== currentUser.id) {
         createNotification(parentAuthorId, currentUser.id, "reply", "replied to your comment", postId);
       }
@@ -384,6 +418,29 @@ const Community = () => {
     } else {
       await navigator.clipboard.writeText(text);
       toast({ title: "Copied to clipboard!" });
+    }
+  };
+
+  const handleRepost = async (post: Post, quoteContent?: string) => {
+    if (!currentUser) {
+      toast({ title: "Sign in required", description: "Please sign in to repost.", variant: "destructive" });
+      return;
+    }
+    const { error } = await supabase.from("community_reposts").insert({
+      user_id: currentUser.id,
+      original_post_id: post.id,
+      quote_content: quoteContent || null,
+    });
+    if (error) {
+      toast({ title: "Error", description: "Could not repost. Try again.", variant: "destructive" });
+    } else {
+      // Increment shares_count on original post
+      await supabase.from("community_posts").update({ shares_count: post.shares_count + 1 }).eq("id", post.id);
+      setAllPosts(prev => prev.map(p => p.id === post.id ? { ...p, shares_count: p.shares_count + 1 } : p));
+      toast({ title: quoteContent ? "Quote reposted!" : "Reposted!" });
+      if (post.author_id && post.author_id !== currentUser.id) {
+        createNotification(post.author_id, currentUser.id, "repost", "reposted your post", post.id);
+      }
     }
   };
 
@@ -487,17 +544,25 @@ const Community = () => {
           })}
         </div>
 
+        {/* Pull to refresh button */}
+        <div className="flex justify-center mb-3">
+          <motion.button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            whileTap={{ scale: 0.9, rotate: 180 }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-muted-foreground hover:text-foreground bg-white/5 hover:bg-white/10 border border-white/10 transition-all disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3 h-3 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "Refreshing..." : "Refresh feed"}
+          </motion.button>
+        </div>
+
         {/* Feed */}
         {loading ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="p-5 rounded-2xl border border-white/10 animate-pulse" style={{ background: "rgba(255,255,255,0.04)" }}>
-                <div className="h-4 bg-white/10 rounded w-3/4 mb-3" />
-                <div className="h-3 bg-white/10 rounded w-1/2" />
-              </div>
-            ))}
+          <div className="space-y-3">
+            {[1, 2, 3, 4].map((i) => <PostSkeleton key={i} />)}
           </div>
-        ) : displayPosts.length === 0 ? (
+        ) : visiblePosts.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
             {activeTab === "following" ? (
               <>
@@ -521,7 +586,7 @@ const Community = () => {
         ) : (
           <div className="space-y-3">
             <AnimatePresence mode="popLayout">
-              {displayPosts.map((post) => (
+              {visiblePosts.map((post) => (
                 <PostCard
                   key={post.id}
                   post={post}
@@ -539,6 +604,7 @@ const Community = () => {
                   onToggleReaction={toggleReaction}
                   onToggleComments={toggleComments}
                   onShare={sharePost}
+                  onRepost={(p) => setRepostDialogPost(p)}
                   onReport={reportPost}
                   onSetReportMenu={setReportMenuPost}
                   onCommentInputChange={(pid, val) => setCommentInputs(prev => ({ ...prev, [pid]: val }))}
@@ -550,9 +616,31 @@ const Community = () => {
                 />
               ))}
             </AnimatePresence>
+
+            {/* Infinite scroll sentinel */}
+            {hasMore && (
+              <div ref={sentinelRef} className="py-4">
+                <PostSkeleton />
+              </div>
+            )}
+
+            {!hasMore && displayPosts.length > POSTS_PER_PAGE && (
+              <p className="text-center text-xs text-muted-foreground py-6">You've reached the end 🎉</p>
+            )}
           </div>
         )}
       </div>
+
+      {/* Repost Dialog */}
+      <RepostDialog
+        post={repostDialogPost!}
+        open={!!repostDialogPost}
+        onClose={() => setRepostDialogPost(null)}
+        onRepost={(quote) => {
+          if (repostDialogPost) handleRepost(repostDialogPost, quote);
+        }}
+        userName={currentUser?.displayName || sessionId}
+      />
     </div>
   );
 };
