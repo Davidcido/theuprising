@@ -199,6 +199,20 @@ const Community = () => {
     return () => observer.disconnect();
   }, []);
 
+  // Track post views - increment view_count for visible posts
+  const viewedPostsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const newPostIds = visiblePosts
+      .map(p => p.id)
+      .filter(id => !viewedPostsRef.current.has(id));
+    if (newPostIds.length === 0) return;
+    newPostIds.forEach(id => viewedPostsRef.current.add(id));
+    // Batch increment views
+    newPostIds.forEach(id => {
+      supabase.rpc("increment_views", { post_id_input: id });
+    });
+  }, [visiblePosts]);
+
   // Reset visible count when tab changes
   useEffect(() => { setVisibleCount(POSTS_PER_PAGE); }, [activeTab]);
 
