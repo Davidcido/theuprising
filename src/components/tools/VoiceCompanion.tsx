@@ -814,8 +814,9 @@ Never expose the English interpretation to the user — always reply fully in Ha
     return () => {
       activeRef.current = false;
       clearTimer();
-      if (recognitionRef.current) try { recognitionRef.current.stop(); } catch {}
-      if (audioRef.current) audioRef.current.pause();
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      if (recognitionRef.current) try { recognitionRef.current.abort(); } catch { try { recognitionRef.current.stop(); } catch {} }
+      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((t) => t.stop());
