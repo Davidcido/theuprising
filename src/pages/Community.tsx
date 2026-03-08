@@ -321,6 +321,36 @@ const Community = () => {
     }
   };
 
+  const addReply = async (postId: string, content: string, parentCommentId: string, parentAuthorId?: string | null) => {
+    if (!content.trim()) return;
+    const commentName = currentUser ? currentUser.displayName : sessionId;
+    const insertData: any = {
+      post_id: postId,
+      content: content.slice(0, 5000),
+      anonymous_name: commentName,
+      parent_comment_id: parentCommentId,
+    };
+    if (currentUser) {
+      insertData.author_id = currentUser.id;
+    }
+    const { error } = await supabase.from("community_comments").insert(insertData);
+    if (!error) {
+      await supabase.rpc("increment_comments", { post_id_input: postId });
+      setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
+      // Re-fetch comments for this post to get the new reply
+      const { data } = await supabase
+        .from("community_comments")
+        .select("*")
+        .eq("post_id", postId)
+        .order("created_at", { ascending: true });
+      if (data) setComments((prev) => ({ ...prev, [postId]: data as Comment[] }));
+      // Notify parent comment author
+      if (currentUser && parentAuthorId && parentAuthorId !== currentUser.id) {
+        createNotification(parentAuthorId, currentUser.id, "reply", "replied to your comment", postId);
+      }
+    }
+  };
+
   const handleCommentDelete = (postId: string, commentId: string) => {
     setComments((prev) => ({
       ...prev,
@@ -502,6 +532,7 @@ const Community = () => {
                   myReactions={myReactions}
                   commentInput={commentInputs[post.id] || ""}
                   currentUserId={currentUser?.id}
+                  currentUserName={currentUser?.displayName}
                   communityOpen={communityOpen}
                   reportMenuPost={reportMenuPost}
                   onToggleLike={toggleLike}
@@ -512,6 +543,7 @@ const Community = () => {
                   onSetReportMenu={setReportMenuPost}
                   onCommentInputChange={(pid, val) => setCommentInputs(prev => ({ ...prev, [pid]: val }))}
                   onAddComment={addComment}
+                  onAddReply={addReply}
                   onCommentDelete={handleCommentDelete}
                   onCommentUpdate={handleCommentUpdate}
                   onNavigate={navigate}

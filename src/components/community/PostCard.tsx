@@ -19,6 +19,7 @@ export type Comment = {
   content: string;
   anonymous_name: string;
   author_id?: string | null;
+  parent_comment_id?: string | null;
   created_at: string;
 };
 
@@ -52,6 +53,7 @@ interface PostCardProps {
   myReactions: Set<string>;
   commentInput: string;
   currentUserId?: string;
+  currentUserName?: string;
   communityOpen: boolean;
   reportMenuPost: string | null;
   onToggleLike: (postId: string) => void;
@@ -62,6 +64,7 @@ interface PostCardProps {
   onSetReportMenu: (postId: string | null) => void;
   onCommentInputChange: (postId: string, value: string) => void;
   onAddComment: (postId: string) => void;
+  onAddReply: (postId: string, content: string, parentCommentId: string, parentAuthorId?: string | null) => void;
   onCommentDelete: (postId: string, commentId: string) => void;
   onCommentUpdate: (postId: string, commentId: string, content: string) => void;
   onNavigate: (path: string) => void;
@@ -73,9 +76,9 @@ const formatTime = (ts: string) => {
 
 const PostCard = ({
   post, isLiked, isExpanded, postComments, reactionCounts, myReactions,
-  commentInput, currentUserId, communityOpen, reportMenuPost,
+  commentInput, currentUserId, currentUserName, communityOpen, reportMenuPost,
   onToggleLike, onToggleReaction, onToggleComments, onShare, onReport,
-  onSetReportMenu, onCommentInputChange, onAddComment, onCommentDelete,
+  onSetReportMenu, onCommentInputChange, onAddComment, onAddReply, onCommentDelete,
   onCommentUpdate, onNavigate,
 }: PostCardProps) => {
   return (
@@ -194,13 +197,20 @@ const PostCard = ({
             className="overflow-hidden"
           >
             <div className="mt-4 pt-3 border-t border-white/5 space-y-2.5">
-              {postComments.map((c) => (
+              {/* Only show top-level comments (no parent) */}
+              {postComments.filter(c => !c.parent_comment_id).map((c) => (
                 <CommentCard
                   key={c.id}
                   comment={c}
+                  replies={postComments.filter(r => r.parent_comment_id === c.id)}
                   currentUserId={currentUserId}
+                  currentUserName={currentUserName}
+                  communityOpen={communityOpen}
+                  depth={0}
                   onDelete={(commentId) => onCommentDelete(post.id, commentId)}
                   onUpdate={(commentId, newContent) => onCommentUpdate(post.id, commentId, newContent)}
+                  onReply={onAddReply}
+                  allComments={postComments}
                 />
               ))}
               {postComments.length === 0 && (
