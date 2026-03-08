@@ -99,10 +99,10 @@ const formatCount = (n: number) => {
 const PostCard = ({
   post, isLiked, isExpanded, postComments, reactionCounts, myReactions,
   commentInput, currentUserId, currentUserName, communityOpen, reportMenuPost,
-  commentReactionCounts, myCommentReactions,
+  commentReactionCounts, myCommentReactions, isBookmarked, isPinned, isOwnPost,
   onToggleLike, onToggleReaction, onToggleComments, onShare, onRepost, onReport,
   onSetReportMenu, onCommentInputChange, onAddComment, onAddReply, onCommentDelete,
-  onCommentUpdate, onNavigate, onToggleCommentReaction,
+  onCommentUpdate, onNavigate, onToggleCommentReaction, onToggleBookmark, onPinPost, onUnpinPost,
 }: PostCardProps) => {
   return (
     <motion.div
