@@ -123,9 +123,13 @@ const Messages = () => {
         <Button size="sm" variant="ghost" onClick={() => navigate("/messages")} className="text-white/60 hover:text-white">
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xs font-bold">
-          {(currentConv?.other_user?.display_name || "?")[0]?.toUpperCase()}
-        </div>
+        <UserAvatar
+          displayName={currentConv?.other_user?.display_name}
+          avatarUrl={currentConv?.other_user?.avatar_url}
+          size="sm"
+          showStatus
+          onlineStatus={currentConv?.other_user?.online_status}
+        />
         <span
           className="font-semibold text-sm text-white cursor-pointer hover:underline"
           onClick={() => currentConv?.other_user && navigate(`/profile/${currentConv.other_user.user_id}`)}
