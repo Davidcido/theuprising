@@ -71,9 +71,13 @@ const Messages = () => {
                     className="w-full text-left p-4 rounded-2xl backdrop-blur-xl border border-white/10 hover:border-white/20 transition-colors flex items-center gap-3"
                     style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)" }}
                   >
-                    <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-sm font-bold shrink-0">
-                      {(conv.other_user?.display_name || "?")[0]?.toUpperCase()}
-                    </div>
+                    <UserAvatar
+                      displayName={conv.other_user?.display_name}
+                      avatarUrl={conv.other_user?.avatar_url}
+                      size="sm"
+                      showStatus
+                      onlineStatus={conv.other_user?.online_status}
+                    />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-sm text-foreground">
