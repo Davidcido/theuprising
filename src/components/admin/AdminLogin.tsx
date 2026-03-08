@@ -9,9 +9,10 @@ interface AdminLoginProps {
   isAdmin: boolean;
   onLogin: (email: string, password: string) => Promise<boolean>;
   onLogout: () => void;
+  error?: string | null;
 }
 
-const AdminLogin = ({ isAuthenticated, isAdmin, onLogin, onLogout }: AdminLoginProps) => {
+const AdminLogin = ({ isAuthenticated, isAdmin, onLogin, onLogout, error: authError }: AdminLoginProps) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -34,6 +35,9 @@ const AdminLogin = ({ isAuthenticated, isAdmin, onLogin, onLogout }: AdminLoginP
           )}
         </CardHeader>
         <CardContent>
+          {authError && (
+            <p className="text-red-400 text-sm mb-4 text-center">{authError}</p>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
               type="email"

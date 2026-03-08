@@ -43,22 +43,41 @@ export const useAdminData = () => {
   const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([]);
   const [communityStatus, setCommunityStatus] = useState<string>("open");
   const [totalLikes, setTotalLikes] = useState(0);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(null);
 
   const fetchAllData = useCallback(async () => {
-    const [postsRes, commentsRes, reportsRes, bannedRes, settingsRes, likesRes] = await Promise.all([
-      supabase.from("community_posts").select("*").order("created_at", { ascending: false }),
-      supabase.from("community_comments").select("*").order("created_at", { ascending: false }),
-      supabase.from("reported_content").select("*").order("created_at", { ascending: false }),
-      supabase.from("banned_users").select("*").order("banned_at", { ascending: false }),
-      supabase.from("community_settings").select("*").eq("key", "community_status").single(),
-      supabase.from("community_likes").select("id"),
-    ]);
-    if (postsRes.data) setPosts(postsRes.data);
-    if (commentsRes.data) setComments(commentsRes.data);
-    if (reportsRes.data) setReports(reportsRes.data);
-    if (bannedRes.data) setBannedUsers(bannedRes.data);
-    if (settingsRes.data) setCommunityStatus(settingsRes.data.value);
-    if (likesRes.data) setTotalLikes(likesRes.data.length);
+    setDataLoading(true);
+    setDataError(null);
+    try {
+      const [postsRes, commentsRes, reportsRes, bannedRes, settingsRes, likesRes] = await Promise.all([
+        supabase.from("community_posts").select("*").order("created_at", { ascending: false }),
+        supabase.from("community_comments").select("*").order("created_at", { ascending: false }),
+        supabase.from("reported_content").select("*").order("created_at", { ascending: false }),
+        supabase.from("banned_users").select("*").order("banned_at", { ascending: false }),
+        supabase.from("community_settings").select("*").eq("key", "community_status").single(),
+        supabase.from("community_likes").select("id"),
+      ]);
+
+      // Check for critical errors
+      const errors = [postsRes.error, commentsRes.error, reportsRes.error, bannedRes.error].filter(Boolean);
+      if (errors.length > 0) {
+        console.error("Admin data fetch errors:", errors);
+        setDataError("Some data failed to load. You may not have full admin access.");
+      }
+
+      if (postsRes.data) setPosts(postsRes.data);
+      if (commentsRes.data) setComments(commentsRes.data);
+      if (reportsRes.data) setReports(reportsRes.data);
+      if (bannedRes.data) setBannedUsers(bannedRes.data);
+      if (settingsRes.data) setCommunityStatus(settingsRes.data.value);
+      if (likesRes.data) setTotalLikes(likesRes.data.length);
+    } catch (err) {
+      console.error("Admin data fetch exception:", err);
+      setDataError("Failed to load admin data. Please try again.");
+    } finally {
+      setDataLoading(false);
+    }
   }, []);
 
   const deletePost = async (id: string) => {
@@ -114,6 +133,7 @@ export const useAdminData = () => {
 
   return {
     posts, comments, reports, bannedUsers, communityStatus, totalLikes,
+    dataLoading, dataError,
     fetchAllData, deletePost, deleteComment, updateReportStatus,
     banUser, unbanUser, toggleCommunityStatus,
   };
