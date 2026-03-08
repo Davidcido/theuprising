@@ -19,6 +19,7 @@ export type Comment = {
   content: string;
   anonymous_name: string;
   author_id?: string | null;
+  parent_comment_id?: string | null;
   created_at: string;
 };
 
