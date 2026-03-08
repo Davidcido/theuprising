@@ -359,7 +359,7 @@ const Explore = () => {
                         avatarUrl={post.author_profile?.avatar_url}
                         displayName={!post.is_anonymous && post.author_profile?.display_name ? post.author_profile.display_name : post.anonymous_name}
                         size="xs"
-                        onClick={!post.is_anonymous && post.author_id ? (e) => { (e as any).stopPropagation(); navigate(`/profile/${post.author_id}`); } : undefined}
+                        onClick={!post.is_anonymous && post.author_id ? () => { navigate(`/profile/${post.author_id}`); } : undefined}
                       />
                       <span className="text-xs font-medium text-foreground">
                         {!post.is_anonymous && post.author_profile?.display_name ? post.author_profile.display_name : post.anonymous_name}
