@@ -60,6 +60,10 @@ const Messages = () => {
   const handleSend = async () => {
     if (!newMessage.trim()) return;
     await sendMessage(newMessage);
+    // Notify recipient
+    if (otherUserId && userId && conversationId) {
+      createNotification(otherUserId, userId, "message", "sent you a message", conversationId);
+    }
     setNewMessage("");
   };
 
