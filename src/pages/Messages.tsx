@@ -567,10 +567,10 @@ const Messages = () => {
                        <button
                         onClick={handleSend}
                         disabled={!newMessage.trim() || sendingText}
-                        className="px-4 py-2.5 rounded-xl text-white font-semibold text-sm disabled:opacity-40 transition-all hover:scale-105"
+                        className="px-4 py-2.5 rounded-xl text-white font-semibold text-sm disabled:opacity-40 transition-all hover:scale-105 disabled:hover:scale-100"
                         style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
                       >
-                        <Send className="w-4 h-4" />
+                        {sendingText ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                       </button>
                     </>
                   )}
