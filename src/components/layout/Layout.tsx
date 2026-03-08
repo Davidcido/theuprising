@@ -13,7 +13,7 @@ const Layout = () => {
       <FloatingParticles />
       <div className="relative z-10">
         <Navbar />
-        <main className="pt-16">
+        <main className="pt-[calc(4rem+env(safe-area-inset-top,0px))]">
           <Outlet />
         </main>
       </div>

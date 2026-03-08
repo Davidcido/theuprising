@@ -63,7 +63,7 @@ const Navbar = () => {
   return (
     <>
       <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl border-b border-white/10"
-        style={{ background: "rgba(15, 81, 50, 0.6)" }}
+        style={{ background: "rgba(15, 81, 50, 0.6)", paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <Link to="/" className="flex items-center gap-2.5">

@@ -79,6 +79,27 @@ const Index = () => {
               Uprising Companion is your AI-powered emotional support friend and community space. Talk freely, share your story, connect with others, and grow in a place built on empathy, creativity, and positive energy.
             </p>
 
+            {/* Feature Badges */}
+            <div className="flex flex-wrap justify-center gap-3 mb-10">
+              {[
+                { icon: Bot, label: "AI Companion" },
+                { icon: Globe, label: "Global Community" },
+                { icon: HandHeart, label: "Emotional Support" },
+                { icon: Sun, label: "Daily Rise" },
+              ].map((badge) => (
+                <motion.div
+                  key={badge.label}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.6 }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-white/80 text-sm font-medium"
+                >
+                  <badge.icon className="w-4 h-4 text-emerald-300" />
+                  {badge.label}
+                </motion.div>
+              ))}
+            </div>
+
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 to="/chat"
