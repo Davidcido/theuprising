@@ -36,7 +36,7 @@ interface BannedUser {
   banned_at: string;
 }
 
-interface LoginSession {
+export interface LoginSession {
   id: string;
   user_id: string | null;
   session_id: string;
@@ -44,6 +44,26 @@ interface LoginSession {
   country: string | null;
   device_type: string | null;
 }
+
+export interface Visitor {
+  id: string;
+  session_id: string;
+  visit_time: string;
+  device_type: string | null;
+  country: string | null;
+}
+
+export interface Signup {
+  id: string;
+  user_id: string | null;
+  signup_time: string;
+}
+
+const getTodayStart = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
 
 export const useAdminData = () => {
   const [posts, setPosts] = useState<Post[]>([]);
@@ -54,6 +74,10 @@ export const useAdminData = () => {
   const [totalLikes, setTotalLikes] = useState(0);
   const [loginSessions, setLoginSessions] = useState<LoginSession[]>([]);
   const [loginsToday, setLoginsToday] = useState(0);
+  const [visitors, setVisitors] = useState<Visitor[]>([]);
+  const [visitorsToday, setVisitorsToday] = useState(0);
+  const [signups, setSignups] = useState<Signup[]>([]);
+  const [signupsToday, setSignupsToday] = useState(0);
   const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
 
@@ -61,7 +85,7 @@ export const useAdminData = () => {
     setDataLoading(true);
     setDataError(null);
     try {
-      const [postsRes, commentsRes, reportsRes, bannedRes, settingsRes, likesRes, loginsRes] = await Promise.all([
+      const [postsRes, commentsRes, reportsRes, bannedRes, settingsRes, likesRes, loginsRes, visitorsRes, signupsRes] = await Promise.all([
         supabase.from("community_posts").select("*").order("created_at", { ascending: false }),
         supabase.from("community_comments").select("*").order("created_at", { ascending: false }),
         supabase.from("reported_content").select("*").order("created_at", { ascending: false }),
@@ -69,6 +93,8 @@ export const useAdminData = () => {
         supabase.from("community_settings").select("*").eq("key", "community_status").single(),
         supabase.from("community_likes").select("id"),
         supabase.from("login_sessions").select("*").order("login_time", { ascending: false }),
+        supabase.from("visitors").select("*").order("visit_time", { ascending: false }),
+        supabase.from("signups").select("*").order("signup_time", { ascending: false }),
       ]);
 
       const errors = [postsRes.error, commentsRes.error, reportsRes.error, bannedRes.error].filter(Boolean);
@@ -76,6 +102,8 @@ export const useAdminData = () => {
         console.error("Admin data fetch errors:", errors);
         setDataError("Some data failed to load. You may not have full admin access.");
       }
+
+      const todayStart = getTodayStart();
 
       if (postsRes.data) setPosts(postsRes.data);
       if (commentsRes.data) setComments(commentsRes.data);
@@ -85,9 +113,15 @@ export const useAdminData = () => {
       if (likesRes.data) setTotalLikes(likesRes.data.length);
       if (loginsRes.data) {
         setLoginSessions(loginsRes.data as LoginSession[]);
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
         setLoginsToday(loginsRes.data.filter((l: any) => new Date(l.login_time) >= todayStart).length);
+      }
+      if (visitorsRes.data) {
+        setVisitors(visitorsRes.data as Visitor[]);
+        setVisitorsToday(visitorsRes.data.filter((v: any) => new Date(v.visit_time) >= todayStart).length);
+      }
+      if (signupsRes.data) {
+        setSignups(signupsRes.data as Signup[]);
+        setSignupsToday(signupsRes.data.filter((s: any) => new Date(s.signup_time) >= todayStart).length);
       }
     } catch (err) {
       console.error("Admin data fetch exception:", err);
@@ -151,6 +185,8 @@ export const useAdminData = () => {
   return {
     posts, comments, reports, bannedUsers, communityStatus, totalLikes,
     loginSessions, loginsToday,
+    visitors, visitorsToday,
+    signups, signupsToday,
     dataLoading, dataError,
     fetchAllData, deletePost, deleteComment, updateReportStatus,
     banUser, unbanUser, toggleCommunityStatus,
