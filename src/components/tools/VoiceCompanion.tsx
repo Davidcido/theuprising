@@ -522,45 +522,9 @@ const VoiceCompanion = () => {
   useEffect(() => { startListeningRef.current = startListening; }, [startListening]);
   useEffect(() => { processUtteranceRef.current = processUtterance; }, [processUtterance]);
 
-  const startCall = useCallback(async () => {
-    activeRef.current = true;
-    recognitionBusyRef.current = false;
-    setCallActive(true);
-    setTranscript([]);
-    setPhaseSync("processing");
-    conversationRef.current = [];
-    emptyRetryRef.current = 0;
-
-    // 1. Request microphone permission early (also unlocks AudioContext on iOS)
-    await setupAudioAnalyser();
-
-    // 2. Unlock AudioContext explicitly for iOS
-    try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      await ctx.resume();
-      const buf = ctx.createBuffer(1, 1, 22050);
-      const src = ctx.createBufferSource();
-      src.buffer = buf;
-      src.connect(ctx.destination);
-      src.start(0);
-      setTimeout(() => ctx.close().catch(() => {}), 100);
-    } catch {}
-
-    // 3. Unlock speechSynthesis with a silent utterance (required on iOS Safari)
-    await new Promise<void>((resolve) => {
-      const silent = new SpeechSynthesisUtterance(" ");
-      silent.volume = 0;
-      silent.rate = 1;
-      silent.onend = () => resolve();
-      silent.onerror = () => resolve();
-      speechSynthesis.speak(silent);
-      // Fallback in case onend never fires
-      setTimeout(resolve, 500);
-    });
-
+  const speakGreeting = useCallback(async () => {
     if (!activeRef.current) return;
 
-    // 4. Speak greeting after audio is fully unlocked
     const greeting = "Hi, this is your Uprising Companion. I'm here to listen and support you. How are you doing today?";
 
     setTranscript([{ role: "assistant", text: greeting }]);
@@ -572,7 +536,7 @@ const VoiceCompanion = () => {
 
     if (!activeRef.current) return;
 
-    // 5. Start listening only after greeting finishes
+    // Start listening only after greeting finishes
     setPhaseSync("idle");
     clearTimer();
     timerRef.current = setTimeout(() => {
@@ -580,7 +544,71 @@ const VoiceCompanion = () => {
         startListeningRef.current?.();
       }
     }, 400);
-  }, [setupAudioAnalyser, speakText, setPhaseSync, clearTimer]);
+  }, [speakText, setPhaseSync, clearTimer]);
+
+  const startCall = useCallback(async () => {
+    activeRef.current = true;
+    recognitionBusyRef.current = true;
+    setCallActive(true);
+    setTranscript([]);
+    setPhaseSync("processing");
+    conversationRef.current = [];
+    emptyRetryRef.current = 0;
+
+    try {
+      // 1. Request microphone permission early
+      await navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+        // Keep stream for analyser setup later, stop tracks for now
+        stream.getTracks().forEach((t) => t.stop());
+      });
+
+      // 2. Set up audio analyser
+      await setupAudioAnalyser();
+
+      // 3. Resume AudioContext for iOS
+      await audioCtxRef.current?.resume();
+
+      // 4. Unlock speechSynthesis + chain greeting in onend
+      let greetingTriggered = false;
+
+      const unlockUtterance = new SpeechSynthesisUtterance(" ");
+      unlockUtterance.volume = 0;
+      unlockUtterance.rate = 1;
+
+      unlockUtterance.onend = () => {
+        if (!greetingTriggered && activeRef.current) {
+          greetingTriggered = true;
+          speakGreeting();
+        }
+      };
+
+      unlockUtterance.onerror = () => {
+        if (!greetingTriggered && activeRef.current) {
+          greetingTriggered = true;
+          speakGreeting();
+        }
+      };
+
+      // 5. Safety fallback: force greeting if onend never fires
+      setTimeout(() => {
+        if (!greetingTriggered && activeRef.current) {
+          console.warn("[Voice] Silent utterance onend did not fire, forcing greeting.");
+          greetingTriggered = true;
+          speakGreeting();
+        }
+      }, 1000);
+
+      speechSynthesis.speak(unlockUtterance);
+
+    } catch (error) {
+      console.error("[Voice] Error starting call:", error);
+      toast.error("Could not start voice companion. Please allow microphone access.");
+      activeRef.current = false;
+      recognitionBusyRef.current = false;
+      setCallActive(false);
+      setPhaseSync("idle");
+    }
+  }, [setupAudioAnalyser, speakGreeting, setPhaseSync]);
 
   const endCall = useCallback(() => {
     activeRef.current = false;
