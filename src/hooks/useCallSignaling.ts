@@ -14,7 +14,17 @@ export type CallSignal = {
 
 export type CallState = "idle" | "calling" | "ringing" | "connected" | "ended";
 
-export const useCallSignaling = (userId?: string) => {
+export type CallEvent = {
+  type: "started" | "missed" | "ended" | "rejected";
+  callType: "voice" | "video";
+  conversationId: string;
+  duration?: number; // seconds
+  isCaller: boolean;
+};
+
+const CALL_TIMEOUT_MS = 30_000; // 30 seconds
+
+export const useCallSignaling = (userId?: string, onCallEvent?: (event: CallEvent) => void) => {
   const [callState, setCallState] = useState<CallState>("idle");
   const [incomingCall, setIncomingCall] = useState<CallSignal | null>(null);
   const [activeCallUserId, setActiveCallUserId] = useState<string | null>(null);
@@ -25,6 +35,27 @@ export const useCallSignaling = (userId?: string) => {
   const remoteStream = useRef<MediaStream | null>(null);
   const [remoteMediaStream, setRemoteMediaStream] = useState<MediaStream | null>(null);
   const [localMediaStream, setLocalMediaStream] = useState<MediaStream | null>(null);
+  const callTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectedAtRef = useRef<number | null>(null);
+  const onCallEventRef = useRef(onCallEvent);
+  onCallEventRef.current = onCallEvent;
+
+  // Store refs for values needed in callbacks
+  const activeCallUserIdRef = useRef(activeCallUserId);
+  const activeConversationIdRef = useRef(activeConversationId);
+  const activeCallTypeRef = useRef(activeCallType);
+  const callStateRef = useRef(callState);
+  activeCallUserIdRef.current = activeCallUserId;
+  activeConversationIdRef.current = activeConversationId;
+  activeCallTypeRef.current = activeCallType;
+  callStateRef.current = callState;
+
+  const clearCallTimeout = useCallback(() => {
+    if (callTimeoutRef.current) {
+      clearTimeout(callTimeoutRef.current);
+      callTimeoutRef.current = null;
+    }
+  }, []);
 
   // Listen for incoming call signals
   useEffect(() => {
@@ -42,42 +73,28 @@ export const useCallSignaling = (userId?: string) => {
       })
       .subscribe();
 
-    // Also listen for signals where I'm the caller (answers, ICE candidates)
-    const callerChannel = supabase
-      .channel(`call-signals-caller-${userId}`)
-      .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "call_signals",
-        filter: `caller_id=eq.${userId}`,
-      }, (payload) => {
-        // This catches signals sent TO me as caller (answer, ice from callee)
-      })
-      .subscribe();
-
     return () => {
       supabase.removeChannel(channel);
-      supabase.removeChannel(callerChannel);
     };
   }, [userId]);
 
   const handleIncomingSignal = async (signal: CallSignal) => {
     switch (signal.signal_type) {
       case "call-request":
-        if (callState === "idle") {
+        if (callStateRef.current === "idle") {
           setIncomingCall(signal);
           setCallState("ringing");
         } else {
-          // Busy - auto reject
-          await sendSignal(signal.caller_id, signal.conversation_id, "call-reject", null, signal.call_type as "voice" | "video");
+          await sendSignal(signal.caller_id, signal.conversation_id, "call-reject", { reason: "busy" }, signal.call_type as "voice" | "video");
         }
         break;
       case "call-accept":
-        if (callState === "calling" && peerConnection.current) {
-          // Callee accepted, create and send offer
+        if (callStateRef.current === "calling" && peerConnection.current) {
+          clearCallTimeout();
           const offer = await peerConnection.current.createOffer();
           await peerConnection.current.setLocalDescription(offer);
-          await sendSignal(signal.caller_id === userId ? signal.callee_id : signal.caller_id, signal.conversation_id, "offer", { sdp: offer }, activeCallType);
+          const targetId = signal.caller_id === userId ? signal.callee_id : signal.caller_id;
+          await sendSignal(targetId, signal.conversation_id!, "offer", { sdp: offer }, activeCallTypeRef.current);
         }
         break;
       case "offer":
@@ -86,13 +103,14 @@ export const useCallSignaling = (userId?: string) => {
           const answer = await peerConnection.current.createAnswer();
           await peerConnection.current.setLocalDescription(answer);
           const targetId = signal.caller_id === userId ? signal.callee_id : signal.caller_id;
-          await sendSignal(targetId, signal.conversation_id, "answer", { sdp: answer }, activeCallType);
+          await sendSignal(targetId, signal.conversation_id!, "answer", { sdp: answer }, activeCallTypeRef.current);
         }
         break;
       case "answer":
         if (peerConnection.current) {
           await peerConnection.current.setRemoteDescription(new RTCSessionDescription(signal.signal_data.sdp));
           setCallState("connected");
+          connectedAtRef.current = Date.now();
         }
         break;
       case "ice-candidate":
@@ -105,8 +123,24 @@ export const useCallSignaling = (userId?: string) => {
         }
         break;
       case "call-reject":
+        clearCallTimeout();
+        if (activeConversationIdRef.current) {
+          onCallEventRef.current?.({
+            type: "rejected",
+            callType: activeCallTypeRef.current,
+            conversationId: activeConversationIdRef.current,
+            isCaller: true,
+          });
+        }
+        endCall(true);
+        break;
       case "call-end":
-        endCall();
+        endCall(true);
+        break;
+      case "call-missed":
+        // The caller notified us that the call timed out
+        setIncomingCall(null);
+        setCallState("idle");
         break;
     }
   };
@@ -150,31 +184,21 @@ export const useCallSignaling = (userId?: string) => {
       { urls: "stun:stun1.l.google.com:19302" },
     ];
 
-    // TURN server support — configure via environment variables when needed
     const turnUrl = import.meta.env.VITE_TURN_SERVER_URL;
     const turnUser = import.meta.env.VITE_TURN_SERVER_USERNAME;
     const turnCred = import.meta.env.VITE_TURN_SERVER_CREDENTIAL;
     if (turnUrl) {
-      iceServers.push({
-        urls: turnUrl,
-        username: turnUser || "",
-        credential: turnCred || "",
-      });
+      iceServers.push({ urls: turnUrl, username: turnUser || "", credential: turnCred || "" });
     }
 
-    const config: RTCConfiguration = { iceServers };
-
-    const pc = new RTCPeerConnection(config);
+    const pc = new RTCPeerConnection({ iceServers });
     peerConnection.current = pc;
 
-    // Get local media
-    const constraints: MediaStreamConstraints = {
-      audio: true,
-      video: callType === "video",
-    };
-
     try {
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: callType === "video",
+      });
       localStream.current = stream;
       setLocalMediaStream(stream);
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
@@ -183,27 +207,25 @@ export const useCallSignaling = (userId?: string) => {
       return null;
     }
 
-    // Handle remote stream
     const remote = new MediaStream();
     remoteStream.current = remote;
     setRemoteMediaStream(remote);
 
     pc.ontrack = (event) => {
-      event.streams[0].getTracks().forEach(track => {
-        remote.addTrack(track);
-      });
+      event.streams[0].getTracks().forEach(track => remote.addTrack(track));
       setRemoteMediaStream(new MediaStream(remote.getTracks()));
     };
 
     pc.onicecandidate = (event) => {
-      if (event.candidate && activeCallUserId && activeConversationId) {
-        sendSignal(activeCallUserId, activeConversationId, "ice-candidate", { candidate: event.candidate }, callType);
+      if (event.candidate && activeCallUserIdRef.current && activeConversationIdRef.current) {
+        sendSignal(activeCallUserIdRef.current, activeConversationIdRef.current, "ice-candidate", { candidate: event.candidate }, callType);
       }
     };
 
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === "connected") {
         setCallState("connected");
+        connectedAtRef.current = Date.now();
       } else if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
         endCall();
       }
@@ -214,23 +236,50 @@ export const useCallSignaling = (userId?: string) => {
 
   const startCall = async (targetId: string, conversationId: string, callType: "voice" | "video") => {
     if (!userId || callState !== "idle") return;
-    
+
     setActiveCallUserId(targetId);
     setActiveCallType(callType);
     setActiveConversationId(conversationId);
     setCallState("calling");
+    connectedAtRef.current = null;
+
+    // Fire "started" event
+    onCallEventRef.current?.({
+      type: "started",
+      callType,
+      conversationId,
+      isCaller: true,
+    });
 
     await setupPeerConnection(callType);
     await sendSignal(targetId, conversationId, "call-request", null, callType);
+
+    // Set timeout for unanswered call
+    clearCallTimeout();
+    callTimeoutRef.current = setTimeout(() => {
+      if (callStateRef.current === "calling") {
+        // Notify callee that call was missed
+        sendSignal(targetId, conversationId, "call-missed", null, callType);
+        onCallEventRef.current?.({
+          type: "missed",
+          callType,
+          conversationId,
+          isCaller: true,
+        });
+        endCall(true);
+      }
+    }, CALL_TIMEOUT_MS);
   };
 
   const acceptCall = async () => {
     if (!incomingCall || !userId) return;
-    
+
+    clearCallTimeout();
     setActiveCallUserId(incomingCall.caller_id);
     setActiveCallType(incomingCall.call_type as "voice" | "video");
     setActiveConversationId(incomingCall.conversation_id);
     setCallState("connected");
+    connectedAtRef.current = Date.now();
 
     const pc = await setupPeerConnection(incomingCall.call_type as "voice" | "video");
     if (!pc) return;
@@ -241,12 +290,29 @@ export const useCallSignaling = (userId?: string) => {
 
   const rejectCall = async () => {
     if (!incomingCall || !userId) return;
+
+    // Fire rejected event for the recipient's chat
+    if (incomingCall.conversation_id) {
+      onCallEventRef.current?.({
+        type: "rejected",
+        callType: incomingCall.call_type as "voice" | "video",
+        conversationId: incomingCall.conversation_id,
+        isCaller: false,
+      });
+    }
+
     await sendSignal(incomingCall.caller_id, incomingCall.conversation_id, "call-reject", null, incomingCall.call_type as "voice" | "video");
     setIncomingCall(null);
     setCallState("idle");
   };
 
-  const endCall = () => {
+  const endCall = (skipSignal?: boolean) => {
+    clearCallTimeout();
+    const duration = connectedAtRef.current ? Math.round((Date.now() - connectedAtRef.current) / 1000) : 0;
+    const convId = activeConversationIdRef.current;
+    const cType = activeCallTypeRef.current;
+    const wasConnected = connectedAtRef.current !== null;
+
     if (peerConnection.current) {
       peerConnection.current.close();
       peerConnection.current = null;
@@ -255,15 +321,29 @@ export const useCallSignaling = (userId?: string) => {
       localStream.current.getTracks().forEach(t => t.stop());
       localStream.current = null;
     }
-    if (activeCallUserId && activeConversationId && userId) {
-      sendSignal(activeCallUserId, activeConversationId, "call-end", null, activeCallType);
+
+    if (!skipSignal && activeCallUserIdRef.current && convId && userId) {
+      sendSignal(activeCallUserIdRef.current, convId, "call-end", null, cType);
     }
+
+    // Fire ended event if the call was connected
+    if (wasConnected && convId) {
+      onCallEventRef.current?.({
+        type: "ended",
+        callType: cType,
+        conversationId: convId,
+        duration,
+        isCaller: true,
+      });
+    }
+
     setCallState("idle");
     setActiveCallUserId(null);
     setActiveConversationId(null);
     setIncomingCall(null);
     setLocalMediaStream(null);
     setRemoteMediaStream(null);
+    connectedAtRef.current = null;
   };
 
   return {

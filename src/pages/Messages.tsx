@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Send, ArrowLeft, Mail, Image, Phone, Video, Flag, Ban, X, Check, Pencil, Copy, CheckSquare, Loader2 } from "lucide-react";
@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import UserAvatar from "@/components/UserAvatar";
 import { useConversations, useMessages, type DirectMessage } from "@/hooks/useConversations";
 import { useMessageReactions } from "@/hooks/useMessageReactions";
-import { useCallSignaling } from "@/hooks/useCallSignaling";
+import { useCallSignaling, type CallEvent } from "@/hooks/useCallSignaling";
 import { useBlocks } from "@/hooks/useBlocks";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { formatDistanceToNow } from "date-fns";
@@ -20,6 +20,7 @@ import ReplyPreview from "@/components/messages/ReplyPreview";
 import ImagePreview from "@/components/messages/ImagePreview";
 import VoiceRecorder from "@/components/messages/VoiceRecorder";
 import EmojiPicker from "@/components/EmojiPicker";
+import CallSystemMessage from "@/components/messages/CallSystemMessage";
 const Messages = () => {
   const { conversationId } = useParams();
   const [userId, setUserId] = useState<string | undefined>();
@@ -46,7 +47,36 @@ const Messages = () => {
 
   const { conversations, loading: convsLoading } = useConversations(userId);
   const { messages, loading: msgsLoading, sendMessage, editMessage, deleteForMe, deleteForEveryone } = useMessages(conversationId, userId);
-  const { callState, incomingCall, activeCallType, localMediaStream, remoteMediaStream, startCall, acceptCall, rejectCall, endCall } = useCallSignaling(userId);
+  const handleCallEvent = useCallback(async (event: CallEvent) => {
+    if (!userId || !event.conversationId) return;
+    const icon = event.callType === "video" ? "📹" : "📞";
+    const typeLabel = event.callType === "video" ? "video" : "voice";
+    let content = "";
+
+    if (event.type === "started") {
+      content = `${icon} You started a ${typeLabel} call`;
+    } else if (event.type === "missed") {
+      content = `${icon} Missed ${typeLabel} call`;
+    } else if (event.type === "ended" && event.duration) {
+      const mins = Math.floor(event.duration / 60);
+      const secs = event.duration % 60;
+      const dur = mins > 0 ? `${mins}m ${secs.toString().padStart(2, "0")}s` : `${secs}s`;
+      content = `${icon} ${typeLabel.charAt(0).toUpperCase() + typeLabel.slice(1)} call ended — duration ${dur}`;
+    } else if (event.type === "rejected") {
+      content = `${icon} ${typeLabel.charAt(0).toUpperCase() + typeLabel.slice(1)} call declined`;
+    }
+
+    if (content) {
+      await supabase.from("direct_messages").insert({
+        conversation_id: event.conversationId,
+        sender_id: userId,
+        content,
+        attachment_type: "system",
+      } as any);
+    }
+  }, [userId]);
+
+  const { callState, incomingCall, activeCallType, localMediaStream, remoteMediaStream, startCall, acceptCall, rejectCall, endCall } = useCallSignaling(userId, handleCallEvent);
   const { isBlocked, blockUser, unblockUser } = useBlocks(userId);
   const { isOtherTyping, typingUserName, sendTyping } = useTypingIndicator(conversationId, userId);
   const { toggleReaction, getGroupedReactions } = useMessageReactions(conversationId, userId);
@@ -450,6 +480,10 @@ const Messages = () => {
         ) : (
           messages.map((msg) => {
             const msgAny = msg as any;
+            // Render system/call messages differently
+            if (msgAny.attachment_type === "system") {
+              return <CallSystemMessage key={msg.id} content={msg.content} createdAt={msg.created_at} />;
+            }
             const replyMsg = msgAny.reply_to_message_id ? messagesMap[msgAny.reply_to_message_id] || null : null;
             return (
               <ChatBubble
