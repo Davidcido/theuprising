@@ -37,8 +37,9 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
           toast.success("Account created! Check your email to confirm.");
         }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        trackLogin(data.session?.user.id);
         toast.success("Welcome back!");
         onOpenChange(false);
       }
