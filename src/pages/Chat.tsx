@@ -232,9 +232,14 @@ const Chat = () => {
               e.preventDefault();
               handleSend();
             }}
-            className="flex gap-3"
+            className="flex items-center gap-2"
           >
+            <EmojiPicker onSelect={(emoji) => {
+              setInput((prev) => prev + emoji);
+              inputRef.current?.focus();
+            }} />
             <input
+              ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Share what's on your mind..."
