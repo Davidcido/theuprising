@@ -36,6 +36,31 @@ const Profile = () => {
   const { profile, loading, updateProfile, uploadAvatar, uploadCoverPhoto, refetch } = useProfile(targetUserId);
   const { isFollowing, followerCount, followingCount, toggleFollow, loading: followLoading } = useFollow(currentUserId, targetUserId);
   const { getOrCreateConversation } = useConversations(currentUserId);
+  const { isBlocked, blockUser, unblockUser } = useBlocks(currentUserId);
+  const isTargetBlocked = targetUserId ? isBlocked(targetUserId) : false;
+
+  const handleReport = async () => {
+    if (!targetUserId) return;
+    const sessionId = localStorage.getItem("uprising_session_id") || "anon";
+    await supabase.from("reported_content").insert({
+      content_id: targetUserId,
+      content_type: "profile",
+      reporter_session_id: sessionId,
+      reason: "Reported by user",
+    });
+    toast.success("User reported. Thank you for keeping the community safe.");
+  };
+
+  const handleBlock = async () => {
+    if (!targetUserId) return;
+    if (isTargetBlocked) {
+      await unblockUser(targetUserId);
+      toast.success("User unblocked");
+    } else {
+      await blockUser(targetUserId);
+      toast.success("User blocked");
+    }
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
