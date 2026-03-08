@@ -164,6 +164,11 @@ const PostCard = ({
       {/* Content */}
       <p className="text-foreground/90 text-sm leading-relaxed mb-3 whitespace-pre-wrap break-words">{post.content}</p>
 
+      {/* Media Gallery */}
+      {post.media_urls && post.media_urls.length > 0 && (
+        <MediaGallery mediaUrls={post.media_urls} />
+      )}
+
       {/* Embedded original post (for quote reposts) */}
       {post.original_post && (
         <div
