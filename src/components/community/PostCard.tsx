@@ -40,6 +40,7 @@ export type Post = {
   original_post_id?: string | null;
   reposted_by_name?: string | null;
   original_post?: Post | null;
+  media_urls?: string[];
 };
 
 export type Reaction = {
