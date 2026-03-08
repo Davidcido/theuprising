@@ -1,52 +1,22 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, MessageCircle, Share2, Send, Shield, ChevronDown, ChevronUp, Eye, EyeOff, Flag, MoreHorizontal } from "lucide-react";
+import { Send, Shield, Eye, EyeOff, Sparkles, Users, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import UserAvatar from "@/components/UserAvatar";
 import { toast } from "@/hooks/use-toast";
 import uprisingLogo from "@/assets/uprising-logo.jpeg";
-import { formatDistanceToNow } from "date-fns";
 import EmojiPicker from "@/components/EmojiPicker";
 import { useNavigate } from "react-router-dom";
-import CommentCard from "@/components/community/CommentCard";
 import { createNotification } from "@/lib/notifications";
+import PostCard, { Post, Comment, Reaction } from "@/components/community/PostCard";
 
-const REACTION_EMOJIS = [
-  { emoji: "❤️", label: "Love" },
-  { emoji: "🙏", label: "Support" },
-  { emoji: "💪", label: "Strength" },
-  { emoji: "😊", label: "Encouragement" },
-  { emoji: "🔥", label: "Inspiration" },
+type FeedTab = "foryou" | "following" | "trending";
+
+const FEED_TABS: { key: FeedTab; label: string; icon: typeof Sparkles }[] = [
+  { key: "foryou", label: "For You", icon: Sparkles },
+  { key: "following", label: "Following", icon: Users },
+  { key: "trending", label: "Trending", icon: TrendingUp },
 ];
-
-type Comment = {
-  id: string;
-  post_id: string;
-  content: string;
-  anonymous_name: string;
-  author_id?: string | null;
-  created_at: string;
-};
-
-type Post = {
-  id: string;
-  content: string;
-  anonymous_name: string;
-  likes_count: number;
-  comments_count: number;
-  shares_count: number;
-  created_at: string;
-  author_id?: string | null;
-  is_anonymous?: boolean;
-  author_profile?: { display_name: string | null; avatar_url: string } | null;
-};
-
-type Reaction = {
-  id: string;
-  post_id: string;
-  session_id: string;
-  emoji: string;
-};
 
 const getSessionId = () => {
   let id = localStorage.getItem("uprising_session_id");
@@ -58,7 +28,7 @@ const getSessionId = () => {
 };
 
 const Community = () => {
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [allPosts, setAllPosts] = useState<Post[]>([]);
   const [newPost, setNewPost] = useState("");
   const [loading, setLoading] = useState(true);
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
@@ -72,6 +42,8 @@ const Community = () => {
   const [postAnonymously, setPostAnonymously] = useState(true);
   const [currentUser, setCurrentUser] = useState<{ id: string; displayName: string } | null>(null);
   const [reportMenuPost, setReportMenuPost] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<FeedTab>("foryou");
+  const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const navigate = useNavigate();
 
@@ -89,6 +61,14 @@ const Community = () => {
           id: session.user.id,
           displayName: profile?.display_name || session.user.email?.split("@")[0] || "User",
         });
+        // Fetch following list
+        const { data: follows } = await supabase
+          .from("follows")
+          .select("following_id")
+          .eq("follower_id", session.user.id);
+        if (follows) {
+          setFollowingIds(new Set(follows.map(f => f.following_id)));
+        }
       }
     });
   }, []);
@@ -112,7 +92,7 @@ const Community = () => {
           }
         }
       }
-      setPosts(data.map((p: any) => ({
+      setAllPosts(data.map((p: any) => ({
         ...p,
         author_profile: p.author_id ? profilesMap[p.author_id] || null : null,
       })));
@@ -196,6 +176,40 @@ const Community = () => {
     };
   }, [fetchPosts, fetchLikedPosts, fetchReactions]);
 
+  // --- Feed sorting logic ---
+  const displayPosts = useMemo(() => {
+    switch (activeTab) {
+      case "foryou": {
+        // Smart ranked feed: sort by engagement_score descending, with follow boost
+        return [...allPosts].sort((a, b) => {
+          const scoreA = (a.engagement_score || 0) + (a.author_id && followingIds.has(a.author_id) ? 20 : 0);
+          const scoreB = (b.engagement_score || 0) + (b.author_id && followingIds.has(b.author_id) ? 20 : 0);
+          return scoreB - scoreA;
+        });
+      }
+      case "following": {
+        // Only posts from followed users, chronological
+        return allPosts.filter(p => p.author_id && followingIds.has(p.author_id));
+      }
+      case "trending": {
+        // Trending: high engagement velocity — posts from last 48h sorted by engagement per hour
+        const now = Date.now();
+        const cutoff = now - 48 * 60 * 60 * 1000;
+        return [...allPosts]
+          .filter(p => new Date(p.created_at).getTime() > cutoff)
+          .sort((a, b) => {
+            const hoursA = Math.max(1, (now - new Date(a.created_at).getTime()) / 3600000);
+            const hoursB = Math.max(1, (now - new Date(b.created_at).getTime()) / 3600000);
+            const velocityA = ((a.likes_count * 3) + (a.comments_count * 4) + (a.shares_count * 5)) / hoursA;
+            const velocityB = ((b.likes_count * 3) + (b.comments_count * 4) + (b.shares_count * 5)) / hoursB;
+            return velocityB - velocityA;
+          });
+      }
+      default:
+        return allPosts;
+    }
+  }, [allPosts, activeTab, followingIds]);
+
   const handlePostChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     if (val.length <= 10000) setNewPost(val);
@@ -228,18 +242,17 @@ const Community = () => {
 
   const toggleLike = async (postId: string) => {
     const isLiked = likedPosts.has(postId);
-    const post = posts.find(p => p.id === postId);
+    const post = allPosts.find(p => p.id === postId);
     if (isLiked) {
       setLikedPosts((prev) => { const n = new Set(prev); n.delete(postId); return n; });
-      setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, likes_count: Math.max(0, p.likes_count - 1) } : p));
+      setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, likes_count: Math.max(0, p.likes_count - 1) } : p));
       await supabase.from("community_likes").delete().eq("post_id", postId).eq("session_id", sessionId);
       await supabase.rpc("decrement_likes", { post_id_input: postId });
     } else {
       setLikedPosts((prev) => new Set(prev).add(postId));
-      setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, likes_count: p.likes_count + 1 } : p));
+      setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, likes_count: p.likes_count + 1 } : p));
       await supabase.from("community_likes").insert({ post_id: postId, session_id: sessionId });
       await supabase.rpc("increment_likes", { post_id_input: postId });
-      // Notify post author
       if (currentUser && post?.author_id && post.author_id !== currentUser.id) {
         createNotification(post.author_id, currentUser.id, "like", "liked your post", postId);
       }
@@ -288,7 +301,7 @@ const Community = () => {
     const text = commentInputs[postId]?.trim();
     if (!text) return;
     const commentName = currentUser ? currentUser.displayName : sessionId;
-    const post = posts.find(p => p.id === postId);
+    const post = allPosts.find(p => p.id === postId);
     const insertData: any = {
       post_id: postId,
       content: text.slice(0, 5000),
@@ -301,8 +314,7 @@ const Community = () => {
     if (!error) {
       await supabase.rpc("increment_comments", { post_id_input: postId });
       setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
-      setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
-      // Notify post author
+      setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
       if (currentUser && post?.author_id && post.author_id !== currentUser.id) {
         createNotification(post.author_id, currentUser.id, "comment", "commented on your post", postId);
       }
@@ -314,7 +326,7 @@ const Community = () => {
       ...prev,
       [postId]: (prev[postId] || []).filter(c => c.id !== commentId),
     }));
-    setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: Math.max(0, p.comments_count - 1) } : p));
+    setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: Math.max(0, p.comments_count - 1) } : p));
   };
 
   const handleCommentUpdate = (postId: string, commentId: string, newContent: string) => {
@@ -343,10 +355,6 @@ const Community = () => {
       await navigator.clipboard.writeText(text);
       toast({ title: "Copied to clipboard!" });
     }
-  };
-
-  const formatTime = (ts: string) => {
-    try { return formatDistanceToNow(new Date(ts), { addSuffix: true }); } catch { return ts; }
   };
 
   const getReactionCounts = (postId: string) => {
@@ -427,6 +435,28 @@ const Community = () => {
           </div>
         </div>
 
+        {/* Feed Tabs */}
+        <div className="flex gap-1 mb-5 p-1 rounded-2xl backdrop-blur-xl border border-white/10" style={{ background: "rgba(255,255,255,0.04)" }}>
+          {FEED_TABS.map((tab) => {
+            const isActive = activeTab === tab.key;
+            const TabIcon = tab.icon;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                  isActive
+                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                }`}
+              >
+                <TabIcon className="w-3.5 h-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Feed */}
         {loading ? (
           <div className="space-y-4">
@@ -437,193 +467,56 @@ const Community = () => {
               </div>
             ))}
           </div>
-        ) : posts.length === 0 ? (
+        ) : displayPosts.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
-            <p className="text-lg mb-1">No posts yet</p>
-            <p className="text-sm">Be the first to share something 💚</p>
+            {activeTab === "following" ? (
+              <>
+                <Users className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                <p className="text-lg mb-1">No posts from people you follow</p>
+                <p className="text-sm">Follow users to see their posts here</p>
+              </>
+            ) : activeTab === "trending" ? (
+              <>
+                <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                <p className="text-lg mb-1">Nothing trending yet</p>
+                <p className="text-sm">Posts with fast-growing engagement will appear here</p>
+              </>
+            ) : (
+              <>
+                <p className="text-lg mb-1">No posts yet</p>
+                <p className="text-sm">Be the first to share something 💚</p>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
             <AnimatePresence mode="popLayout">
-              {posts.map((post) => {
-                const isLiked = likedPosts.has(post.id);
-                const isExpanded = expandedComments.has(post.id);
-                const postComments = comments[post.id] || [];
-                const reactionCounts = getReactionCounts(post.id);
-                return (
-                  <motion.div
-                    key={post.id}
-                    layout
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="p-5 rounded-2xl backdrop-blur-xl border border-white/10 transition-colors hover:border-white/20"
-                    style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)" }}
-                  >
-                    {/* Post header */}
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <UserAvatar
-                          avatarUrl={post.author_profile?.avatar_url}
-                          displayName={!post.is_anonymous && post.author_profile?.display_name ? post.author_profile.display_name : post.anonymous_name}
-                          size="sm"
-                          onClick={!post.is_anonymous && post.author_id ? () => navigate(`/profile/${post.author_id}`) : undefined}
-                        />
-                        <div>
-                          <span
-                            className={`text-sm font-semibold text-foreground ${!post.is_anonymous && post.author_id ? "cursor-pointer hover:underline" : ""}`}
-                            onClick={() => { if (!post.is_anonymous && post.author_id) navigate(`/profile/${post.author_id}`); }}
-                          >
-                            {!post.is_anonymous && post.author_profile?.display_name
-                              ? post.author_profile.display_name
-                              : post.anonymous_name}
-                          </span>
-                          {post.is_anonymous && (
-                            <span className="ml-1.5 text-[10px] text-muted-foreground/60 bg-white/5 px-1.5 py-0.5 rounded-full">anon</span>
-                          )}
-                          <span className="text-xs text-muted-foreground ml-2">· {formatTime(post.created_at)}</span>
-                        </div>
-                      </div>
-
-                      {/* Post menu */}
-                      <div className="relative">
-                        <button onClick={() => setReportMenuPost(reportMenuPost === post.id ? null : post.id)} className="p-1.5 rounded-full hover:bg-white/10 transition-colors">
-                          <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                        </button>
-                        {reportMenuPost === post.id && (
-                          <>
-                            <div className="fixed inset-0 z-40" onClick={() => setReportMenuPost(null)} />
-                            <div className="absolute right-0 top-8 z-50 bg-[#0F5132] border border-white/15 rounded-xl shadow-xl overflow-hidden min-w-[160px]">
-                              <button
-                                onClick={() => reportPost(post.id)}
-                                className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-yellow-400 hover:bg-white/10 transition-colors"
-                              >
-                                <Flag className="w-3.5 h-3.5" /> Report Post
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Content */}
-                    <p className="text-foreground/90 text-sm leading-relaxed mb-3 whitespace-pre-wrap break-words">{post.content}</p>
-
-                    {/* Emoji Reactions */}
-                    <div className="flex flex-wrap gap-1.5 mb-3">
-                      {REACTION_EMOJIS.map(({ emoji, label }) => {
-                        const count = reactionCounts[emoji] || 0;
-                        const isMine = myReactions.has(`${post.id}:${emoji}`);
-                        return (
-                          <button
-                            key={emoji}
-                            onClick={() => toggleReaction(post.id, emoji)}
-                            title={label}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs transition-all hover:scale-105 border ${
-                              isMine
-                                ? "bg-emerald-500/20 border-emerald-500/40 text-foreground"
-                                : "bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10"
-                            }`}
-                          >
-                            <span className="text-sm">{emoji}</span>
-                            {count > 0 && <span>{count}</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-6 border-t border-white/5 pt-3">
-                      <button
-                        onClick={() => toggleLike(post.id)}
-                        className={`inline-flex items-center gap-1.5 text-sm transition-all hover:scale-105 ${isLiked ? "text-red-400" : "text-muted-foreground hover:text-red-400"}`}
-                      >
-                        <Heart className="w-4 h-4" fill={isLiked ? "currentColor" : "none"} />
-                        <span>{post.likes_count}</span>
-                      </button>
-                      <button
-                        onClick={() => toggleComments(post.id)}
-                        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-blue-400 transition-all hover:scale-105"
-                      >
-                        <MessageCircle className="w-4 h-4" />
-                        <span>{post.comments_count}</span>
-                        {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                      </button>
-                      <button
-                        onClick={() => sharePost(post)}
-                        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-emerald-400 transition-all hover:scale-105"
-                      >
-                        <Share2 className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    {/* Comments section */}
-                    <AnimatePresence>
-                      {isExpanded && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="mt-4 pt-3 border-t border-white/5 space-y-2.5">
-                            {postComments.map((c) => (
-                              <CommentCard
-                                key={c.id}
-                                comment={c}
-                                currentUserId={currentUser?.id}
-                                onDelete={(commentId) => handleCommentDelete(post.id, commentId)}
-                                onUpdate={(commentId, newContent) => handleCommentUpdate(post.id, commentId, newContent)}
-                              />
-                            ))}
-                            {postComments.length === 0 && (
-                              <p className="text-xs text-muted-foreground text-center py-2">No comments yet</p>
-                            )}
-                            {communityOpen ? (
-                              <div className="flex gap-2 mt-2 items-end">
-                                <EmojiPicker
-                                  onSelect={(emoji) =>
-                                    setCommentInputs((prev) => ({ ...prev, [post.id]: (prev[post.id] || "") + emoji }))
-                                  }
-                                  className="p-1.5 shrink-0"
-                                />
-                                <textarea
-                                  value={commentInputs[post.id] || ""}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (val.length <= 5000) setCommentInputs((prev) => ({ ...prev, [post.id]: val }));
-                                    e.target.style.height = "auto";
-                                    e.target.style.height = e.target.scrollHeight + "px";
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter" && !e.shiftKey) {
-                                      e.preventDefault();
-                                      addComment(post.id);
-                                    }
-                                  }}
-                                  placeholder="Write a comment..."
-                                  rows={1}
-                                  className="flex-1 rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 resize-none overflow-hidden"
-                                  style={{ minHeight: "32px" }}
-                                />
-                                <button
-                                  onClick={() => addComment(post.id)}
-                                  disabled={!commentInputs[post.id]?.trim()}
-                                  className="p-2 rounded-full bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-30 transition-colors shrink-0"
-                                >
-                                  <Send className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            ) : (
-                              <p className="text-xs text-yellow-300/70 text-center py-2">Commenting is currently disabled.</p>
-                            )}
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-                );
-              })}
+              {displayPosts.map((post) => (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  isLiked={likedPosts.has(post.id)}
+                  isExpanded={expandedComments.has(post.id)}
+                  postComments={comments[post.id] || []}
+                  reactionCounts={getReactionCounts(post.id)}
+                  myReactions={myReactions}
+                  commentInput={commentInputs[post.id] || ""}
+                  currentUserId={currentUser?.id}
+                  communityOpen={communityOpen}
+                  reportMenuPost={reportMenuPost}
+                  onToggleLike={toggleLike}
+                  onToggleReaction={toggleReaction}
+                  onToggleComments={toggleComments}
+                  onShare={sharePost}
+                  onReport={reportPost}
+                  onSetReportMenu={setReportMenuPost}
+                  onCommentInputChange={(pid, val) => setCommentInputs(prev => ({ ...prev, [pid]: val }))}
+                  onAddComment={addComment}
+                  onCommentDelete={handleCommentDelete}
+                  onCommentUpdate={handleCommentUpdate}
+                  onNavigate={navigate}
+                />
+              ))}
             </AnimatePresence>
           </div>
         )}
