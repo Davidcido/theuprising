@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, MessageCircle, Share2, Send, Shield, ChevronDown, ChevronUp } from "lucide-react";
+import { Heart, MessageCircle, Share2, Send, Shield, ChevronDown, ChevronUp, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import uprisingLogo from "@/assets/uprising-logo.jpeg";
 import { formatDistanceToNow } from "date-fns";
 import EmojiPicker from "@/components/EmojiPicker";
+import { useNavigate } from "react-router-dom";
 
 const REACTION_EMOJIS = [
   { emoji: "❤️", label: "Love" },
