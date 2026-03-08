@@ -1,9 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff } from "lucide-react";
-import { useState } from "react";
+import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, Volume2, SwitchCamera } from "lucide-react";
 import UserAvatar from "@/components/UserAvatar";
 import type { CallState } from "@/hooks/useCallSignaling";
+import { toast } from "@/hooks/use-toast";
+
+const MAX_CALL_DURATION = 4 * 60 * 60; // 4 hours in seconds
 
 interface CallOverlayProps {
   callState: CallState;
@@ -29,13 +31,25 @@ const CallOverlay = ({
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const [muted, setMuted] = useState(false);
   const [videoOff, setVideoOff] = useState(false);
+  const [speakerOn, setSpeakerOn] = useState(true);
   const [elapsed, setElapsed] = useState(0);
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
 
+  // Timer with 4-hour auto-end
   useEffect(() => {
     if (callState !== "connected") { setElapsed(0); return; }
-    const interval = setInterval(() => setElapsed(e => e + 1), 1000);
+    const interval = setInterval(() => {
+      setElapsed(e => {
+        const next = e + 1;
+        if (next >= MAX_CALL_DURATION) {
+          toast({ title: "Call ended", description: "Maximum 4-hour call duration reached." });
+          setTimeout(onEndCall, 0);
+        }
+        return next;
+      });
+    }, 1000);
     return () => clearInterval(interval);
-  }, [callState]);
+  }, [callState, onEndCall]);
 
   useEffect(() => {
     if (remoteStream) {
@@ -67,9 +81,47 @@ const CallOverlay = ({
     }
   };
 
+  const toggleSpeaker = () => {
+    // Toggle speaker by adjusting remote audio volume
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.volume = speakerOn ? 0.15 : 1.0;
+    }
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.volume = speakerOn ? 0.15 : 1.0;
+    }
+    setSpeakerOn(!speakerOn);
+  };
+
+  const switchCamera = async () => {
+    if (!localStream) return;
+    const newFacing = facingMode === "user" ? "environment" : "user";
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: newFacing },
+        audio: false,
+      });
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      const oldVideoTrack = localStream.getVideoTracks()[0];
+      if (oldVideoTrack) {
+        // Replace track in peer connection (if available via sender)
+        oldVideoTrack.stop();
+        localStream.removeTrack(oldVideoTrack);
+        localStream.addTrack(newVideoTrack);
+      }
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = localStream;
+      }
+      setFacingMode(newFacing);
+    } catch {
+      toast({ title: "Could not switch camera", variant: "destructive" });
+    }
+  };
+
   const formatTime = (s: number) => {
-    const m = Math.floor(s / 60);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
     const sec = s % 60;
+    if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
     return `${m}:${sec.toString().padStart(2, "0")}`;
   };
 
@@ -106,12 +158,12 @@ const CallOverlay = ({
               playsInline
               muted
               className="w-full h-full object-cover"
-              style={{ transform: "scaleX(-1)" }}
+              style={{ transform: facingMode === "user" ? "scaleX(-1)" : "none" }}
             />
           </div>
         )}
 
-        {/* Calling / Ringing UI */}
+        {/* Calling / Ringing / Voice connected UI */}
         <div className={`relative z-10 flex flex-col items-center ${callType === "video" && callState === "connected" ? "mt-auto mb-32" : ""}`}>
           {(callState !== "connected" || callType === "voice") && (
             <>
@@ -128,7 +180,7 @@ const CallOverlay = ({
               </motion.div>
               <h2 className="text-white text-xl font-bold mt-4">{otherUserName || "User"}</h2>
               <p className="text-white/60 text-sm mt-1">
-                {callState === "calling" ? "Calling..." : callState === "ringing" ? "Ringing..." : callState === "connected" ? formatTime(elapsed) : ""}
+                {callState === "calling" ? `Calling ${otherUserName || "User"}...` : callState === "ringing" ? "Ringing..." : callState === "connected" ? formatTime(elapsed) : ""}
               </p>
             </>
           )}
@@ -141,7 +193,8 @@ const CallOverlay = ({
         </div>
 
         {/* Controls */}
-        <div className={`relative z-10 flex items-center gap-6 ${callType === "video" && callState === "connected" ? "mb-12" : "mt-12"}`}>
+        <div className={`relative z-10 flex items-center gap-4 ${callType === "video" && callState === "connected" ? "mb-12" : "mt-12"}`}>
+          {/* Mute */}
           <button
             onClick={toggleMute}
             className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
@@ -151,6 +204,19 @@ const CallOverlay = ({
             {muted ? <MicOff className="w-6 h-6 text-white" /> : <Mic className="w-6 h-6 text-white" />}
           </button>
 
+          {/* Speaker (voice calls) */}
+          {callType === "voice" && callState === "connected" && (
+            <button
+              onClick={toggleSpeaker}
+              className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
+                speakerOn ? "bg-white/15 hover:bg-white/25" : "bg-red-500/80"
+              }`}
+            >
+              <Volume2 className="w-6 h-6 text-white" />
+            </button>
+          )}
+
+          {/* End call */}
           <button
             onClick={onEndCall}
             className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
@@ -158,6 +224,7 @@ const CallOverlay = ({
             <PhoneOff className="w-7 h-7 text-white" />
           </button>
 
+          {/* Camera toggle (video) */}
           {callType === "video" && (
             <button
               onClick={toggleVideo}
@@ -166,6 +233,16 @@ const CallOverlay = ({
               }`}
             >
               {videoOff ? <VideoOff className="w-6 h-6 text-white" /> : <Video className="w-6 h-6 text-white" />}
+            </button>
+          )}
+
+          {/* Camera flip (video) */}
+          {callType === "video" && callState === "connected" && (
+            <button
+              onClick={switchCamera}
+              className="w-14 h-14 rounded-full flex items-center justify-center bg-white/15 hover:bg-white/25 transition-colors"
+            >
+              <SwitchCamera className="w-6 h-6 text-white" />
             </button>
           )}
         </div>
