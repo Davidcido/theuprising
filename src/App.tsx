@@ -39,6 +39,7 @@ const AppContent = () => {
         <Route path="/messages/:conversationId" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
       </Route>
       <Route path="/admin" element={<Admin />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
