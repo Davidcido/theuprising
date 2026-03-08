@@ -90,7 +90,8 @@ const Profile = () => {
       .eq("author_id", targetUserId)
       .order("created_at", { ascending: false })
       .then(({ data }) => { if (data) setUserPosts(data); });
-  }, [targetUserId]);
+    fetchPinned();
+  }, [targetUserId, fetchPinned]);
 
   const handleSave = async () => {
     setSaving(true);
