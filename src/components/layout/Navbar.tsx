@@ -1,11 +1,12 @@
-import { Link, useLocation } from "react-router-dom";
-import { Heart, MessageCircle, Sparkles, Users, Menu, X, LogIn, LogOut } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Heart, MessageCircle, Sparkles, Users, Menu, X, LogIn, LogOut, User, Mail } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import AuthModal from "@/components/auth/AuthModal";
+import NotificationBell from "@/components/notifications/NotificationBell";
 import uprisingLogo from "@/assets/uprising-logo.jpeg";
 import { toast } from "sonner";
 
@@ -19,6 +20,7 @@ const navItems = [
 
 const Navbar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
@@ -70,12 +72,31 @@ const Navbar = () => {
                 </Link>
               );
             })}
+
+            {session && (
+              <>
+                <button
+                  onClick={() => navigate("/messages")}
+                  className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all"
+                >
+                  <Mail className="w-5 h-5" />
+                </button>
+                <NotificationBell userId={session.user.id} />
+                <button
+                  onClick={() => navigate("/profile")}
+                  className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all"
+                >
+                  <User className="w-5 h-5" />
+                </button>
+              </>
+            )}
+
             {session ? (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleLogout}
-                className="ml-2 text-white/60 hover:text-white hover:bg-white/10"
+                className="ml-1 text-white/60 hover:text-white hover:bg-white/10"
               >
                 <LogOut className="w-4 h-4 mr-1" />
                 Log Out
@@ -94,12 +115,25 @@ const Navbar = () => {
           </div>
 
           {/* Mobile toggle */}
-          <button
-            className="md:hidden p-2 rounded-xl hover:bg-white/10 text-white"
-            onClick={() => setMobileOpen(!mobileOpen)}
-          >
-            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
+          <div className="md:hidden flex items-center gap-1">
+            {session && (
+              <>
+                <button
+                  onClick={() => navigate("/messages")}
+                  className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all"
+                >
+                  <Mail className="w-4 h-4" />
+                </button>
+                <NotificationBell userId={session.user.id} />
+              </>
+            )}
+            <button
+              className="p-2 rounded-xl hover:bg-white/10 text-white"
+              onClick={() => setMobileOpen(!mobileOpen)}
+            >
+              {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
 
         {/* Mobile menu */}
@@ -131,6 +165,26 @@ const Navbar = () => {
                     </Link>
                   );
                 })}
+                {session && (
+                  <>
+                    <Link
+                      to="/profile"
+                      onClick={() => setMobileOpen(false)}
+                      className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-white/60 hover:text-white hover:bg-white/10"
+                    >
+                      <User className="w-4 h-4" />
+                      My Profile
+                    </Link>
+                    <Link
+                      to="/messages"
+                      onClick={() => setMobileOpen(false)}
+                      className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-white/60 hover:text-white hover:bg-white/10"
+                    >
+                      <Mail className="w-4 h-4" />
+                      Messages
+                    </Link>
+                  </>
+                )}
                 {session ? (
                   <button
                     onClick={() => { handleLogout(); setMobileOpen(false); }}
