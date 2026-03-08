@@ -658,7 +658,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
 
     // Only AFTER greeting finishes, activate listening
     console.log("[Voice] Greeting done, activating listening");
-    setPhaseSync("cooldown");
+    setPhaseSync("idle");
     clearTimer();
     timerRef.current = setTimeout(() => {
       if (activeRef.current && !mutedRef.current) {
