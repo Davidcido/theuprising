@@ -9,6 +9,7 @@ interface AdminLoginProps {
   isAdmin: boolean;
   onLogin: (email: string, password: string) => Promise<boolean>;
   onLogout: () => void;
+  error?: string | null;
 }
 
 const AdminLogin = ({ isAuthenticated, isAdmin, onLogin, onLogout }: AdminLoginProps) => {
