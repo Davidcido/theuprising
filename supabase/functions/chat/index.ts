@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,19 +17,40 @@ function detectCrisis(text: string): boolean {
   return CRISIS_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
+// Extract memory-worthy information from conversation
+function buildMemoryExtractionPrompt(userMessage: string): string {
+  return `Analyze this user message and extract any personally meaningful information worth remembering for future conversations. Categories: goals, preferences, emotions, life_events, relationships, identity, general.
+
+Return ONLY valid JSON array of objects with "text" and "category" fields. If nothing worth remembering, return [].
+
+Examples of what to remember:
+- "I'm serving NYSC in Kaduna" → [{"text":"User is serving NYSC in Kaduna","category":"life_events"}]
+- "I love coding and want to become a software engineer" → [{"text":"User loves coding and aspires to be a software engineer","category":"goals"}]
+- "I'm fine" → []
+
+User message: "${userMessage.replace(/"/g, '\\"')}"
+
+JSON:`;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { messages, mode } = await req.json();
+    const { messages, mode, memories, userId, memoryEnabled } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     // Check last user message for crisis
     const lastUserMsg = [...messages].reverse().find((m: any) => m.role === "user");
     const isCrisis = lastUserMsg ? detectCrisis(lastUserMsg.content) : false;
+
+    // If memory is enabled, extract memories in background
+    if (memoryEnabled && userId && lastUserMsg) {
+      extractAndStoreMemories(lastUserMsg.content, userId, LOVABLE_API_KEY).catch(console.error);
+    }
 
     let systemPrompt = "";
 
@@ -67,6 +89,14 @@ Your approach:
 - If someone is struggling, sit with them in their pain before suggesting anything.
 - Never minimize, dismiss, or rush someone's feelings.
 - Never say "I'm just an AI" — you are their companion.`;
+    }
+
+    // Inject memories into system prompt if available
+    if (memoryEnabled && memories && memories.length > 0) {
+      systemPrompt += `\n\nYou have the following memories about this user from past conversations. Use them naturally to personalize your responses — don't list them or mention them explicitly unless relevant:\n`;
+      for (const mem of memories.slice(0, 20)) {
+        systemPrompt += `- ${mem}\n`;
+      }
     }
 
     if (isCrisis) {
@@ -127,3 +157,51 @@ Stay present and supportive. Do NOT abruptly end the conversation. Do NOT sound 
     });
   }
 });
+
+async function extractAndStoreMemories(userMessage: string, userId: string, apiKey: string) {
+  try {
+    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-lite",
+        messages: [
+          { role: "user", content: buildMemoryExtractionPrompt(userMessage) },
+        ],
+      }),
+    });
+
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const content = data.choices?.[0]?.message?.content?.trim();
+    if (!content) return;
+
+    // Parse JSON from response (handle markdown code blocks)
+    let jsonStr = content;
+    if (jsonStr.startsWith("```")) {
+      jsonStr = jsonStr.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+    }
+
+    const extracted = JSON.parse(jsonStr);
+    if (!Array.isArray(extracted) || extracted.length === 0) return;
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const sb = createClient(supabaseUrl, serviceKey);
+
+    for (const item of extracted.slice(0, 3)) {
+      if (item.text && item.text.length > 5) {
+        await sb.from("ai_memories").insert({
+          user_id: userId,
+          memory_text: item.text,
+          category: item.category || "general",
+        });
+      }
+    }
+  } catch (e) {
+    console.error("Memory extraction error:", e);
+  }
+}

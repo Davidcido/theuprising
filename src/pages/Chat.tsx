@@ -5,6 +5,8 @@ import EmojiPicker from "@/components/EmojiPicker";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
 import uprisingLogo from "@/assets/uprising-logo.jpeg";
+import MemoryChoicePrompt from "@/components/chat/MemoryChoicePrompt";
+import { useAIMemory } from "@/hooks/useAIMemory";
 
 type Message = {
   role: "user" | "assistant";
@@ -16,11 +18,17 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 async function streamChat({
   messages,
   mode,
+  memories,
+  userId,
+  memoryEnabled,
   onDelta,
   onDone,
 }: {
   messages: Message[];
   mode?: string;
+  memories?: string[];
+  userId?: string | null;
+  memoryEnabled?: boolean;
   onDelta: (deltaText: string) => void;
   onDone: () => void;
 }) {
@@ -30,7 +38,7 @@ async function streamChat({
       "Content-Type": "application/json",
       Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
     },
-    body: JSON.stringify({ messages, mode }),
+    body: JSON.stringify({ messages, mode, memories, userId, memoryEnabled }),
   });
 
   if (!resp.ok) {
@@ -76,7 +84,6 @@ async function streamChat({
     }
   }
 
-  // Final flush
   if (textBuffer.trim()) {
     for (let raw of textBuffer.split("\n")) {
       if (!raw) continue;
@@ -97,6 +104,8 @@ async function streamChat({
 }
 
 const Chat = () => {
+  const { userId, memoryEnabled, memories, loading: memLoading, setPreference, refetchMemories } = useAIMemory();
+
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
@@ -109,9 +118,17 @@ const Chat = () => {
   const [isTyping, setIsTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Show memory choice for logged-in users who haven't chosen yet
+  const showMemoryChoice = !memLoading && userId && memoryEnabled === null;
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
+
+  const handleMemoryChoice = async (enabled: boolean) => {
+    await setPreference(enabled);
+    toast.success(enabled ? "Memory enabled! I'll remember helpful details 💚" : "Got it — every chat starts fresh 🤝");
+  };
 
   const handleSend = useCallback(async () => {
     if (!input.trim() || isTyping) return;
@@ -138,9 +155,13 @@ const Chat = () => {
 
     try {
       const contextMessages = newMessages.slice(-20);
-      
+      const memoryTexts = memoryEnabled ? memories.map((m) => m.memory_text) : undefined;
+
       await streamChat({
         messages: contextMessages,
+        memories: memoryTexts,
+        userId,
+        memoryEnabled: memoryEnabled === true,
         onDelta: (chunk) => {
           if (assistantSoFar === "") {
             setMessages((prev) => [...prev, { role: "assistant", content: chunk }]);
@@ -149,14 +170,18 @@ const Chat = () => {
             upsertAssistant(chunk);
           }
         },
-        onDone: () => setIsTyping(false),
+        onDone: () => {
+          setIsTyping(false);
+          // Refetch memories in case the AI stored new ones
+          if (memoryEnabled) setTimeout(() => refetchMemories(), 1500);
+        },
       });
     } catch (e: any) {
       console.error(e);
       setIsTyping(false);
       toast.error(e.message || "Something went wrong. Please try again.");
     }
-  }, [input, isTyping, messages]);
+  }, [input, isTyping, messages, memoryEnabled, memories, userId, refetchMemories]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
@@ -167,8 +192,8 @@ const Chat = () => {
         <div className="container mx-auto flex items-center gap-3">
           <img src={uprisingLogo} alt="Uprising" className="w-10 h-10 rounded-xl object-cover shadow-md" />
           <div>
-            <h2 className="font-display font-semibold text-white">Uprising Companion</h2>
-            <p className="text-xs text-white/50">
+            <h2 className="font-display font-semibold text-foreground">Uprising Companion</h2>
+            <p className="text-xs text-muted-foreground">
               {isTyping ? "typing..." : "Your safe space to talk"}
             </p>
           </div>
@@ -188,8 +213,8 @@ const Chat = () => {
               <div
                 className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed backdrop-blur-md ${
                   msg.role === "user"
-                    ? "bg-white/15 text-white border border-white/20 rounded-br-md"
-                    : "bg-white/10 text-white/90 border border-white/10 rounded-bl-md"
+                    ? "bg-white/15 text-foreground border border-white/20 rounded-br-md"
+                    : "bg-white/10 text-foreground/90 border border-white/10 rounded-bl-md"
                 }`}
               >
                 {msg.role === "assistant" ? (
@@ -203,9 +228,14 @@ const Chat = () => {
             </motion.div>
           ))}
 
+          {/* Memory choice prompt */}
+          {showMemoryChoice && (
+            <MemoryChoicePrompt onChoose={handleMemoryChoice} />
+          )}
+
           {isTyping && messages[messages.length - 1]?.role !== "assistant" && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
-              <div className="bg-white/10 backdrop-blur-md rounded-2xl rounded-bl-md px-4 py-3 text-sm text-white/50 border border-white/10">
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl rounded-bl-md px-4 py-3 text-sm text-muted-foreground border border-white/10">
                 <span className="animate-pulse">typing...</span>
               </div>
             </motion.div>
@@ -217,7 +247,7 @@ const Chat = () => {
 
       {/* Privacy notice */}
       <div className="px-4 py-1">
-        <p className="text-center text-xs text-white/30">
+        <p className="text-center text-xs text-muted-foreground/50">
           🔒 Your conversation is private and anonymous. No personal data is stored.
         </p>
       </div>
@@ -243,7 +273,7 @@ const Chat = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Share what's on your mind..."
-              className="flex-1 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-white/30"
+              className="flex-1 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-white/30"
             />
             <button
               type="submit"

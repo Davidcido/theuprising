@@ -19,6 +19,8 @@ import ProfileEmojiPicker from "@/components/profile/ProfileEmojiPicker";
 import ProfileCoverPhoto from "@/components/profile/ProfileCoverPhoto";
 import { useProfileViews } from "@/hooks/useProfileViews";
 import { usePinnedPost } from "@/hooks/usePinnedPost";
+import { useAIMemory } from "@/hooks/useAIMemory";
+import MemorySettings from "@/components/chat/MemorySettings";
 
 const Profile = () => {
   const { userId: paramUserId } = useParams();
@@ -42,6 +44,7 @@ const Profile = () => {
   const isTargetBlocked = targetUserId ? isBlocked(targetUserId) : false;
   const { totalViews, weeklyViews, recentViewers } = useProfileViews(targetUserId, currentUserId);
   const { pinnedPostId, fetchPinned, pinPost, unpinPost } = usePinnedPost(currentUserId);
+  const { memoryEnabled, memories, setPreference, clearMemories, deleteMemory, disableAndClear } = useAIMemory();
 
   const handleReport = async () => {
     if (!targetUserId) return;
@@ -373,6 +376,20 @@ const Profile = () => {
             )}
           </div>
         </motion.div>
+
+        {/* AI Memory Settings (own profile only) */}
+        {isOwnProfile && memoryEnabled !== undefined && (
+          <div className="mt-6">
+            <MemorySettings
+              memoryEnabled={memoryEnabled}
+              memories={memories}
+              onToggle={setPreference}
+              onClear={clearMemories}
+              onDeleteMemory={deleteMemory}
+              onDisableAndClear={disableAndClear}
+            />
+          </div>
+        )}
 
         {/* User Posts */}
         <div className="mt-6">
