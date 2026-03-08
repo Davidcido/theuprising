@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { trackLogin } from "@/lib/trackLogin";
 import type { User } from "@supabase/supabase-js";
 
 export const useAdminAuth = () => {
