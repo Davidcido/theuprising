@@ -14,31 +14,56 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
   const [state, setState] = useState<RecordingState>("idle");
   const [time, setTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string>("");
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [playbackProgress, setPlaybackProgress] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string>("");
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const animRef = useRef<number>(0);
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sendingRef = useRef(false);
 
-  // Cleanup on unmount
+  // Create a persistent audio element on mount
   useEffect(() => {
+    const audio = new Audio();
+    audio.preload = "auto";
+    audioRef.current = audio;
+
+    audio.addEventListener("ended", handleAudioEnded);
+    audio.addEventListener("loadedmetadata", handleMetadataLoaded);
+
     return () => {
+      audio.removeEventListener("ended", handleAudioEnded);
+      audio.removeEventListener("loadedmetadata", handleMetadataLoaded);
+      audio.pause();
+      audio.src = "";
+      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
       if (timerRef.current) clearInterval(timerRef.current);
-      cancelAnimationFrame(animRef.current);
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
-      if (audioUrl) URL.revokeObjectURL(audioUrl);
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = "";
-      }
     };
-  }, [audioUrl]);
+  }, []);
+
+  const handleAudioEnded = () => {
+    setIsPlaying(false);
+    setPlaybackProgress(0);
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+  };
+
+  const handleMetadataLoaded = () => {
+    const audio = audioRef.current;
+    if (audio && isFinite(audio.duration) && audio.duration > 0) {
+      setAudioDuration(audio.duration);
+    }
+  };
 
   const startTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -52,12 +77,36 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
     }
   }, []);
 
+  const startProgressTracking = () => {
+    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    progressIntervalRef.current = setInterval(() => {
+      const audio = audioRef.current;
+      if (audio && isFinite(audio.duration) && audio.duration > 0) {
+        setPlaybackProgress((audio.currentTime / audio.duration) * 100);
+      }
+      if (audio && audio.ended) {
+        setIsPlaying(false);
+        setPlaybackProgress(0);
+        if (progressIntervalRef.current) {
+          clearInterval(progressIntervalRef.current);
+          progressIntervalRef.current = null;
+        }
+      }
+    }, 50);
+  };
+
+  const stopProgressTracking = () => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+  };
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // Pick a supported mime type
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : MediaRecorder.isTypeSupported("audio/webm")
@@ -73,20 +122,49 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
 
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: mimeType });
-        setAudioBlob(blob);
-        const url = URL.createObjectURL(blob);
-        setAudioUrl(url);
-        setState("preview");
+        chunksRef.current = [];
         stream.getTracks().forEach((t) => t.stop());
+
+        if (blob.size === 0) {
+          toast({ title: "Recording failed — no audio captured", variant: "destructive" });
+          resetState();
+          return;
+        }
+
+        // Revoke old URL
+        if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+
+        const url = URL.createObjectURL(blob);
+        audioUrlRef.current = url;
+        setAudioBlob(blob);
+
+        // Load into audio element
+        const audio = audioRef.current;
+        if (audio) {
+          audio.src = url;
+          audio.load();
+          // Handle browsers that report Infinity duration initially
+          audio.currentTime = 1e101;
+          audio.addEventListener("timeupdate", function seekFix() {
+            audio.removeEventListener("timeupdate", seekFix);
+            audio.currentTime = 0;
+            if (isFinite(audio.duration) && audio.duration > 0) {
+              setAudioDuration(audio.duration);
+            }
+          });
+        }
+
+        setState("preview");
+        setPlaybackProgress(0);
       };
 
-      // Use timeslice to collect data in chunks for better pause support
       recorder.start(250);
       mediaRecorderRef.current = recorder;
       setState("recording");
       onStateChange?.(true);
       setTime(0);
       setPlaybackProgress(0);
+      setAudioDuration(0);
       startTimer();
     } catch {
       toast({ title: "Microphone access denied", variant: "destructive" });
@@ -119,36 +197,58 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
     }
   };
 
-  const handleCancel = () => {
+  const resetState = () => {
     stopTimer();
+    stopProgressTracking();
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = "";
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = "";
+    }
+    setAudioBlob(null);
+    setState("idle");
+    setTime(0);
+    setPlaybackProgress(0);
+    setAudioDuration(0);
+    setIsPlaying(false);
+    onStateChange?.(false);
+  };
+
+  const handleCancel = () => {
     const recorder = mediaRecorderRef.current;
     if (recorder && recorder.state !== "inactive") {
-      // Prevent onstop from setting preview state
       recorder.onstop = null;
       recorder.stop();
     }
     streamRef.current?.getTracks().forEach((t) => t.stop());
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-    if (audioUrl) URL.revokeObjectURL(audioUrl);
-    setAudioBlob(null);
-    setAudioUrl("");
-    setState("idle");
-    onStateChange?.(false);
-    setTime(0);
-    setPlaybackProgress(0);
-    setIsPlaying(false);
+    resetState();
     onCancel();
   };
 
   const handleSend = async () => {
     if (!audioBlob || sendingRef.current) return;
+
+    // Prevent sending 0-duration recordings
+    if (time === 0 && audioDuration === 0) {
+      toast({ title: "Recording too short. Please record again.", variant: "destructive" });
+      resetState();
+      return;
+    }
+
     sendingRef.current = true;
     setIsSending(true);
+    // Stop any playback before sending
+    if (audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+      stopProgressTracking();
+    }
     try {
       await onSend(audioBlob);
-      onStateChange?.(false);
+      resetState();
       onCancel();
     } catch {
       toast({ title: "Failed to send voice note", variant: "destructive" });
@@ -158,34 +258,28 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
     }
   };
 
-  // Playback progress animation loop
-  const updateProgress = useCallback(() => {
-    const audio = audioRef.current;
-    if (audio && isFinite(audio.duration) && audio.duration > 0) {
-      setPlaybackProgress((audio.currentTime / audio.duration) * 100);
-    }
-    animRef.current = requestAnimationFrame(updateProgress);
-  }, []);
-
   const togglePlayback = () => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !audioUrlRef.current) return;
 
     if (isPlaying) {
       audio.pause();
-      cancelAnimationFrame(animRef.current);
+      stopProgressTracking();
       setIsPlaying(false);
     } else {
-      audio.play().catch(() => {});
-      animRef.current = requestAnimationFrame(updateProgress);
-      setIsPlaying(true);
+      // Reset to start if ended
+      if (audio.ended || audio.currentTime >= audio.duration) {
+        audio.currentTime = 0;
+        setPlaybackProgress(0);
+      }
+      audio.play().then(() => {
+        setIsPlaying(true);
+        startProgressTracking();
+      }).catch((e) => {
+        console.error("Playback error:", e);
+        toast({ title: "Could not play audio", variant: "destructive" });
+      });
     }
-  };
-
-  const handleAudioEnded = () => {
-    setIsPlaying(false);
-    setPlaybackProgress(0);
-    cancelAnimationFrame(animRef.current);
   };
 
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -200,7 +294,7 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
   const formatTime = (s: number) =>
     `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
 
-  // Idle state - just the mic button
+  // Idle state
   if (state === "idle") {
     return (
       <button
@@ -213,7 +307,7 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
     );
   }
 
-  // Preview state - listen before sending
+  // Preview state
   if (state === "preview") {
     return (
       <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10 border border-white/15">
@@ -230,30 +324,41 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
           )}
         </button>
 
-        {/* Progress bar */}
+        {/* Progress bar + waveform indicator */}
         <div className="flex-1 flex flex-col gap-1">
           <div
-            className="h-1.5 bg-white/20 rounded-full overflow-hidden cursor-pointer"
+            className="h-2 bg-white/20 rounded-full overflow-hidden cursor-pointer relative"
             onClick={handleProgressClick}
           >
             <div
               className="h-full bg-emerald-400 rounded-full transition-[width] duration-75"
               style={{ width: `${playbackProgress}%` }}
             />
+            {/* Playback dot indicator */}
+            <div
+              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-emerald-400 rounded-full shadow-md transition-[left] duration-75"
+              style={{ left: `calc(${playbackProgress}% - 6px)` }}
+            />
           </div>
-          <span className="text-[10px] text-muted-foreground">
-            🎤 {formatTime(time)}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-muted-foreground">🎤 {formatTime(time)}</span>
+            {isPlaying && (
+              <span className="flex items-center gap-0.5">
+                {[1, 2, 3, 4].map((i) => (
+                  <span
+                    key={i}
+                    className="w-0.5 bg-emerald-400 rounded-full animate-pulse"
+                    style={{
+                      height: `${6 + Math.random() * 6}px`,
+                      animationDelay: `${i * 0.1}s`,
+                      animationDuration: `${0.3 + Math.random() * 0.3}s`,
+                    }}
+                  />
+                ))}
+              </span>
+            )}
+          </div>
         </div>
-
-        {/* Hidden audio element */}
-        <audio
-          ref={audioRef}
-          src={audioUrl}
-          onEnded={handleAudioEnded}
-          preload="auto"
-          className="hidden"
-        />
 
         {/* Cancel */}
         <button
@@ -270,7 +375,7 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
           onClick={handleSend}
           disabled={isSending}
           className="p-2 rounded-xl text-foreground disabled:opacity-50 transition-opacity"
-          style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
+          style={{ background: "linear-gradient(135deg, hsl(var(--primary)), hsl(150 40% 20%))" }}
           aria-label="Send voice message"
         >
           {isSending ? (
@@ -286,7 +391,6 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
   // Recording / Paused state
   return (
     <div className="flex-1 flex items-center gap-3 px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30">
-      {/* Recording indicator */}
       {state === "recording" && (
         <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
       )}
@@ -306,7 +410,6 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
 
       <div className="flex-1" />
 
-      {/* Pause / Resume */}
       {state === "recording" ? (
         <button
           onClick={pauseRecording}
@@ -325,7 +428,6 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
         </button>
       )}
 
-      {/* Stop → go to preview */}
       <button
         onClick={stopRecording}
         className="p-1.5 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
@@ -334,7 +436,6 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
         <Square className="w-4 h-4" />
       </button>
 
-      {/* Cancel */}
       <button
         onClick={handleCancel}
         className="p-1.5 rounded-full hover:bg-white/10 transition-colors"
