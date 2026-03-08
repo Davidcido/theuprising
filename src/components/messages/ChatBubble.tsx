@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { Play, Pause, CornerDownRight, Pencil, Trash2, EyeOff, SmilePlus } from "lucide-react";
+import { Play, Pause, CornerDownRight, Pencil, Trash2, EyeOff, SmilePlus, Check, CheckCheck } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EmojiPicker as FrimoussePicker } from "frimousse";
 import type { DirectMessage } from "@/hooks/useConversations";
