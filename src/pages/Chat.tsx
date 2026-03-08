@@ -105,6 +105,7 @@ const Chat = () => {
     },
   ]);
   const [input, setInput] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   const [isTyping, setIsTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
