@@ -44,19 +44,27 @@ const EmojiPicker = ({ onSelect, className = "" }: EmojiPickerProps) => {
             <FrimoussePicker.Empty className="flex items-center justify-center h-full text-muted-foreground text-sm">
               No emoji found
             </FrimoussePicker.Empty>
-            <FrimoussePicker.Row className="flex gap-0.5">
-              {({ emoji }) => (
-                <FrimoussePicker.Emoji
-                  emoji={emoji}
-                  className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-white/10 transition-colors text-xl cursor-pointer"
-                >
-                  {emoji.emoji}
-                </FrimoussePicker.Emoji>
-              )}
-            </FrimoussePicker.Row>
-            <FrimoussePicker.CategoryHeader className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-0 bg-background/95 backdrop-blur-sm">
-              {({ category }) => <span>{category}</span>}
-            </FrimoussePicker.CategoryHeader>
+            <FrimoussePicker.List
+              className="select-none"
+              components={{
+                CategoryHeader: ({ category, ...props }) => (
+                  <div
+                    className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-0 bg-background/95 backdrop-blur-sm"
+                    {...props}
+                  >
+                    {category}
+                  </div>
+                ),
+                EmojiButton: ({ emoji, ...props }) => (
+                  <button
+                    className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-white/10 transition-colors text-xl cursor-pointer"
+                    {...props}
+                  >
+                    {emoji.emoji}
+                  </button>
+                ),
+              }}
+            />
           </FrimoussePicker.Viewport>
         </FrimoussePicker.Root>
       </PopoverContent>
