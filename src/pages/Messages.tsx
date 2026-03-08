@@ -272,12 +272,21 @@ const Messages = () => {
           onlineStatus={currentConv?.other_user?.online_status}
           onClick={() => currentConv?.other_user && navigate(`/profile/${currentConv.other_user.user_id}`)}
         />
-        <span
-          className="font-semibold text-sm text-white cursor-pointer hover:underline flex-1"
-          onClick={() => currentConv?.other_user && navigate(`/profile/${currentConv.other_user.user_id}`)}
-        >
-          {currentConv?.other_user?.display_name || "User"}
-        </span>
+        <div className="flex-1 min-w-0">
+          <span
+            className="font-semibold text-sm text-white cursor-pointer hover:underline block"
+            onClick={() => currentConv?.other_user && navigate(`/profile/${currentConv.other_user.user_id}`)}
+          >
+            {currentConv?.other_user?.display_name || "User"}
+          </span>
+          <span className="text-[10px] text-white/40">
+            {currentConv?.other_user?.online_status === "online"
+              ? "Online"
+              : currentConv?.other_user && (currentConv.other_user as any).last_seen_at
+                ? `Last seen ${formatDistanceToNow(new Date((currentConv.other_user as any).last_seen_at), { addSuffix: true })}`
+                : "Offline"}
+          </span>
+        </div>
 
         {/* Call buttons */}
         <div className="flex items-center gap-1">
