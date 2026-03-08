@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { trackLogin } from "@/lib/trackLogin";
 
 interface AuthModalProps {
   open: boolean;
@@ -30,13 +31,15 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
         if (error) throw error;
         if (data.session) {
           toast.success("Account created! You're now logged in.");
+          trackLogin(data.session.user.id);
           onOpenChange(false);
         } else {
           toast.success("Account created! Check your email to confirm.");
         }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        trackLogin(data.session?.user.id);
         toast.success("Welcome back!");
         onOpenChange(false);
       }

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { trackLogin } from "@/lib/trackLogin";
 import type { User } from "@supabase/supabase-js";
 
 export const useAdminAuth = () => {
@@ -79,12 +80,13 @@ export const useAdminAuth = () => {
 
   const login = async (email: string, password: string) => {
     setError(null);
-    const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error: loginError } = await supabase.auth.signInWithPassword({ email, password });
     if (loginError) {
       toast.error("Login failed: " + loginError.message);
       setError(loginError.message);
       return false;
     }
+    trackLogin(data.session?.user.id);
     return true;
   };
 

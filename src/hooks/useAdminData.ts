@@ -36,6 +36,15 @@ interface BannedUser {
   banned_at: string;
 }
 
+interface LoginSession {
+  id: string;
+  user_id: string | null;
+  session_id: string;
+  login_time: string;
+  country: string | null;
+  device_type: string | null;
+}
+
 export const useAdminData = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -43,6 +52,8 @@ export const useAdminData = () => {
   const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([]);
   const [communityStatus, setCommunityStatus] = useState<string>("open");
   const [totalLikes, setTotalLikes] = useState(0);
+  const [loginSessions, setLoginSessions] = useState<LoginSession[]>([]);
+  const [loginsToday, setLoginsToday] = useState(0);
   const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
 
@@ -50,16 +61,16 @@ export const useAdminData = () => {
     setDataLoading(true);
     setDataError(null);
     try {
-      const [postsRes, commentsRes, reportsRes, bannedRes, settingsRes, likesRes] = await Promise.all([
+      const [postsRes, commentsRes, reportsRes, bannedRes, settingsRes, likesRes, loginsRes] = await Promise.all([
         supabase.from("community_posts").select("*").order("created_at", { ascending: false }),
         supabase.from("community_comments").select("*").order("created_at", { ascending: false }),
         supabase.from("reported_content").select("*").order("created_at", { ascending: false }),
         supabase.from("banned_users").select("*").order("banned_at", { ascending: false }),
         supabase.from("community_settings").select("*").eq("key", "community_status").single(),
         supabase.from("community_likes").select("id"),
+        supabase.from("login_sessions").select("*").order("login_time", { ascending: false }),
       ]);
 
-      // Check for critical errors
       const errors = [postsRes.error, commentsRes.error, reportsRes.error, bannedRes.error].filter(Boolean);
       if (errors.length > 0) {
         console.error("Admin data fetch errors:", errors);
@@ -72,6 +83,12 @@ export const useAdminData = () => {
       if (bannedRes.data) setBannedUsers(bannedRes.data);
       if (settingsRes.data) setCommunityStatus(settingsRes.data.value);
       if (likesRes.data) setTotalLikes(likesRes.data.length);
+      if (loginsRes.data) {
+        setLoginSessions(loginsRes.data as LoginSession[]);
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        setLoginsToday(loginsRes.data.filter((l: any) => new Date(l.login_time) >= todayStart).length);
+      }
     } catch (err) {
       console.error("Admin data fetch exception:", err);
       setDataError("Failed to load admin data. Please try again.");
@@ -133,6 +150,7 @@ export const useAdminData = () => {
 
   return {
     posts, comments, reports, bannedUsers, communityStatus, totalLikes,
+    loginSessions, loginsToday,
     dataLoading, dataError,
     fetchAllData, deletePost, deleteComment, updateReportStatus,
     banUser, unbanUser, toggleCommunityStatus,

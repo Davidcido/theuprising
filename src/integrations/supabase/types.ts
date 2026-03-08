@@ -185,6 +185,33 @@ export type Database = {
         }
         Relationships: []
       }
+      login_sessions: {
+        Row: {
+          country: string | null
+          device_type: string | null
+          id: string
+          login_time: string
+          session_id: string
+          user_id: string | null
+        }
+        Insert: {
+          country?: string | null
+          device_type?: string | null
+          id?: string
+          login_time?: string
+          session_id: string
+          user_id?: string | null
+        }
+        Update: {
+          country?: string | null
+          device_type?: string | null
+          id?: string
+          login_time?: string
+          session_id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       reported_content: {
         Row: {
           content_id: string
