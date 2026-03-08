@@ -64,7 +64,7 @@ export const useConversations = (userId?: string) => {
     if (otherUserIds.length > 0) {
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, display_name, avatar_url, online_status")
+        .select("user_id, display_name, avatar_url, online_status, last_seen_at")
         .in("user_id", otherUserIds);
       if (profiles) {
         for (const p of profiles) {
