@@ -9,6 +9,7 @@ import { formatDistanceToNow } from "date-fns";
 import EmojiPicker from "@/components/EmojiPicker";
 import { useNavigate } from "react-router-dom";
 import CommentCard from "@/components/community/CommentCard";
+import { createNotification } from "@/lib/notifications";
 
 const REACTION_EMOJIS = [
   { emoji: "❤️", label: "Love" },
