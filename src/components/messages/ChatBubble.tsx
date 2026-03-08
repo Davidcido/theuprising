@@ -142,6 +142,13 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
     }
   };
 
+  const cyclePlaybackRate = () => {
+    const rates = [1, 1.5, 2];
+    const next = rates[(rates.indexOf(playbackRate) + 1) % rates.length];
+    setPlaybackRate(next);
+    if (audioRef.current) audioRef.current.playbackRate = next;
+  };
+
   const handleAudioLoaded = () => {
     if (audioRef.current && isFinite(audioRef.current.duration)) {
       const secs = Math.round(audioRef.current.duration);
