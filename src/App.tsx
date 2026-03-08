@@ -69,6 +69,7 @@ const AppContent = () => {
           <Route path="/bookmarks" element={<ProtectedRoute><Bookmarks /></ProtectedRoute>} />
           <Route path="/drafts" element={<ProtectedRoute><Drafts /></ProtectedRoute>} />
           <Route path="/explore" element={<Explore />} />
+          <Route path="/daily-rise" element={<DailyRise />} />
         </Route>
         <Route path="/admin" element={<Admin />} />
         <Route path="/reset-password" element={<ResetPassword />} />
