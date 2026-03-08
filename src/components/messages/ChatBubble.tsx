@@ -324,12 +324,12 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
 
           {/* Audio attachment */}
           {msgAny.attachment_url && msgAny.attachment_type === "audio" && (
-            <div className="flex items-center gap-2 mb-1 min-w-[180px]">
+            <div className="flex items-center gap-2 mb-1 min-w-[200px]">
               <button
                 onClick={toggleAudio}
                 className="w-8 h-8 rounded-full bg-emerald-500/30 flex items-center justify-center shrink-0"
               >
-                {isPlaying ? <Pause className="w-3.5 h-3.5 text-white" /> : <Play className="w-3.5 h-3.5 text-white ml-0.5" />}
+                {isPlaying ? <Pause className="w-3.5 h-3.5 text-foreground" /> : <Play className="w-3.5 h-3.5 text-foreground ml-0.5" />}
               </button>
               <div className="flex-1">
                 <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
@@ -338,10 +338,16 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
                     style={{ width: `${audioProgress}%` }}
                   />
                 </div>
-                <span className="text-[10px] text-white/40 mt-0.5 block">
+                <span className="text-[10px] text-muted-foreground mt-0.5 block">
                   🎤 {audioDuration || "0:00"}
                 </span>
               </div>
+              <button
+                onClick={cyclePlaybackRate}
+                className="px-1.5 py-0.5 rounded-md bg-white/10 hover:bg-white/20 transition-colors text-[10px] font-semibold text-muted-foreground shrink-0"
+              >
+                {playbackRate}x
+              </button>
               <audio
                 ref={audioRef}
                 src={msgAny.attachment_url}
