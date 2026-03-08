@@ -69,7 +69,19 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
 
   const startTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => setTime((t) => t + 1), 1000);
+    timerRef.current = setInterval(() => {
+      setTime((t) => {
+        const next = t + 1;
+        if (next >= MAX_RECORDING_SECONDS) {
+          // Auto-stop at max duration
+          setTimeout(() => {
+            stopRecording();
+            toast({ title: `Maximum ${MAX_RECORDING_SECONDS / 60}-minute recording reached`, description: "Your voice note has been saved for preview." });
+          }, 0);
+        }
+        return next;
+      });
+    }, 1000);
   }, []);
 
   const stopTimer = useCallback(() => {
