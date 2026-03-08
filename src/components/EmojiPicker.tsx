@@ -1,14 +1,7 @@
 import { useState } from "react";
 import { Smile } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-
-const EMOJI_CATEGORIES = [
-  { label: "Smileys", emojis: ["😊", "😄", "😂", "🥰", "😍", "🤗", "😎", "🥺", "😢", "😭", "😤", "😡", "🤔", "😴", "🤯"] },
-  { label: "Gestures", emojis: ["👍", "👎", "👏", "🙌", "🤝", "✊", "💪", "🙏", "✌️", "🤞", "👋", "🫶"] },
-  { label: "Hearts", emojis: ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "💕", "💖", "💗", "💝"] },
-  { label: "Nature", emojis: ["🌟", "⭐", "🔥", "🌈", "☀️", "🌙", "🌸", "🍀", "🌊", "🦋"] },
-  { label: "Symbols", emojis: ["💯", "✨", "🎉", "🎊", "🏆", "🥇", "💎", "🕊️", "🫂", "💐"] },
-];
+import { EmojiPicker as FrimoussePicker } from "frimousse";
 
 type EmojiPickerProps = {
   onSelect: (emoji: string) => void;
@@ -29,34 +22,54 @@ const EmojiPicker = ({ onSelect, className = "" }: EmojiPickerProps) => {
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-72 p-2 bg-background/95 backdrop-blur-xl border-white/15"
+        className="w-[320px] p-0 bg-background/95 backdrop-blur-xl border-white/15 overflow-hidden"
         side="top"
         align="start"
       >
-        <div className="space-y-2 max-h-56 overflow-y-auto">
-          {EMOJI_CATEGORIES.map((cat) => (
-            <div key={cat.label}>
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-1">
-                {cat.label}
-              </p>
-              <div className="flex flex-wrap gap-0.5">
-                {cat.emojis.map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={() => {
-                      onSelect(emoji);
-                      setOpen(false);
-                    }}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors text-lg"
+        <FrimoussePicker.Root
+          className="flex flex-col h-[350px]"
+          onEmojiSelect={(emoji) => {
+            onSelect(emoji.emoji);
+            setOpen(false);
+          }}
+        >
+          <FrimoussePicker.Search
+            className="w-full px-3 py-2.5 text-sm bg-transparent border-b border-white/10 text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+            placeholder="Search emojis..."
+          />
+          <FrimoussePicker.Viewport className="flex-1 overflow-y-auto p-1">
+            <FrimoussePicker.Loading className="flex items-center justify-center h-full text-muted-foreground text-sm">
+              Loading emojis…
+            </FrimoussePicker.Loading>
+            <FrimoussePicker.Empty className="flex items-center justify-center h-full text-muted-foreground text-sm">
+              No emoji found
+            </FrimoussePicker.Empty>
+            <FrimoussePicker.List
+              className="select-none"
+              components={{
+                CategoryHeader: ({ category, ...props }) => (
+                  <div
+                    className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-0 bg-background/95 backdrop-blur-sm"
+                    {...props}
                   >
-                    {emoji}
+                    {category.label}
+                  </div>
+                ),
+                Row: (props) => (
+                  <div className="flex gap-0.5" {...props} />
+                ),
+                Emoji: ({ emoji, ...props }) => (
+                  <button
+                    className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-white/10 transition-colors text-xl cursor-pointer"
+                    {...props}
+                  >
+                    {emoji.emoji}
                   </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+                ),
+              }}
+            />
+          </FrimoussePicker.Viewport>
+        </FrimoussePicker.Root>
       </PopoverContent>
     </Popover>
   );
