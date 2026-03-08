@@ -283,8 +283,15 @@ const Community = () => {
           </div>
         </div>
 
+        {/* Community Closed Banner */}
+        {!communityOpen && (
+          <div className="p-4 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 backdrop-blur-xl mb-6 text-center">
+            <p className="text-yellow-300 text-sm font-medium">🔒 Community posting is currently closed by the admin.</p>
+          </div>
+        )}
+
         {/* Composer */}
-        <div className="p-5 rounded-2xl backdrop-blur-xl border border-white/15 shadow-lg mb-6" style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)" }}>
+        <div className={`p-5 rounded-2xl backdrop-blur-xl border border-white/15 shadow-lg mb-6 ${!communityOpen ? "opacity-50 pointer-events-none" : ""}`} style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)" }}>
           <div className="flex gap-3">
             <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xs font-bold shrink-0">
               {sessionId.slice(0, 2)}
@@ -294,9 +301,10 @@ const Community = () => {
                 ref={textareaRef}
                 value={newPost}
                 onChange={handlePostChange}
-                placeholder="What's on your mind?"
+                placeholder={communityOpen ? "What's on your mind?" : "Community posting is currently closed."}
                 rows={2}
-                className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 resize-none overflow-hidden"
+                disabled={!communityOpen}
+                className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 resize-none overflow-hidden disabled:cursor-not-allowed"
                 style={{ minHeight: "60px" }}
               />
               <div className="flex justify-between items-center mt-2">
@@ -306,7 +314,7 @@ const Community = () => {
                 }} />
                 <button
                   onClick={addPost}
-                  disabled={!newPost.trim() || posting}
+                  disabled={!newPost.trim() || posting || !communityOpen}
                   className="inline-flex items-center gap-2 px-5 py-2 rounded-full text-white text-sm font-semibold disabled:opacity-40 transition-all hover:scale-105 active:scale-95"
                   style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
                 >
