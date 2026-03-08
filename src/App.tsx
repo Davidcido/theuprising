@@ -33,6 +33,7 @@ const queryClient = new QueryClient();
 
 const AppContent = () => {
   const { showOnboarding, completeOnboarding } = useOnboarding();
+  const { showPopup: showDailyRise, dismissPopup: dismissDailyRise } = useDailyRise();
 
   useEffect(() => {
     trackVisit();
