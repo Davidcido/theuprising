@@ -53,6 +53,7 @@ interface PostCardProps {
   myReactions: Set<string>;
   commentInput: string;
   currentUserId?: string;
+  currentUserName?: string;
   communityOpen: boolean;
   reportMenuPost: string | null;
   onToggleLike: (postId: string) => void;
@@ -63,6 +64,7 @@ interface PostCardProps {
   onSetReportMenu: (postId: string | null) => void;
   onCommentInputChange: (postId: string, value: string) => void;
   onAddComment: (postId: string) => void;
+  onAddReply: (postId: string, content: string, parentCommentId: string, parentAuthorId?: string | null) => void;
   onCommentDelete: (postId: string, commentId: string) => void;
   onCommentUpdate: (postId: string, commentId: string, content: string) => void;
   onNavigate: (path: string) => void;
