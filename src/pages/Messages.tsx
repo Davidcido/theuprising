@@ -396,6 +396,9 @@ const Messages = () => {
                 replyMessage={replyMsg}
                 onSwipeReply={(m) => setReplyTo(m)}
                 onScrollToMessage={scrollToMessage}
+                onEditMessage={handleEditMessage}
+                onDeleteForMe={handleDeleteForMe}
+                onDeleteForEveryone={handleDeleteForEveryone}
               />
             );
           })
