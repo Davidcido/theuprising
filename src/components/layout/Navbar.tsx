@@ -38,8 +38,26 @@ const Navbar = () => {
   }, []);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    toast.success("Logged out");
+    try {
+      await supabase.auth.signOut({ scope: 'global' });
+      // Clear all stored auth data
+      localStorage.clear();
+      sessionStorage.clear();
+      // Clear cookies
+      document.cookie.split(";").forEach((c) => {
+        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+      setSession(null);
+      toast.success("Logged out successfully");
+      navigate("/");
+    } catch (error) {
+      // Force clear even if signOut fails
+      localStorage.clear();
+      sessionStorage.clear();
+      setSession(null);
+      navigate("/");
+      toast.success("Logged out");
+    }
   };
 
   return (
