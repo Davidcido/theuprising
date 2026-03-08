@@ -17,6 +17,7 @@ const navItems = [
   { to: "/tools", label: "Healing Tools", icon: Sparkles },
   { to: "/community", label: "Community", icon: Users },
   { to: "/explore", label: "Explore", icon: Compass },
+  { to: "/daily-rise", label: "Daily Rise", icon: Sun },
   { to: "/vision", label: "The Uprising", icon: Heart },
 ];
 
