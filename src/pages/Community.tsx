@@ -35,6 +35,8 @@ const Community = () => {
   const [allPosts, setAllPosts] = useState<Post[]>([]);
   const [newPost, setNewPost] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [comments, setComments] = useState<Record<string, Comment[]>>({});
@@ -48,7 +50,6 @@ const Community = () => {
   const [reportMenuPost, setReportMenuPost] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<FeedTab>("foryou");
   const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
-  const [visibleCount, setVisibleCount] = useState(POSTS_PER_PAGE);
   const [refreshing, setRefreshing] = useState(false);
   const [repostDialogPost, setRepostDialogPost] = useState<Post | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
