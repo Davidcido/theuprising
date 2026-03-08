@@ -846,6 +846,9 @@ const Community = () => {
                   onCommentUpdate={handleCommentUpdate}
                   onNavigate={navigate}
                   onToggleCommentReaction={toggleCommentReaction}
+                  isBookmarked={isBookmarked(post.id)}
+                  onToggleBookmark={toggleBookmark}
+                  isOwnPost={post.author_id === currentUser?.id}
                 />
               ))}
             </AnimatePresence>

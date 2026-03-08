@@ -15,6 +15,8 @@ import Admin from "./pages/Admin";
 import ResetPassword from "./pages/ResetPassword";
 import Profile from "./pages/Profile";
 import Messages from "./pages/Messages";
+import Bookmarks from "./pages/Bookmarks";
+import Drafts from "./pages/Drafts";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import { trackVisit } from "./lib/trackLogin";
 import { registerPushSubscription } from "./lib/pushNotifications";
