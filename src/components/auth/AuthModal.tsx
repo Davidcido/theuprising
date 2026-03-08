@@ -37,7 +37,7 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
     setLoading(true);
     try {
       await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: "https://theuprising.vercel.app/reset-password",
       });
       toast.success("If an account with that email exists, a reset link has been sent.");
       setMode("login");
