@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, MessageCircle, Share2, Send, ChevronDown, ChevronUp, Flag, MoreHorizontal } from "lucide-react";
+import { Heart, MessageCircle, Repeat2, Send, ChevronDown, ChevronUp, Flag, MoreHorizontal, Eye } from "lucide-react";
 import UserAvatar from "@/components/UserAvatar";
 import { formatDistanceToNow } from "date-fns";
 import EmojiPicker from "@/components/EmojiPicker";
@@ -30,6 +30,7 @@ export type Post = {
   likes_count: number;
   comments_count: number;
   shares_count: number;
+  views_count?: number;
   created_at: string;
   author_id?: string | null;
   is_anonymous?: boolean;
@@ -60,6 +61,7 @@ interface PostCardProps {
   onToggleReaction: (postId: string, emoji: string) => void;
   onToggleComments: (postId: string) => void;
   onShare: (post: Post) => void;
+  onRepost: (post: Post) => void;
   onReport: (postId: string) => void;
   onSetReportMenu: (postId: string | null) => void;
   onCommentInputChange: (postId: string, value: string) => void;
@@ -74,10 +76,16 @@ const formatTime = (ts: string) => {
   try { return formatDistanceToNow(new Date(ts), { addSuffix: true }); } catch { return ts; }
 };
 
+const formatCount = (n: number) => {
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
+  if (n >= 1000) return (n / 1000).toFixed(1) + "K";
+  return String(n);
+};
+
 const PostCard = ({
   post, isLiked, isExpanded, postComments, reactionCounts, myReactions,
   commentInput, currentUserId, currentUserName, communityOpen, reportMenuPost,
-  onToggleLike, onToggleReaction, onToggleComments, onShare, onReport,
+  onToggleLike, onToggleReaction, onToggleComments, onShare, onRepost, onReport,
   onSetReportMenu, onCommentInputChange, onAddComment, onAddReply, onCommentDelete,
   onCommentUpdate, onNavigate,
 }: PostCardProps) => {
@@ -145,11 +153,12 @@ const PostCard = ({
           const count = reactionCounts[emoji] || 0;
           const isMine = myReactions.has(`${post.id}:${emoji}`);
           return (
-            <button
+            <motion.button
               key={emoji}
               onClick={() => onToggleReaction(post.id, emoji)}
               title={label}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs transition-all hover:scale-105 border ${
+              whileTap={{ scale: 0.9 }}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs transition-all border ${
                 isMine
                   ? "bg-emerald-500/20 border-emerald-500/40 text-foreground"
                   : "bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10"
@@ -157,33 +166,53 @@ const PostCard = ({
             >
               <span className="text-sm">{emoji}</span>
               {count > 0 && <span>{count}</span>}
-            </button>
+            </motion.button>
           );
         })}
       </div>
 
+      {/* Engagement metrics bar */}
+      <div className="flex items-center gap-4 text-[10px] text-muted-foreground/50 mb-2 px-1">
+        <span>💬 {formatCount(post.comments_count)} comments</span>
+        <span>🔁 {formatCount(post.shares_count)} reposts</span>
+        <span>❤️ {formatCount(post.likes_count)} likes</span>
+        {(post.views_count ?? 0) > 0 && <span>👁 {formatCount(post.views_count!)} views</span>}
+      </div>
+
       {/* Actions */}
-      <div className="flex items-center gap-6 border-t border-white/5 pt-3">
-        <button
+      <div className="flex items-center gap-1 border-t border-white/5 pt-3">
+        <motion.button
           onClick={() => onToggleLike(post.id)}
-          className={`inline-flex items-center gap-1.5 text-sm transition-all hover:scale-105 ${isLiked ? "text-red-400" : "text-muted-foreground hover:text-red-400"}`}
+          whileTap={{ scale: 1.3 }}
+          transition={{ type: "spring", stiffness: 400, damping: 10 }}
+          className={`flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-sm transition-all ${isLiked ? "text-red-400" : "text-muted-foreground hover:text-red-400 hover:bg-white/5"}`}
         >
           <Heart className="w-4 h-4" fill={isLiked ? "currentColor" : "none"} />
-          <span>{post.likes_count}</span>
-        </button>
+          <span className="text-xs">{post.likes_count}</span>
+        </motion.button>
         <button
           onClick={() => onToggleComments(post.id)}
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-blue-400 transition-all hover:scale-105"
+          className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-blue-400 hover:bg-white/5 transition-all"
         >
           <MessageCircle className="w-4 h-4" />
-          <span>{post.comments_count}</span>
+          <span className="text-xs">{post.comments_count}</span>
           {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </button>
+        <motion.button
+          onClick={() => onRepost(post)}
+          whileTap={{ scale: 1.2, rotate: 15 }}
+          transition={{ type: "spring", stiffness: 400, damping: 10 }}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-emerald-400 hover:bg-white/5 transition-all"
+        >
+          <Repeat2 className="w-4 h-4" />
+          <span className="text-xs">{post.shares_count}</span>
+        </motion.button>
         <button
           onClick={() => onShare(post)}
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-emerald-400 transition-all hover:scale-105"
+          className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all"
         >
-          <Share2 className="w-4 h-4" />
+          <Eye className="w-4 h-4" />
+          <span className="text-xs">Share</span>
         </button>
       </div>
 
@@ -194,10 +223,10 @@ const PostCard = ({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
             <div className="mt-4 pt-3 border-t border-white/5 space-y-2.5">
-              {/* Only show top-level comments (no parent) */}
               {postComments.filter(c => !c.parent_comment_id).map((c) => (
                 <CommentCard
                   key={c.id}
