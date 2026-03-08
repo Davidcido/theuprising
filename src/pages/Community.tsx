@@ -204,10 +204,15 @@ const Community = () => {
   const addPost = async () => {
     if (!newPost.trim() || posting) return;
     setPosting(true);
-    const { error } = await supabase.from("community_posts").insert({
+    const insertData: any = {
       content: newPost.trim().slice(0, 10000),
-      anonymous_name: sessionId,
-    });
+      anonymous_name: postAnonymously ? sessionId : (currentUser?.displayName || sessionId),
+      is_anonymous: postAnonymously,
+    };
+    if (!postAnonymously && currentUser) {
+      insertData.author_id = currentUser.id;
+    }
+    const { error } = await supabase.from("community_posts").insert(insertData);
     if (error) {
       toast({ title: "Error", description: "Could not post. Try again.", variant: "destructive" });
     } else {
