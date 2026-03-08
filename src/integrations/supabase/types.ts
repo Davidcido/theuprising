@@ -164,6 +164,8 @@ export type Database = {
           id: string
           is_anonymous: boolean
           likes_count: number
+          original_post_id: string | null
+          reposted_by_name: string | null
           shares_count: number
           views_count: number
         }
@@ -177,6 +179,8 @@ export type Database = {
           id?: string
           is_anonymous?: boolean
           likes_count?: number
+          original_post_id?: string | null
+          reposted_by_name?: string | null
           shares_count?: number
           views_count?: number
         }
@@ -190,10 +194,20 @@ export type Database = {
           id?: string
           is_anonymous?: boolean
           likes_count?: number
+          original_post_id?: string | null
+          reposted_by_name?: string | null
           shares_count?: number
           views_count?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "community_posts_original_post_id_fkey"
+            columns: ["original_post_id"]
+            isOneToOne: false
+            referencedRelation: "community_posts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       community_reactions: {
         Row: {
