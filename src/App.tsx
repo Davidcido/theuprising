@@ -15,6 +15,8 @@ import Admin from "./pages/Admin";
 import ResetPassword from "./pages/ResetPassword";
 import Profile from "./pages/Profile";
 import Messages from "./pages/Messages";
+import Bookmarks from "./pages/Bookmarks";
+import Drafts from "./pages/Drafts";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import { trackVisit } from "./lib/trackLogin";
 import { registerPushSubscription } from "./lib/pushNotifications";
@@ -52,6 +54,8 @@ const AppContent = () => {
         <Route path="/profile/:userId" element={<Profile />} />
         <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
         <Route path="/messages/:conversationId" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+        <Route path="/bookmarks" element={<ProtectedRoute><Bookmarks /></ProtectedRoute>} />
+        <Route path="/drafts" element={<ProtectedRoute><Drafts /></ProtectedRoute>} />
       </Route>
       <Route path="/admin" element={<Admin />} />
       <Route path="/reset-password" element={<ResetPassword />} />

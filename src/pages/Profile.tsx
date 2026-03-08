@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Camera, Edit2, MapPin, UserPlus, UserMinus, MessageCircle, Check, X, ImagePlus, Flag, Ban } from "lucide-react";
+import { Camera, Edit2, MapPin, UserPlus, UserMinus, MessageCircle, Check, X, ImagePlus, Flag, Ban, Eye, Pin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
 import { useFollow } from "@/hooks/useFollow";
@@ -17,6 +17,8 @@ import { formatDistanceToNow } from "date-fns";
 import { useConversations } from "@/hooks/useConversations";
 import ProfileEmojiPicker from "@/components/profile/ProfileEmojiPicker";
 import ProfileCoverPhoto from "@/components/profile/ProfileCoverPhoto";
+import { useProfileViews } from "@/hooks/useProfileViews";
+import { usePinnedPost } from "@/hooks/usePinnedPost";
 
 const Profile = () => {
   const { userId: paramUserId } = useParams();
@@ -38,6 +40,8 @@ const Profile = () => {
   const { getOrCreateConversation } = useConversations(currentUserId);
   const { isBlocked, blockUser, unblockUser } = useBlocks(currentUserId);
   const isTargetBlocked = targetUserId ? isBlocked(targetUserId) : false;
+  const { totalViews, weeklyViews, recentViewers } = useProfileViews(targetUserId, currentUserId);
+  const { pinnedPostId, fetchPinned, pinPost, unpinPost } = usePinnedPost(currentUserId);
 
   const handleReport = async () => {
     if (!targetUserId) return;
@@ -86,7 +90,8 @@ const Profile = () => {
       .eq("author_id", targetUserId)
       .order("created_at", { ascending: false })
       .then(({ data }) => { if (data) setUserPosts(data); });
-  }, [targetUserId]);
+    fetchPinned();
+  }, [targetUserId, fetchPinned]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -318,7 +323,7 @@ const Profile = () => {
             )}
 
             {/* Stats */}
-            <div className="flex gap-6 mt-4 text-sm">
+            <div className="flex flex-wrap gap-4 mt-4 text-sm">
               <div className="text-center">
                 <span className="font-bold text-foreground">{followerCount}</span>
                 <span className="text-muted-foreground ml-1">Followers</span>
@@ -331,7 +336,41 @@ const Profile = () => {
                 <span className="font-bold text-foreground">{userPosts.length}</span>
                 <span className="text-muted-foreground ml-1">Posts</span>
               </div>
+              <div className="text-center">
+                <Eye className="w-3.5 h-3.5 inline mr-1 text-muted-foreground" />
+                <span className="font-bold text-foreground">{totalViews}</span>
+                <span className="text-muted-foreground ml-1">Views</span>
+              </div>
             </div>
+
+            {/* Profile views dashboard (owner only) */}
+            {isOwnProfile && totalViews > 0 && (
+              <div className="mt-3 p-3 rounded-xl bg-white/5 border border-white/10">
+                <p className="text-xs text-muted-foreground mb-1">
+                  <Eye className="w-3 h-3 inline mr-1" />
+                  {weeklyViews} profile views this week
+                </p>
+                {recentViewers.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-[10px] text-muted-foreground mb-1.5">Recent visitors</p>
+                    <div className="flex -space-x-2">
+                      {recentViewers.slice(0, 5).map(v => (
+                        <UserAvatar
+                          key={v.user_id}
+                          avatarUrl={v.avatar_url}
+                          displayName={v.display_name || "User"}
+                          size="xs"
+                          className="ring-2 ring-background"
+                        />
+                      ))}
+                      {recentViewers.length > 5 && (
+                        <span className="text-[10px] text-muted-foreground ml-2">+{recentViewers.length - 5} more</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </motion.div>
 
@@ -342,16 +381,48 @@ const Profile = () => {
             <p className="text-muted-foreground text-sm text-center py-8">No posts yet</p>
           ) : (
             <div className="space-y-3">
-              {userPosts.map((post) => (
+              {/* Pinned post first */}
+              {pinnedPostId && userPosts.find(p => p.id === pinnedPostId) && (
+                <div className="relative">
+                  <div className="absolute top-2 left-3 z-10 flex items-center gap-1 text-amber-400 text-[10px] font-medium">
+                    <Pin className="w-3 h-3" /> Pinned
+                  </div>
+                  <div
+                    className="p-4 pt-7 rounded-2xl backdrop-blur-xl border border-amber-500/20"
+                    style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)" }}
+                  >
+                    <p className="text-foreground/90 text-sm whitespace-pre-wrap break-words">{userPosts.find(p => p.id === pinnedPostId)?.content}</p>
+                    <div className="flex items-center justify-between mt-2">
+                      <p className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(userPosts.find(p => p.id === pinnedPostId)?.created_at), { addSuffix: true })}
+                      </p>
+                      {isOwnProfile && (
+                        <button onClick={unpinPost} className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+                          Unpin
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {/* Other posts */}
+              {userPosts.filter(p => p.id !== pinnedPostId).map((post) => (
                 <div
                   key={post.id}
                   className="p-4 rounded-2xl backdrop-blur-xl border border-white/10"
                   style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)" }}
                 >
                   <p className="text-foreground/90 text-sm whitespace-pre-wrap break-words">{post.content}</p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
-                  </p>
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+                    </p>
+                    {isOwnProfile && post.id !== pinnedPostId && (
+                      <button onClick={() => pinPost(post.id)} className="text-[10px] text-muted-foreground hover:text-amber-400 transition-colors flex items-center gap-1">
+                        <Pin className="w-3 h-3" /> Pin
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

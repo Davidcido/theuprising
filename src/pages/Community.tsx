@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Shield, Eye, EyeOff, Sparkles, Users, TrendingUp, RefreshCw } from "lucide-react";
+import { Send, Shield, Eye, EyeOff, Sparkles, Users, TrendingUp, RefreshCw, Bookmark, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import UserAvatar from "@/components/UserAvatar";
 import { toast } from "@/hooks/use-toast";
@@ -12,6 +12,9 @@ import PostCard, { Post, Comment, Reaction } from "@/components/community/PostCa
 import PostSkeleton from "@/components/community/PostSkeleton";
 import RepostDialog from "@/components/community/RepostDialog";
 import MediaUploader from "@/components/community/MediaUploader";
+import SuggestedUsers from "@/components/community/SuggestedUsers";
+import { useBookmarks } from "@/hooks/useBookmarks";
+import { useDrafts } from "@/hooks/useDrafts";
 
 type FeedTab = "foryou" | "following" | "trending";
 
@@ -59,6 +62,9 @@ const Community = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  const { isBookmarked, toggleBookmark } = useBookmarks(currentUser?.id);
+  const { saveDraft } = useDrafts(currentUser?.id);
 
   const sessionId = getSessionId();
 
@@ -651,6 +657,28 @@ const Community = () => {
           </div>
         </div>
 
+        {/* Quick links */}
+        {currentUser && (
+          <div className="flex gap-2 mb-4 justify-center">
+            <button onClick={() => navigate("/bookmarks")} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-muted-foreground hover:text-foreground bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
+              <Bookmark className="w-3 h-3" /> Saved
+            </button>
+            <button onClick={() => navigate("/drafts")} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-muted-foreground hover:text-foreground bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
+              <FileText className="w-3 h-3" /> Drafts
+            </button>
+          </div>
+        )}
+
+        {/* Suggested Users */}
+        {currentUser && (
+          <SuggestedUsers
+            currentUserId={currentUser.id}
+            followingIds={followingIds}
+            onFollow={(userId) => setFollowingIds(prev => new Set(prev).add(userId))}
+            compact
+          />
+        )}
+
         {!communityOpen && (
           <div className="p-4 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 backdrop-blur-xl mb-6 text-center">
             <p className="text-yellow-300 text-sm font-medium">🔒 Community posting is currently closed by the admin.</p>
@@ -697,14 +725,28 @@ const Community = () => {
                     </button>
                   )}
                 </div>
-                <button
-                  onClick={addPost}
-                  disabled={(!newPost.trim() && mediaFiles.length === 0) || posting || !communityOpen}
-                  className="inline-flex items-center gap-2 px-5 py-2 rounded-full text-white text-sm font-semibold disabled:opacity-40 transition-all hover:scale-105 active:scale-95"
-                  style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
-                >
-                  {posting ? "Posting..." : "Share"} <Send className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex gap-2">
+                  {currentUser && newPost.trim() && (
+                    <button
+                      onClick={async () => {
+                        await saveDraft(newPost, mediaFiles.map(m => m.url), postAnonymously);
+                        setNewPost(""); setMediaFiles([]);
+                        toast({ title: "Draft saved!" });
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs text-muted-foreground hover:text-foreground bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
+                    >
+                      <FileText className="w-3 h-3" /> Save Draft
+                    </button>
+                  )}
+                  <button
+                    onClick={addPost}
+                    disabled={(!newPost.trim() && mediaFiles.length === 0) || posting || !communityOpen}
+                    className="inline-flex items-center gap-2 px-5 py-2 rounded-full text-white text-sm font-semibold disabled:opacity-40 transition-all hover:scale-105 active:scale-95"
+                    style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
+                  >
+                    {posting ? "Posting..." : "Share"} <Send className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -804,6 +846,9 @@ const Community = () => {
                   onCommentUpdate={handleCommentUpdate}
                   onNavigate={navigate}
                   onToggleCommentReaction={toggleCommentReaction}
+                  isBookmarked={isBookmarked(post.id)}
+                  onToggleBookmark={toggleBookmark}
+                  isOwnPost={post.author_id === currentUser?.id}
                 />
               ))}
             </AnimatePresence>

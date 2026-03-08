@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, MessageCircle, Repeat2, Send, ChevronDown, ChevronUp, Flag, MoreHorizontal, Eye, Share2 } from "lucide-react";
+import { Heart, MessageCircle, Repeat2, Send, ChevronDown, ChevronUp, Flag, MoreHorizontal, Eye, Share2, Bookmark, Pin } from "lucide-react";
 import UserAvatar from "@/components/UserAvatar";
 import { formatDistanceToNow } from "date-fns";
 import EmojiPicker from "@/components/EmojiPicker";
@@ -64,6 +64,9 @@ interface PostCardProps {
   reportMenuPost: string | null;
   commentReactionCounts: Record<string, Record<string, number>>;
   myCommentReactions: Set<string>;
+  isBookmarked?: boolean;
+  isPinned?: boolean;
+  isOwnPost?: boolean;
   onToggleLike: (postId: string) => void;
   onToggleReaction: (postId: string, emoji: string) => void;
   onToggleComments: (postId: string) => void;
@@ -78,6 +81,9 @@ interface PostCardProps {
   onCommentUpdate: (postId: string, commentId: string, content: string) => void;
   onNavigate: (path: string) => void;
   onToggleCommentReaction: (commentId: string, emoji: string) => void;
+  onToggleBookmark?: (postId: string) => void;
+  onPinPost?: (postId: string) => void;
+  onUnpinPost?: () => void;
 }
 
 const formatTime = (ts: string) => {
@@ -93,10 +99,10 @@ const formatCount = (n: number) => {
 const PostCard = ({
   post, isLiked, isExpanded, postComments, reactionCounts, myReactions,
   commentInput, currentUserId, currentUserName, communityOpen, reportMenuPost,
-  commentReactionCounts, myCommentReactions,
+  commentReactionCounts, myCommentReactions, isBookmarked, isPinned, isOwnPost,
   onToggleLike, onToggleReaction, onToggleComments, onShare, onRepost, onReport,
   onSetReportMenu, onCommentInputChange, onAddComment, onAddReply, onCommentDelete,
-  onCommentUpdate, onNavigate, onToggleCommentReaction,
+  onCommentUpdate, onNavigate, onToggleCommentReaction, onToggleBookmark, onPinPost, onUnpinPost,
 }: PostCardProps) => {
   return (
     <motion.div
@@ -107,6 +113,14 @@ const PostCard = ({
       className="p-5 rounded-2xl backdrop-blur-xl border border-white/10 transition-colors hover:border-white/20"
       style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)" }}
     >
+      {/* Pinned label */}
+      {isPinned && (
+        <div className="flex items-center gap-1.5 mb-2 text-amber-400/70 text-xs">
+          <Pin className="w-3.5 h-3.5" />
+          <span className="font-medium">Pinned post</span>
+        </div>
+      )}
+
       {/* Repost label */}
       {post.reposted_by_name && (
         <div className="flex items-center gap-1.5 mb-2 text-emerald-400/70 text-xs">
@@ -148,14 +162,39 @@ const PostCard = ({
           {reportMenuPost === post.id && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => onSetReportMenu(null)} />
-              <div className="absolute right-0 top-8 z-50 bg-card border border-white/15 rounded-xl shadow-xl overflow-hidden min-w-[160px]">
-                <button
-                  onClick={() => onReport(post.id)}
-                  className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-yellow-400 hover:bg-white/10 transition-colors"
-                >
-                  <Flag className="w-3.5 h-3.5" /> Report Post
-                </button>
-              </div>
+               <div className="absolute right-0 top-8 z-50 bg-card border border-white/15 rounded-xl shadow-xl overflow-hidden min-w-[160px]">
+                 <button
+                   onClick={() => onReport(post.id)}
+                   className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-yellow-400 hover:bg-white/10 transition-colors"
+                 >
+                   <Flag className="w-3.5 h-3.5" /> Report Post
+                 </button>
+                 {onToggleBookmark && (
+                   <button
+                     onClick={() => { onToggleBookmark(post.id); onSetReportMenu(null); }}
+                     className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-foreground hover:bg-white/10 transition-colors"
+                   >
+                     <Bookmark className="w-3.5 h-3.5" fill={isBookmarked ? "currentColor" : "none"} />
+                     {isBookmarked ? "Remove Bookmark" : "Bookmark"}
+                   </button>
+                 )}
+                 {isOwnPost && onPinPost && !isPinned && (
+                   <button
+                     onClick={() => { onPinPost(post.id); onSetReportMenu(null); }}
+                     className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-amber-400 hover:bg-white/10 transition-colors"
+                   >
+                     <Pin className="w-3.5 h-3.5" /> Pin to Profile
+                   </button>
+                 )}
+                 {isOwnPost && isPinned && onUnpinPost && (
+                   <button
+                     onClick={() => { onUnpinPost(); onSetReportMenu(null); }}
+                     className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-muted-foreground hover:bg-white/10 transition-colors"
+                   >
+                     <Pin className="w-3.5 h-3.5" /> Unpin
+                   </button>
+                 )}
+               </div>
             </>
           )}
         </div>
