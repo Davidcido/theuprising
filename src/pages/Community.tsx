@@ -491,21 +491,43 @@ const Community = () => {
       toast({ title: "Sign in required", description: "Please sign in to repost.", variant: "destructive" });
       return;
     }
-    const { error } = await supabase.from("community_reposts").insert({
-      user_id: currentUser.id,
-      original_post_id: post.id,
-      quote_content: quoteContent || null,
-    });
-    if (error) {
-      toast({ title: "Error", description: "Could not repost. Try again.", variant: "destructive" });
-    } else {
-      // Increment shares_count on original post
-      await supabase.from("community_posts").update({ shares_count: post.shares_count + 1 }).eq("id", post.id);
-      setAllPosts(prev => prev.map(p => p.id === post.id ? { ...p, shares_count: p.shares_count + 1 } : p));
-      toast({ title: quoteContent ? "Quote reposted!" : "Reposted!" });
-      if (post.author_id && post.author_id !== currentUser.id) {
-        createNotification(post.author_id, currentUser.id, "repost", "reposted your post", post.id);
+    if (quoteContent) {
+      // Quote repost: create a new post with embedded original
+      const { error } = await supabase.from("community_posts").insert({
+        content: quoteContent,
+        anonymous_name: currentUser.displayName,
+        is_anonymous: false,
+        author_id: currentUser.id,
+        original_post_id: post.id,
+      });
+      if (error) {
+        toast({ title: "Error", description: "Could not repost. Try again.", variant: "destructive" });
+        return;
       }
+      // Also record in community_reposts for tracking
+      await supabase.from("community_reposts").insert({
+        user_id: currentUser.id,
+        original_post_id: post.id,
+        quote_content: quoteContent,
+      });
+    } else {
+      // Direct repost: just record in community_reposts
+      const { error } = await supabase.from("community_reposts").insert({
+        user_id: currentUser.id,
+        original_post_id: post.id,
+      });
+      if (error) {
+        toast({ title: "Error", description: "Could not repost. Try again.", variant: "destructive" });
+        return;
+      }
+    }
+
+    // Increment shares_count on original post
+    await supabase.from("community_posts").update({ shares_count: post.shares_count + 1 }).eq("id", post.id);
+    setAllPosts(prev => prev.map(p => p.id === post.id ? { ...p, shares_count: p.shares_count + 1 } : p));
+    toast({ title: quoteContent ? "Quote reposted!" : "Reposted!" });
+    if (post.author_id && post.author_id !== currentUser.id) {
+      createNotification(post.author_id, currentUser.id, "repost", "reposted your post", post.id);
     }
   };
 
