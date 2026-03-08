@@ -5,6 +5,7 @@ import { formatDistanceToNow } from "date-fns";
 import EmojiPicker from "@/components/EmojiPicker";
 import CommentCard from "@/components/community/CommentCard";
 import MediaGallery from "@/components/community/MediaGallery";
+import HashtagText from "@/components/community/HashtagText";
 
 const REACTION_EMOJIS = [
   { emoji: "❤️", label: "Love" },
