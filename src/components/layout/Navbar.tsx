@@ -7,6 +7,7 @@ import { Session } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import AuthModal from "@/components/auth/AuthModal";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import uprisingLogo from "@/assets/uprising-logo.jpeg";
 import { toast } from "sonner";
 
@@ -24,6 +25,7 @@ const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
+  const unreadMessages = useUnreadMessages(session?.user?.id);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -77,9 +79,14 @@ const Navbar = () => {
               <>
                 <button
                   onClick={() => navigate("/messages")}
-                  className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all"
+                  className="relative p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all"
                 >
                   <Mail className="w-5 h-5" />
+                  {unreadMessages > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                      {unreadMessages > 9 ? "9+" : unreadMessages}
+                    </span>
+                  )}
                 </button>
                 <NotificationBell userId={session.user.id} />
                 <button
@@ -120,9 +127,14 @@ const Navbar = () => {
               <>
                 <button
                   onClick={() => navigate("/messages")}
-                  className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all"
+                  className="relative p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all"
                 >
                   <Mail className="w-4 h-4" />
+                  {unreadMessages > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                      {unreadMessages > 9 ? "9+" : unreadMessages}
+                    </span>
+                  )}
                 </button>
                 <NotificationBell userId={session.user.id} />
               </>

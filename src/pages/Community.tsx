@@ -20,7 +20,7 @@ const FEED_TABS: { key: FeedTab; label: string; icon: typeof Sparkles }[] = [
   { key: "trending", label: "Trending", icon: TrendingUp },
 ];
 
-const POSTS_PER_PAGE = 15;
+const POSTS_PER_PAGE = 10;
 
 const getSessionId = () => {
   let id = localStorage.getItem("uprising_session_id");
@@ -35,6 +35,8 @@ const Community = () => {
   const [allPosts, setAllPosts] = useState<Post[]>([]);
   const [newPost, setNewPost] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [comments, setComments] = useState<Record<string, Comment[]>>({});
@@ -48,7 +50,6 @@ const Community = () => {
   const [reportMenuPost, setReportMenuPost] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<FeedTab>("foryou");
   const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
-  const [visibleCount, setVisibleCount] = useState(POSTS_PER_PAGE);
   const [refreshing, setRefreshing] = useState(false);
   const [repostDialogPost, setRepostDialogPost] = useState<Post | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -80,84 +81,92 @@ const Community = () => {
     });
   }, []);
 
-  const fetchPosts = useCallback(async () => {
+  const enrichPosts = useCallback(async (data: any[]): Promise<Post[]> => {
+    const authorIds = [...new Set(data.filter((p: any) => p.author_id).map((p: any) => p.author_id))];
+    let profilesMap: Record<string, { display_name: string | null; avatar_url: string }> = {};
+    if (authorIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, display_name, avatar_url")
+        .in("user_id", authorIds);
+      if (profiles) {
+        for (const p of profiles) {
+          profilesMap[p.user_id] = { display_name: p.display_name, avatar_url: p.avatar_url ?? "" };
+        }
+      }
+    }
+    const postsMap: Record<string, any> = {};
+    const mappedPosts = data.map((p: any) => {
+      const mapped = { ...p, author_profile: p.author_id ? profilesMap[p.author_id] || null : null };
+      postsMap[p.id] = mapped;
+      return mapped;
+    });
+    for (const p of mappedPosts) {
+      if (p.original_post_id && postsMap[p.original_post_id]) {
+        p.original_post = postsMap[p.original_post_id];
+      }
+    }
+    return mappedPosts;
+  }, []);
+
+  const fetchPosts = useCallback(async (loadMore = false) => {
+    if (loadMore) setLoadingMore(true);
+    const from = loadMore ? allPosts.length : 0;
+    const to = from + POSTS_PER_PAGE - 1;
+
     const { data, error } = await supabase
       .from("community_posts")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(from, to);
+
     if (!error && data) {
-      const authorIds = [...new Set(data.filter((p: any) => p.author_id).map((p: any) => p.author_id))];
-      let profilesMap: Record<string, { display_name: string | null; avatar_url: string }> = {};
-      if (authorIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, display_name, avatar_url")
-          .in("user_id", authorIds);
-        if (profiles) {
-          for (const p of profiles) {
-            profilesMap[p.user_id] = { display_name: p.display_name, avatar_url: p.avatar_url ?? "" };
+      const enriched = await enrichPosts(data);
+      if (loadMore) {
+        setAllPosts(prev => [...prev, ...enriched]);
+      } else {
+        // On initial/refresh load, also fetch reposts
+        const { data: reposts } = await supabase
+          .from("community_reposts")
+          .select("*")
+          .is("quote_content", null)
+          .order("created_at", { ascending: false })
+          .limit(50);
+
+        const directRepostPosts: Post[] = [];
+        if (reposts && reposts.length > 0) {
+          const postsMap: Record<string, any> = {};
+          for (const p of enriched) postsMap[p.id] = p;
+          const reposterIds = [...new Set(reposts.map(r => r.user_id))];
+          let reposterProfiles: Record<string, string> = {};
+          if (reposterIds.length > 0) {
+            const { data: rProfiles } = await supabase
+              .from("profiles")
+              .select("user_id, display_name")
+              .in("user_id", reposterIds);
+            if (rProfiles) {
+              for (const rp of rProfiles) reposterProfiles[rp.user_id] = rp.display_name || "Someone";
+            }
           }
-        }
-      }
-
-      // Build posts map for resolving original_post references
-      const postsMap: Record<string, any> = {};
-      const mappedPosts = data.map((p: any) => {
-        const mapped = {
-          ...p,
-          author_profile: p.author_id ? profilesMap[p.author_id] || null : null,
-        };
-        postsMap[p.id] = mapped;
-        return mapped;
-      });
-
-      // Resolve original_post for quote reposts
-      for (const p of mappedPosts) {
-        if (p.original_post_id && postsMap[p.original_post_id]) {
-          p.original_post = postsMap[p.original_post_id];
-        }
-      }
-
-      // Fetch direct reposts and merge into feed
-      const { data: reposts } = await supabase
-        .from("community_reposts")
-        .select("*")
-        .is("quote_content", null)
-        .order("created_at", { ascending: false });
-
-      const directRepostPosts: Post[] = [];
-      if (reposts) {
-        // Get reposter profiles
-        const reposterIds = [...new Set(reposts.map(r => r.user_id))];
-        let reposterProfiles: Record<string, string> = {};
-        if (reposterIds.length > 0) {
-          const { data: rProfiles } = await supabase
-            .from("profiles")
-            .select("user_id, display_name")
-            .in("user_id", reposterIds);
-          if (rProfiles) {
-            for (const rp of rProfiles) {
-              reposterProfiles[rp.user_id] = rp.display_name || "Someone";
+          for (const r of reposts) {
+            const original = postsMap[r.original_post_id];
+            if (original) {
+              directRepostPosts.push({
+                ...original,
+                id: `repost-${r.id}`,
+                created_at: r.created_at,
+                reposted_by_name: reposterProfiles[r.user_id] || "Someone",
+              });
             }
           }
         }
-        for (const r of reposts) {
-          const original = postsMap[r.original_post_id];
-          if (original) {
-            directRepostPosts.push({
-              ...original,
-              id: `repost-${r.id}`,
-              created_at: r.created_at,
-              reposted_by_name: reposterProfiles[r.user_id] || "Someone",
-            });
-          }
-        }
+        setAllPosts([...enriched, ...directRepostPosts]);
       }
-
-      setAllPosts([...mappedPosts, ...directRepostPosts]);
+      setHasMore(data.length === POSTS_PER_PAGE);
     }
     setLoading(false);
-  }, []);
+    setLoadingMore(false);
+  }, [enrichPosts, allPosts.length]);
 
   const fetchLikedPosts = useCallback(async () => {
     const { data } = await supabase
@@ -183,7 +192,7 @@ const Community = () => {
   }, [sessionId]);
 
   useEffect(() => {
-    fetchPosts();
+    fetchPosts(false);
     fetchLikedPosts();
     fetchReactions();
 
@@ -192,7 +201,21 @@ const Community = () => {
 
     const postsChannel = supabase
       .channel("community-posts")
-      .on("postgres_changes", { event: "*", schema: "public", table: "community_posts" }, () => fetchPosts())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "community_posts" }, async (payload) => {
+        const newPost = payload.new as any;
+        const enriched = await enrichPosts([newPost]);
+        if (enriched.length > 0) {
+          setAllPosts(prev => [enriched[0], ...prev]);
+        }
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "community_posts" }, (payload) => {
+        const updated = payload.new as any;
+        setAllPosts(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p));
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "community_posts" }, (payload) => {
+        const deleted = payload.old as { id: string };
+        setAllPosts(prev => prev.filter(p => p.id !== deleted.id));
+      })
       .subscribe();
 
     const commentsChannel = supabase
@@ -227,32 +250,50 @@ const Community = () => {
       })
       .subscribe();
 
+    // Real-time follows updates
+    const followsChannel = supabase
+      .channel("community-follows")
+      .on("postgres_changes", { event: "*", schema: "public", table: "follows" }, async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const { data: follows } = await supabase
+            .from("follows")
+            .select("following_id")
+            .eq("follower_id", session.user.id);
+          if (follows) setFollowingIds(new Set(follows.map(f => f.following_id)));
+        }
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(postsChannel);
       supabase.removeChannel(commentsChannel);
       supabase.removeChannel(reactionsChannel);
       supabase.removeChannel(settingsChannel);
+      supabase.removeChannel(followsChannel);
     };
-  }, [fetchPosts, fetchLikedPosts, fetchReactions]);
+  }, []);
 
-  // Infinite scroll observer
+  // Infinite scroll observer - loads more from DB
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisibleCount(prev => prev + POSTS_PER_PAGE);
+        if (entry.isIntersecting && hasMore && !loadingMore && activeTab === "foryou") {
+          fetchPosts(true);
         }
       },
       { rootMargin: "200px" }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, []);
+  }, [hasMore, loadingMore, fetchPosts, activeTab]);
 
-  // Reset visible count when tab changes
-  useEffect(() => { setVisibleCount(POSTS_PER_PAGE); }, [activeTab]);
+  // Reset when tab changes
+  useEffect(() => {
+    if (activeTab !== "foryou") return; // only foryou uses DB pagination
+  }, [activeTab]);
 
   // --- Feed sorting logic ---
   const displayPosts = useMemo(() => {
@@ -288,8 +329,7 @@ const Community = () => {
     return sorted;
   }, [allPosts, activeTab, followingIds]);
 
-  const visiblePosts = useMemo(() => displayPosts.slice(0, visibleCount), [displayPosts, visibleCount]);
-  const hasMore = visibleCount < displayPosts.length;
+  const visiblePosts = displayPosts;
 
   // Track post views
   const viewedPostsRef = useRef<Set<string>>(new Set());
@@ -306,8 +346,8 @@ const Community = () => {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchPosts();
-    setVisibleCount(POSTS_PER_PAGE);
+    setHasMore(true);
+    await fetchPosts(false);
     setRefreshing(false);
   };
 
@@ -707,11 +747,11 @@ const Community = () => {
             {/* Infinite scroll sentinel */}
             {hasMore && (
               <div ref={sentinelRef} className="py-4">
-                <PostSkeleton />
+                {loadingMore && <PostSkeleton />}
               </div>
             )}
 
-            {!hasMore && displayPosts.length > POSTS_PER_PAGE && (
+            {!hasMore && displayPosts.length > 0 && (
               <p className="text-center text-xs text-muted-foreground py-6">You've reached the end 🎉</p>
             )}
           </div>
