@@ -717,11 +717,11 @@ const Community = () => {
             {/* Infinite scroll sentinel */}
             {hasMore && (
               <div ref={sentinelRef} className="py-4">
-                <PostSkeleton />
+                {loadingMore && <PostSkeleton />}
               </div>
             )}
 
-            {!hasMore && displayPosts.length > POSTS_PER_PAGE && (
+            {!hasMore && displayPosts.length > 0 && (
               <p className="text-center text-xs text-muted-foreground py-6">You've reached the end 🎉</p>
             )}
           </div>

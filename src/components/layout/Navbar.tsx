@@ -127,9 +127,14 @@ const Navbar = () => {
               <>
                 <button
                   onClick={() => navigate("/messages")}
-                  className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all"
+                  className="relative p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all"
                 >
                   <Mail className="w-4 h-4" />
+                  {unreadMessages > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                      {unreadMessages > 9 ? "9+" : unreadMessages}
+                    </span>
+                  )}
                 </button>
                 <NotificationBell userId={session.user.id} />
               </>
