@@ -148,6 +148,7 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
     setIsSending(true);
     try {
       await onSend(audioBlob);
+      onStateChange?.(false);
       onCancel();
     } catch {
       toast({ title: "Failed to send voice note", variant: "destructive" });

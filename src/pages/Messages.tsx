@@ -538,20 +538,17 @@ const Messages = () => {
                 )}
 
                 <div className="flex gap-2 items-end">
-                  {/* Image upload */}
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="p-2.5 rounded-xl bg-white/10 border border-white/15 text-white/60 hover:text-white hover:bg-white/15 transition-colors shrink-0"
-                  >
-                    <Image className="w-4 h-4" />
-                  </button>
                   <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.gif,.webp" className="hidden" onChange={handleFileSelect} />
 
-                  {/* Voice recorder or text input */}
-                  {showVoiceRecorder ? (
-                    <VoiceRecorder onSend={sendVoiceNote} onCancel={() => setShowVoiceRecorder(false)} />
-                  ) : (
+                  {!voiceRecorderActive && (
                     <>
+                      {/* Image upload */}
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="p-2.5 rounded-xl bg-white/10 border border-white/15 text-muted-foreground hover:text-foreground hover:bg-white/15 transition-colors shrink-0"
+                      >
+                        <Image className="w-4 h-4" />
+                      </button>
                       <EmojiPicker onSelect={(emoji) => setNewMessage((prev) => prev + emoji)} />
                       <input
                         value={newMessage}
@@ -563,16 +560,25 @@ const Messages = () => {
                         placeholder="Type a message..."
                         className="flex-1 rounded-xl bg-white/10 border border-white/15 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
                       />
-                      <VoiceRecorder onSend={sendVoiceNote} onCancel={() => setShowVoiceRecorder(false)} />
-                       <button
-                        onClick={handleSend}
-                        disabled={!newMessage.trim() || sendingText}
-                        className="px-4 py-2.5 rounded-xl text-white font-semibold text-sm disabled:opacity-40 transition-all hover:scale-105 disabled:hover:scale-100"
-                        style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
-                      >
-                        {sendingText ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                      </button>
                     </>
+                  )}
+
+                  {/* Voice recorder - always rendered, expands inline when active */}
+                  <VoiceRecorder
+                    onSend={sendVoiceNote}
+                    onCancel={() => setVoiceRecorderActive(false)}
+                    onStateChange={setVoiceRecorderActive}
+                  />
+
+                  {!voiceRecorderActive && (
+                    <button
+                      onClick={handleSend}
+                      disabled={!newMessage.trim() || sendingText}
+                      className="px-4 py-2.5 rounded-xl text-white font-semibold text-sm disabled:opacity-40 transition-all hover:scale-105 disabled:hover:scale-100"
+                      style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
+                    >
+                      {sendingText ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    </button>
                   )}
                 </div>
               </>
