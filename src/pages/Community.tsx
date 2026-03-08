@@ -81,84 +81,92 @@ const Community = () => {
     });
   }, []);
 
-  const fetchPosts = useCallback(async () => {
+  const enrichPosts = useCallback(async (data: any[]): Promise<Post[]> => {
+    const authorIds = [...new Set(data.filter((p: any) => p.author_id).map((p: any) => p.author_id))];
+    let profilesMap: Record<string, { display_name: string | null; avatar_url: string }> = {};
+    if (authorIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, display_name, avatar_url")
+        .in("user_id", authorIds);
+      if (profiles) {
+        for (const p of profiles) {
+          profilesMap[p.user_id] = { display_name: p.display_name, avatar_url: p.avatar_url ?? "" };
+        }
+      }
+    }
+    const postsMap: Record<string, any> = {};
+    const mappedPosts = data.map((p: any) => {
+      const mapped = { ...p, author_profile: p.author_id ? profilesMap[p.author_id] || null : null };
+      postsMap[p.id] = mapped;
+      return mapped;
+    });
+    for (const p of mappedPosts) {
+      if (p.original_post_id && postsMap[p.original_post_id]) {
+        p.original_post = postsMap[p.original_post_id];
+      }
+    }
+    return mappedPosts;
+  }, []);
+
+  const fetchPosts = useCallback(async (loadMore = false) => {
+    if (loadMore) setLoadingMore(true);
+    const from = loadMore ? allPosts.length : 0;
+    const to = from + POSTS_PER_PAGE - 1;
+
     const { data, error } = await supabase
       .from("community_posts")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(from, to);
+
     if (!error && data) {
-      const authorIds = [...new Set(data.filter((p: any) => p.author_id).map((p: any) => p.author_id))];
-      let profilesMap: Record<string, { display_name: string | null; avatar_url: string }> = {};
-      if (authorIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, display_name, avatar_url")
-          .in("user_id", authorIds);
-        if (profiles) {
-          for (const p of profiles) {
-            profilesMap[p.user_id] = { display_name: p.display_name, avatar_url: p.avatar_url ?? "" };
+      const enriched = await enrichPosts(data);
+      if (loadMore) {
+        setAllPosts(prev => [...prev, ...enriched]);
+      } else {
+        // On initial/refresh load, also fetch reposts
+        const { data: reposts } = await supabase
+          .from("community_reposts")
+          .select("*")
+          .is("quote_content", null)
+          .order("created_at", { ascending: false })
+          .limit(50);
+
+        const directRepostPosts: Post[] = [];
+        if (reposts && reposts.length > 0) {
+          const postsMap: Record<string, any> = {};
+          for (const p of enriched) postsMap[p.id] = p;
+          const reposterIds = [...new Set(reposts.map(r => r.user_id))];
+          let reposterProfiles: Record<string, string> = {};
+          if (reposterIds.length > 0) {
+            const { data: rProfiles } = await supabase
+              .from("profiles")
+              .select("user_id, display_name")
+              .in("user_id", reposterIds);
+            if (rProfiles) {
+              for (const rp of rProfiles) reposterProfiles[rp.user_id] = rp.display_name || "Someone";
+            }
           }
-        }
-      }
-
-      // Build posts map for resolving original_post references
-      const postsMap: Record<string, any> = {};
-      const mappedPosts = data.map((p: any) => {
-        const mapped = {
-          ...p,
-          author_profile: p.author_id ? profilesMap[p.author_id] || null : null,
-        };
-        postsMap[p.id] = mapped;
-        return mapped;
-      });
-
-      // Resolve original_post for quote reposts
-      for (const p of mappedPosts) {
-        if (p.original_post_id && postsMap[p.original_post_id]) {
-          p.original_post = postsMap[p.original_post_id];
-        }
-      }
-
-      // Fetch direct reposts and merge into feed
-      const { data: reposts } = await supabase
-        .from("community_reposts")
-        .select("*")
-        .is("quote_content", null)
-        .order("created_at", { ascending: false });
-
-      const directRepostPosts: Post[] = [];
-      if (reposts) {
-        // Get reposter profiles
-        const reposterIds = [...new Set(reposts.map(r => r.user_id))];
-        let reposterProfiles: Record<string, string> = {};
-        if (reposterIds.length > 0) {
-          const { data: rProfiles } = await supabase
-            .from("profiles")
-            .select("user_id, display_name")
-            .in("user_id", reposterIds);
-          if (rProfiles) {
-            for (const rp of rProfiles) {
-              reposterProfiles[rp.user_id] = rp.display_name || "Someone";
+          for (const r of reposts) {
+            const original = postsMap[r.original_post_id];
+            if (original) {
+              directRepostPosts.push({
+                ...original,
+                id: `repost-${r.id}`,
+                created_at: r.created_at,
+                reposted_by_name: reposterProfiles[r.user_id] || "Someone",
+              });
             }
           }
         }
-        for (const r of reposts) {
-          const original = postsMap[r.original_post_id];
-          if (original) {
-            directRepostPosts.push({
-              ...original,
-              id: `repost-${r.id}`,
-              created_at: r.created_at,
-              reposted_by_name: reposterProfiles[r.user_id] || "Someone",
-            });
-          }
-        }
+        setAllPosts([...enriched, ...directRepostPosts]);
       }
-
-      setAllPosts([...mappedPosts, ...directRepostPosts]);
+      setHasMore(data.length === POSTS_PER_PAGE);
     }
     setLoading(false);
-  }, []);
+    setLoadingMore(false);
+  }, [enrichPosts, allPosts.length]);
 
   const fetchLikedPosts = useCallback(async () => {
     const { data } = await supabase
