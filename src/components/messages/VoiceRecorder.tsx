@@ -84,6 +84,7 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
       recorder.start(250);
       mediaRecorderRef.current = recorder;
       setState("recording");
+      onStateChange?.(true);
       setTime(0);
       setPlaybackProgress(0);
       startTimer();
