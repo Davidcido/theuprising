@@ -178,6 +178,28 @@ const Messages = () => {
     }
   };
 
+  const handleEditMessage = (msg: DirectMessage) => {
+    setEditingMsg(msg);
+    setEditText(msg.content);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingMsg || !editText.trim()) return;
+    await editMessage(editingMsg.id, editText.trim());
+    setEditingMsg(null);
+    setEditText("");
+  };
+
+  const handleDeleteForMe = async (msg: DirectMessage) => {
+    await deleteForMe(msg.id);
+    toast({ title: "Message hidden from your view" });
+  };
+
+  const handleDeleteForEveryone = async (msg: DirectMessage) => {
+    await deleteForEveryone(msg.id);
+    toast({ title: "Message deleted for everyone" });
+  };
+
   const reportUser = async (targetId: string) => {
     const sessionId = localStorage.getItem("uprising_session_id") || "anon";
     await supabase.from("reported_content").insert({
