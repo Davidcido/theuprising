@@ -32,6 +32,7 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
         if (data.session) {
           toast.success("Account created! You're now logged in.");
           trackLogin(data.session.user.id);
+          trackSignup(data.session.user.id);
           onOpenChange(false);
         } else {
           toast.success("Account created! Check your email to confirm.");
