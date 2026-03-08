@@ -150,6 +150,7 @@ export type Database = {
           comments_count: number
           content: string
           created_at: string
+          engagement_score: number | null
           id: string
           is_anonymous: boolean
           likes_count: number
@@ -161,6 +162,7 @@ export type Database = {
           comments_count?: number
           content: string
           created_at?: string
+          engagement_score?: number | null
           id?: string
           is_anonymous?: boolean
           likes_count?: number
@@ -172,6 +174,7 @@ export type Database = {
           comments_count?: number
           content?: string
           created_at?: string
+          engagement_score?: number | null
           id?: string
           is_anonymous?: boolean
           likes_count?: number
@@ -575,6 +578,10 @@ export type Database = {
         Returns: undefined
       }
       increment_likes: { Args: { post_id_input: string }; Returns: undefined }
+      recalculate_engagement_score: {
+        Args: { post_id_input: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
