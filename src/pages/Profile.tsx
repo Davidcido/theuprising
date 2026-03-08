@@ -377,6 +377,20 @@ const Profile = () => {
           </div>
         </motion.div>
 
+        {/* AI Memory Settings (own profile only) */}
+        {isOwnProfile && memoryEnabled !== undefined && (
+          <div className="mt-6">
+            <MemorySettings
+              memoryEnabled={memoryEnabled}
+              memories={memories}
+              onToggle={setPreference}
+              onClear={clearMemories}
+              onDeleteMemory={deleteMemory}
+              onDisableAndClear={disableAndClear}
+            />
+          </div>
+        )}
+
         {/* User Posts */}
         <div className="mt-6">
           <h2 className="text-lg font-bold text-foreground mb-3">Posts</h2>
