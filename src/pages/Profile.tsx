@@ -19,6 +19,8 @@ import ProfileEmojiPicker from "@/components/profile/ProfileEmojiPicker";
 import ProfileCoverPhoto from "@/components/profile/ProfileCoverPhoto";
 import { useProfileViews } from "@/hooks/useProfileViews";
 import { usePinnedPost } from "@/hooks/usePinnedPost";
+import { useAIMemory } from "@/hooks/useAIMemory";
+import MemorySettings from "@/components/chat/MemorySettings";
 
 const Profile = () => {
   const { userId: paramUserId } = useParams();
