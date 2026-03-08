@@ -32,8 +32,25 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
   const [country, setCountry] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      toast.success("If an account with that email exists, a reset link has been sent.");
+      setMode("login");
+    } catch {
+      toast.success("If an account with that email exists, a reset link has been sent.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (mode === "forgot") return handleForgotPassword(e);
     setLoading(true);
 
     try {
@@ -41,7 +58,6 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         if (data.session) {
-          // Create/update profile with display name and country
           await supabase.from("profiles").upsert({
             user_id: data.session.user.id,
             display_name: displayName || email.split("@")[0],
@@ -73,13 +89,13 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
     }
   };
 
+  const title = mode === "login" ? "Welcome Back" : mode === "signup" ? "Join The Uprising" : "Reset Password";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md border-white/20" style={{ background: "rgba(15, 81, 50, 0.95)" }}>
         <DialogHeader>
-          <DialogTitle className="text-white text-center text-xl">
-            {mode === "login" ? "Welcome Back" : "Join The Uprising"}
-          </DialogTitle>
+          <DialogTitle className="text-white text-center text-xl">{title}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           <div className="space-y-2">
@@ -94,19 +110,35 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
               className="bg-white/10 border-white/20 text-white placeholder:text-white/40"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password" className="text-white/80">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              minLength={6}
-              className="bg-white/10 border-white/20 text-white placeholder:text-white/40"
-            />
-          </div>
+
+          {mode === "forgot" && (
+            <p className="text-white/50 text-xs">Enter your email and we'll send a reset link if an account exists.</p>
+          )}
+
+          {mode !== "forgot" && (
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-white/80">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                minLength={mode === "signup" ? 8 : 6}
+                className="bg-white/10 border-white/20 text-white placeholder:text-white/40"
+              />
+              {mode === "login" && (
+                <button
+                  type="button"
+                  onClick={() => setMode("forgot")}
+                  className="text-xs text-white/50 hover:text-white/80 underline"
+                >
+                  Forgot Password?
+                </button>
+              )}
+            </div>
+          )}
 
           {mode === "signup" && (
             <>
@@ -139,18 +171,26 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
           )}
 
           <Button type="submit" disabled={loading} className="w-full" variant="hero">
-            {loading ? "Loading..." : mode === "login" ? "Log In" : "Sign Up"}
+            {loading ? "Loading..." : mode === "login" ? "Log In" : mode === "signup" ? "Sign Up" : "Send Reset Link"}
           </Button>
         </form>
         <p className="text-center text-white/60 text-sm">
-          {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
-          <button
-            type="button"
-            onClick={() => setMode(mode === "login" ? "signup" : "login")}
-            className="text-white underline hover:text-white/80"
-          >
-            {mode === "login" ? "Sign Up" : "Log In"}
-          </button>
+          {mode === "forgot" ? (
+            <button type="button" onClick={() => setMode("login")} className="text-white underline hover:text-white/80">
+              Back to Login
+            </button>
+          ) : (
+            <>
+              {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
+              <button
+                type="button"
+                onClick={() => setMode(mode === "login" ? "signup" : "login")}
+                className="text-white underline hover:text-white/80"
+              >
+                {mode === "login" ? "Sign Up" : "Log In"}
+              </button>
+            </>
+          )}
         </p>
       </DialogContent>
     </Dialog>

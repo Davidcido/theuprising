@@ -12,6 +12,7 @@ import Community from "./pages/Community";
 import Vision from "./pages/Vision";
 import NotFound from "./pages/NotFound";
 import Admin from "./pages/Admin";
+import ResetPassword from "./pages/ResetPassword";
 import Profile from "./pages/Profile";
 import Messages from "./pages/Messages";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
