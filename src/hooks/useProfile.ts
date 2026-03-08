@@ -5,9 +5,10 @@ export type Profile = {
   id: string;
   user_id: string;
   display_name: string | null;
-  bio: string;
-  country: string;
-  avatar_url: string;
+  bio: string | null;
+  country: string | null;
+  avatar_url: string | null;
+  online_status: string;
   created_at: string;
   updated_at: string;
 };
@@ -23,14 +24,43 @@ export const useProfile = (userId?: string) => {
       .select("*")
       .eq("user_id", userId)
       .single();
-    setProfile(data as Profile | null);
+
+    if (data) {
+      setProfile(data as unknown as Profile);
+    } else {
+      // Auto-create profile if it doesn't exist
+      const { data: session } = await supabase.auth.getSession();
+      const email = session?.session?.user?.email;
+      const defaultName = email?.split("@")[0] || `user_${userId.slice(0, 4)}`;
+      const { data: newProfile } = await supabase
+        .from("profiles")
+        .insert({ user_id: userId, display_name: defaultName, online_status: "online" })
+        .select("*")
+        .single();
+      if (newProfile) setProfile(newProfile as unknown as Profile);
+    }
     setLoading(false);
   }, [userId]);
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
+  // Set online status
+  useEffect(() => {
+    if (!userId || !profile) return;
+    supabase.from("profiles").update({ online_status: "online" }).eq("user_id", userId).then();
+
+    const handleBeforeUnload = () => {
+      navigator.sendBeacon && supabase.from("profiles").update({ online_status: "offline" }).eq("user_id", userId);
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      supabase.from("profiles").update({ online_status: "offline" }).eq("user_id", userId).then();
+    };
+  }, [userId, profile]);
+
   const updateProfile = async (updates: Partial<Pick<Profile, "display_name" | "bio" | "country" | "avatar_url">>) => {
-    if (!userId) return;
+    if (!userId) return { error: "Not authenticated" };
     const { error } = await supabase
       .from("profiles")
       .update({ ...updates, updated_at: new Date().toISOString() })

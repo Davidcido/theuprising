@@ -1,17 +1,17 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Camera, Edit2, MapPin, Users, UserPlus, UserMinus, MessageCircle, Save, X } from "lucide-react";
+import { Camera, Edit2, MapPin, UserPlus, UserMinus, MessageCircle, Save, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
 import { useFollow } from "@/hooks/useFollow";
+import UserAvatar from "@/components/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { COUNTRIES, getCountryFlag } from "@/lib/countries";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { useConversations } from "@/hooks/useConversations";
 
@@ -64,21 +64,14 @@ const Profile = () => {
 
   const handleSave = async () => {
     const { error } = await updateProfile(editData);
-    if (error) {
-      toast.error("Failed to update profile");
-    } else {
-      toast.success("Profile updated!");
-      setEditing(false);
-    }
+    if (error) toast.error("Failed to update profile");
+    else { toast.success("Profile updated!"); setEditing(false); }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image must be under 5MB");
-      return;
-    }
+    if (file.size > 5 * 1024 * 1024) { toast.error("Image must be under 5MB"); return; }
     const { error } = await uploadAvatar(file);
     if (error) toast.error(error);
     else toast.success("Avatar updated!");
@@ -113,22 +106,6 @@ const Profile = () => {
     );
   }
 
-  const renderAvatar = () => {
-    if (profile.avatar_url?.startsWith("emoji:")) {
-      return (
-        <span className="text-5xl">{profile.avatar_url.replace("emoji:", "")}</span>
-      );
-    }
-    if (profile.avatar_url) {
-      return <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />;
-    }
-    return (
-      <span className="text-4xl font-bold text-emerald-400">
-        {(profile.display_name || "?")[0]?.toUpperCase()}
-      </span>
-    );
-  };
-
   return (
     <div className="min-h-screen py-12 pb-24">
       <div className="container mx-auto px-4 max-w-2xl">
@@ -145,9 +122,14 @@ const Profile = () => {
           <div className="px-6 -mt-14 relative">
             <div className="flex items-end justify-between">
               <div className="relative">
-                <div className="w-24 h-24 rounded-2xl bg-emerald-900/50 border-4 border-background flex items-center justify-center overflow-hidden">
-                  {renderAvatar()}
-                </div>
+                <UserAvatar
+                  avatarUrl={profile.avatar_url}
+                  displayName={profile.display_name}
+                  size="xl"
+                  showStatus
+                  onlineStatus={profile.online_status}
+                  className="border-4 border-background"
+                />
                 {isOwnProfile && (
                   <button
                     onClick={() => setShowAvatarPicker(!showAvatarPicker)}
@@ -186,11 +168,7 @@ const Profile = () => {
                       disabled={followLoading}
                       className={isFollowing ? "text-white/60 hover:text-white border border-white/20" : ""}
                     >
-                      {isFollowing ? (
-                        <><UserMinus className="w-4 h-4 mr-1" /> Unfollow</>
-                      ) : (
-                        <><UserPlus className="w-4 h-4 mr-1" /> Follow</>
-                      )}
+                      {isFollowing ? <><UserMinus className="w-4 h-4 mr-1" /> Unfollow</> : <><UserPlus className="w-4 h-4 mr-1" /> Follow</>}
                     </Button>
                   </>
                 ) : null}
@@ -220,7 +198,7 @@ const Profile = () => {
                 <Button size="sm" variant="ghost" className="text-white/60" onClick={() => fileInputRef.current?.click()}>
                   <Camera className="w-4 h-4 mr-1" /> Upload Image
                 </Button>
-                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+                <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFileUpload} />
               </motion.div>
             )}
           </div>
@@ -258,9 +236,21 @@ const Profile = () => {
               </div>
             ) : (
               <>
-                <h1 className="text-xl font-bold text-foreground">
-                  {profile.display_name || "Anonymous"}
-                </h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-bold text-foreground">
+                    {profile.display_name || "Anonymous"}
+                  </h1>
+                  <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
+                    profile.online_status === "online"
+                      ? "bg-emerald-500/20 text-emerald-400"
+                      : "bg-white/10 text-muted-foreground"
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      profile.online_status === "online" ? "bg-emerald-400" : "bg-muted-foreground/50"
+                    }`} />
+                    {profile.online_status === "online" ? "Online" : "Offline"}
+                  </span>
+                </div>
                 {profile.country && (
                   <p className="text-muted-foreground text-sm flex items-center gap-1 mt-1">
                     <MapPin className="w-3.5 h-3.5" />

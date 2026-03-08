@@ -5,7 +5,7 @@ export type Conversation = {
   id: string;
   created_at: string;
   updated_at: string;
-  other_user: { user_id: string; display_name: string | null; avatar_url: string } | null;
+  other_user: { user_id: string; display_name: string | null; avatar_url: string; online_status?: string } | null;
   last_message?: { content: string; created_at: string; sender_id: string } | null;
   unread_count: number;
 };
@@ -60,11 +60,11 @@ export const useConversations = (userId?: string) => {
       (allParticipants || []).filter((p) => p.user_id !== userId).map((p) => p.user_id)
     )];
 
-    let profilesMap: Record<string, { user_id: string; display_name: string | null; avatar_url: string }> = {};
+    let profilesMap: Record<string, { user_id: string; display_name: string | null; avatar_url: string; online_status?: string }> = {};
     if (otherUserIds.length > 0) {
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, display_name, avatar_url")
+        .select("user_id, display_name, avatar_url, online_status")
         .in("user_id", otherUserIds);
       if (profiles) {
         for (const p of profiles) {

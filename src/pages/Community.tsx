@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Heart, MessageCircle, Share2, Send, Shield, ChevronDown, ChevronUp, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import UserAvatar from "@/components/UserAvatar";
 import { toast } from "@/hooks/use-toast";
 import uprisingLogo from "@/assets/uprising-logo.jpeg";
 import { formatDistanceToNow } from "date-fns";
@@ -341,9 +342,10 @@ const Community = () => {
         {/* Composer */}
         <div className={`p-5 rounded-2xl backdrop-blur-xl border border-white/15 shadow-lg mb-6 ${!communityOpen ? "opacity-50 pointer-events-none" : ""}`} style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)" }}>
           <div className="flex gap-3">
-            <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xs font-bold shrink-0">
-              {sessionId.slice(0, 2)}
-            </div>
+            <UserAvatar
+              displayName={postAnonymously ? sessionId : currentUser?.displayName}
+              size="sm"
+            />
             <div className="flex-1">
               <textarea
                 ref={textareaRef}
@@ -423,17 +425,12 @@ const Community = () => {
                   >
                     {/* Post header */}
                     <div className="flex items-center gap-3 mb-3">
-                      <div
-                        className={`w-9 h-9 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xs font-bold ${!post.is_anonymous && post.author_id ? "cursor-pointer hover:ring-2 hover:ring-emerald-400/40" : ""}`}
-                        onClick={() => { if (!post.is_anonymous && post.author_id) navigate(`/profile/${post.author_id}`); }}
-                      >
-                        {post.author_profile?.avatar_url?.startsWith("emoji:")
-                          ? <span className="text-lg">{post.author_profile.avatar_url.replace("emoji:", "")}</span>
-                          : post.author_profile?.avatar_url
-                            ? <img src={post.author_profile.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
-                            : post.anonymous_name.slice(0, 2)
-                        }
-                      </div>
+                      <UserAvatar
+                        avatarUrl={post.author_profile?.avatar_url}
+                        displayName={!post.is_anonymous && post.author_profile?.display_name ? post.author_profile.display_name : post.anonymous_name}
+                        size="sm"
+                        onClick={!post.is_anonymous && post.author_id ? () => navigate(`/profile/${post.author_id}`) : undefined}
+                      />
                       <div>
                         <span
                           className={`text-sm font-semibold text-foreground ${!post.is_anonymous && post.author_id ? "cursor-pointer hover:underline" : ""}`}
@@ -513,9 +510,7 @@ const Community = () => {
                           <div className="mt-4 pt-3 border-t border-white/5 space-y-3">
                             {postComments.map((c) => (
                               <div key={c.id} className="flex gap-2.5 pl-2">
-                                <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-muted-foreground text-[10px] font-bold shrink-0">
-                                  {c.anonymous_name.slice(0, 2)}
-                                </div>
+                              <UserAvatar displayName={c.anonymous_name} size="xs" />
                                 <div>
                                   <div className="flex items-center gap-2">
                                     <span className="text-xs font-semibold text-foreground">{c.anonymous_name}</span>
