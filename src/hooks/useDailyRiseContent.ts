@@ -39,8 +39,8 @@ export const useDailyRiseContent = () => {
     queryFn: async (): Promise<DailyRiseCard[]> => {
       const today = new Date().toISOString().split("T")[0];
 
-      const { data, error } = await supabase
-        .from("daily_rise_content" as any)
+      const { data, error } = await (supabase as any)
+        .from("daily_rise_content")
         .select("cards")
         .eq("content_date", today)
         .maybeSingle();
@@ -49,8 +49,8 @@ export const useDailyRiseContent = () => {
         // Try to generate if missing
         try {
           await supabase.functions.invoke("generate-daily-rise");
-          const { data: retry } = await supabase
-            .from("daily_rise_content" as any)
+          const { data: retry } = await (supabase as any)
+            .from("daily_rise_content")
             .select("cards")
             .eq("content_date", today)
             .maybeSingle();
