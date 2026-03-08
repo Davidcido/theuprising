@@ -10,7 +10,7 @@ type Props = {
 
 type RecordingState = "idle" | "recording" | "paused" | "preview";
 
-const VoiceRecorder = ({ onSend, onCancel }: Props) => {
+const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
   const [state, setState] = useState<RecordingState>("idle");
   const [time, setTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
