@@ -40,6 +40,8 @@ const Profile = () => {
   const { getOrCreateConversation } = useConversations(currentUserId);
   const { isBlocked, blockUser, unblockUser } = useBlocks(currentUserId);
   const isTargetBlocked = targetUserId ? isBlocked(targetUserId) : false;
+  const { totalViews, weeklyViews, recentViewers } = useProfileViews(targetUserId, currentUserId);
+  const { pinnedPostId, fetchPinned, pinPost, unpinPost } = usePinnedPost(currentUserId);
 
   const handleReport = async () => {
     if (!targetUserId) return;
