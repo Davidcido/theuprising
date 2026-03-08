@@ -421,8 +421,18 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
       )}
 
       <span className="text-sm text-red-400 font-medium tabular-nums">
-        {formatTime(time)}
+        {formatTime(time)} <span className="text-[10px] text-muted-foreground/50">/ {formatTime(MAX_RECORDING_SECONDS)}</span>
       </span>
+
+      {/* Progress toward max duration */}
+      {state === "recording" && (
+        <div className="flex-1 max-w-[80px] h-1 bg-white/10 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-red-400/60 rounded-full transition-[width] duration-1000"
+            style={{ width: `${Math.min(100, (time / MAX_RECORDING_SECONDS) * 100)}%` }}
+          />
+        </div>
+      )}
 
       {state === "paused" && (
         <span className="text-[10px] text-yellow-400/80 uppercase tracking-wider font-medium">
