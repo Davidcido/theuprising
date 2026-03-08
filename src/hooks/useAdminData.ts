@@ -61,16 +61,16 @@ export const useAdminData = () => {
     setDataLoading(true);
     setDataError(null);
     try {
-      const [postsRes, commentsRes, reportsRes, bannedRes, settingsRes, likesRes] = await Promise.all([
+      const [postsRes, commentsRes, reportsRes, bannedRes, settingsRes, likesRes, loginsRes] = await Promise.all([
         supabase.from("community_posts").select("*").order("created_at", { ascending: false }),
         supabase.from("community_comments").select("*").order("created_at", { ascending: false }),
         supabase.from("reported_content").select("*").order("created_at", { ascending: false }),
         supabase.from("banned_users").select("*").order("banned_at", { ascending: false }),
         supabase.from("community_settings").select("*").eq("key", "community_status").single(),
         supabase.from("community_likes").select("id"),
+        supabase.from("login_sessions").select("*").order("login_time", { ascending: false }),
       ]);
 
-      // Check for critical errors
       const errors = [postsRes.error, commentsRes.error, reportsRes.error, bannedRes.error].filter(Boolean);
       if (errors.length > 0) {
         console.error("Admin data fetch errors:", errors);
