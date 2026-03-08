@@ -3,6 +3,7 @@ import { Bell, Check, CheckCheck, UserPlus, Heart, MessageCircle, Mail } from "l
 import { useNotifications } from "@/hooks/useNotifications";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 
 const ICON_MAP: Record<string, typeof Bell> = {
   follow: UserPlus,
