@@ -4,6 +4,7 @@ import UserAvatar from "@/components/UserAvatar";
 import { formatDistanceToNow } from "date-fns";
 import EmojiPicker from "@/components/EmojiPicker";
 import CommentCard from "@/components/community/CommentCard";
+import MediaGallery from "@/components/community/MediaGallery";
 
 const REACTION_EMOJIS = [
   { emoji: "❤️", label: "Love" },
