@@ -29,7 +29,7 @@ const Messages = () => {
   const [editText, setEditText] = useState("");
   const [pendingImage, setPendingImage] = useState<{ file: File; url: string } | null>(null);
   const [sendingImage, setSendingImage] = useState(false);
-  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
+  const [voiceRecorderActive, setVoiceRecorderActive] = useState(false);
   const [sendingText, setSendingText] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedMsgIds, setSelectedMsgIds] = useState<Set<string>>(new Set());
