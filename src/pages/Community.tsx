@@ -657,6 +657,28 @@ const Community = () => {
           </div>
         </div>
 
+        {/* Quick links */}
+        {currentUser && (
+          <div className="flex gap-2 mb-4 justify-center">
+            <button onClick={() => navigate("/bookmarks")} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-muted-foreground hover:text-foreground bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
+              <Bookmark className="w-3 h-3" /> Saved
+            </button>
+            <button onClick={() => navigate("/drafts")} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-muted-foreground hover:text-foreground bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
+              <FileText className="w-3 h-3" /> Drafts
+            </button>
+          </div>
+        )}
+
+        {/* Suggested Users */}
+        {currentUser && (
+          <SuggestedUsers
+            currentUserId={currentUser.id}
+            followingIds={followingIds}
+            onFollow={(userId) => setFollowingIds(prev => new Set(prev).add(userId))}
+            compact
+          />
+        )}
+
         {!communityOpen && (
           <div className="p-4 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 backdrop-blur-xl mb-6 text-center">
             <p className="text-yellow-300 text-sm font-medium">🔒 Community posting is currently closed by the admin.</p>
