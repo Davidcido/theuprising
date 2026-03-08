@@ -101,6 +101,14 @@ const PostCard = ({
       className="p-5 rounded-2xl backdrop-blur-xl border border-white/10 transition-colors hover:border-white/20"
       style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)" }}
     >
+      {/* Repost label */}
+      {post.reposted_by_name && (
+        <div className="flex items-center gap-1.5 mb-2 text-emerald-400/70 text-xs">
+          <Repeat2 className="w-3.5 h-3.5" />
+          <span className="font-medium">{post.reposted_by_name} reposted</span>
+        </div>
+      )}
+
       {/* Post header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
