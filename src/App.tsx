@@ -17,12 +17,27 @@ import Profile from "./pages/Profile";
 import Messages from "./pages/Messages";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import { trackVisit } from "./lib/trackLogin";
+import { registerPushSubscription } from "./lib/pushNotifications";
+import { supabase } from "./integrations/supabase/client";
 
 const queryClient = new QueryClient();
 
 const AppContent = () => {
   useEffect(() => {
     trackVisit();
+  }, []);
+
+  // Register push notifications when user logs in
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN") {
+        // Small delay to ensure session is ready
+        setTimeout(() => {
+          registerPushSubscription().catch(console.error);
+        }, 2000);
+      }
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
   return (
