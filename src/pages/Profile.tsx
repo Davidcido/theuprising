@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Camera, Edit2, MapPin, UserPlus, UserMinus, MessageCircle, Save, X } from "lucide-react";
+import { Camera, Edit2, MapPin, UserPlus, UserMinus, MessageCircle, Check, X, ImagePlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
 import { useFollow } from "@/hooks/useFollow";
@@ -14,10 +14,8 @@ import { COUNTRIES, getCountryFlag } from "@/lib/countries";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { useConversations } from "@/hooks/useConversations";
-
-const PRESET_AVATARS = [
-  "🌱", "🌿", "🍀", "🌳", "🌻", "🦋", "🐢", "🌊", "⭐", "🔥", "💎", "🎯",
-];
+import ProfileEmojiPicker from "@/components/profile/ProfileEmojiPicker";
+import ProfileCoverPhoto from "@/components/profile/ProfileCoverPhoto";
 
 const Profile = () => {
   const { userId: paramUserId } = useParams();
@@ -26,13 +24,15 @@ const Profile = () => {
   const [editData, setEditData] = useState({ display_name: "", bio: "", country: "" });
   const [userPosts, setUserPosts] = useState<any[]>([]);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   const targetUserId = paramUserId || currentUserId;
   const isOwnProfile = targetUserId === currentUserId;
 
-  const { profile, loading, updateProfile, uploadAvatar } = useProfile(targetUserId);
+  const { profile, loading, updateProfile, uploadAvatar, uploadCoverPhoto, refetch } = useProfile(targetUserId);
   const { isFollowing, followerCount, followingCount, toggleFollow, loading: followLoading } = useFollow(currentUserId, targetUserId);
   const { getOrCreateConversation } = useConversations(currentUserId);
 
@@ -63,9 +63,16 @@ const Profile = () => {
   }, [targetUserId]);
 
   const handleSave = async () => {
+    setSaving(true);
     const { error } = await updateProfile(editData);
-    if (error) toast.error("Failed to update profile");
-    else { toast.success("Profile updated!"); setEditing(false); }
+    setSaving(false);
+    if (error) {
+      toast.error(typeof error === "string" ? error : "Failed to update profile");
+    } else {
+      toast.success("Profile updated successfully");
+      setEditing(false);
+      refetch();
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -74,14 +81,24 @@ const Profile = () => {
     if (file.size > 5 * 1024 * 1024) { toast.error("Image must be under 5MB"); return; }
     const { error } = await uploadAvatar(file);
     if (error) toast.error(error);
-    else toast.success("Avatar updated!");
+    else { toast.success("Avatar updated!"); refetch(); }
     setShowAvatarPicker(false);
+  };
+
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error("Image must be under 5MB"); return; }
+    const { error } = await uploadCoverPhoto(file);
+    if (error) toast.error(error);
+    else { toast.success("Cover photo updated!"); refetch(); }
   };
 
   const handlePresetAvatar = async (emoji: string) => {
     await updateProfile({ avatar_url: `emoji:${emoji}` });
     toast.success("Avatar updated!");
     setShowAvatarPicker(false);
+    refetch();
   };
 
   const handleMessage = async () => {
@@ -93,7 +110,7 @@ const Profile = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-4 border-emerald-400 border-t-transparent rounded-full" />
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -115,8 +132,19 @@ const Profile = () => {
           className="rounded-3xl backdrop-blur-xl border border-white/15 overflow-hidden"
           style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)" }}
         >
-          {/* Banner */}
-          <div className="h-32 bg-gradient-to-r from-emerald-600/30 to-emerald-800/30" />
+          {/* Cover Photo */}
+          <ProfileCoverPhoto
+            coverUrl={profile.cover_photo}
+            isOwnProfile={isOwnProfile}
+            onUploadClick={() => coverInputRef.current?.click()}
+          />
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={handleCoverUpload}
+          />
 
           {/* Avatar & Actions */}
           <div className="px-6 -mt-14 relative">
@@ -133,7 +161,7 @@ const Profile = () => {
                 {isOwnProfile && (
                   <button
                     onClick={() => setShowAvatarPicker(!showAvatarPicker)}
-                    className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center hover:bg-emerald-600 transition-colors"
+                    className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:opacity-90 transition-colors"
                   >
                     <Camera className="w-4 h-4" />
                   </button>
@@ -144,21 +172,21 @@ const Profile = () => {
                 {isOwnProfile ? (
                   editing ? (
                     <>
-                      <Button size="sm" variant="ghost" onClick={() => setEditing(false)} className="text-white/60">
+                      <Button size="lg" variant="ghost" onClick={() => setEditing(false)} className="text-muted-foreground rounded-xl">
                         <X className="w-4 h-4 mr-1" /> Cancel
                       </Button>
-                      <Button size="sm" variant="hero" onClick={handleSave}>
-                        <Save className="w-4 h-4 mr-1" /> Save
+                      <Button size="lg" variant="hero" onClick={handleSave} disabled={saving} className="rounded-xl">
+                        <Check className="w-4 h-4 mr-1" /> {saving ? "Saving..." : "Save Changes"}
                       </Button>
                     </>
                   ) : (
-                    <Button size="sm" variant="ghost" onClick={() => setEditing(true)} className="text-white/60 hover:text-white">
+                    <Button size="sm" variant="ghost" onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">
                       <Edit2 className="w-4 h-4 mr-1" /> Edit Profile
                     </Button>
                   )
                 ) : currentUserId ? (
                   <>
-                    <Button size="sm" variant="ghost" onClick={handleMessage} className="text-white/60 hover:text-white">
+                    <Button size="sm" variant="ghost" onClick={handleMessage} className="text-muted-foreground hover:text-foreground">
                       <MessageCircle className="w-4 h-4" />
                     </Button>
                     <Button
@@ -166,7 +194,7 @@ const Profile = () => {
                       variant={isFollowing ? "ghost" : "hero"}
                       onClick={toggleFollow}
                       disabled={followLoading}
-                      className={isFollowing ? "text-white/60 hover:text-white border border-white/20" : ""}
+                      className={isFollowing ? "text-muted-foreground hover:text-foreground border border-white/20" : ""}
                     >
                       {isFollowing ? <><UserMinus className="w-4 h-4 mr-1" /> Unfollow</> : <><UserPlus className="w-4 h-4 mr-1" /> Follow</>}
                     </Button>
@@ -177,30 +205,12 @@ const Profile = () => {
 
             {/* Avatar picker */}
             {showAvatarPicker && isOwnProfile && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-3 p-4 rounded-2xl border border-white/15 backdrop-blur-xl"
-                style={{ background: "rgba(15, 81, 50, 0.9)" }}
-              >
-                <p className="text-white/60 text-xs mb-3">Choose a preset avatar or upload your own</p>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {PRESET_AVATARS.map((emoji) => (
-                    <button
-                      key={emoji}
-                      onClick={() => handlePresetAvatar(emoji)}
-                      className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-xl transition-colors"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-                <Button size="sm" variant="ghost" className="text-white/60" onClick={() => fileInputRef.current?.click()}>
-                  <Camera className="w-4 h-4 mr-1" /> Upload Image
-                </Button>
-                <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFileUpload} />
-              </motion.div>
+              <ProfileEmojiPicker
+                onSelectEmoji={handlePresetAvatar}
+                onUploadClick={() => fileInputRef.current?.click()}
+              />
             )}
+            <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFileUpload} />
           </div>
 
           {/* Profile Info */}
@@ -211,23 +221,23 @@ const Profile = () => {
                   value={editData.display_name}
                   onChange={(e) => setEditData((d) => ({ ...d, display_name: e.target.value }))}
                   placeholder="Display name"
-                  className="bg-white/10 border-white/20 text-white"
+                  className="bg-white/10 border-white/20 text-foreground"
                 />
                 <Textarea
                   value={editData.bio}
                   onChange={(e) => setEditData((d) => ({ ...d, bio: e.target.value }))}
                   placeholder="Write a short bio..."
                   rows={3}
-                  className="bg-white/10 border-white/20 text-white resize-none"
+                  className="bg-white/10 border-white/20 text-foreground resize-none"
                   maxLength={300}
                 />
                 <Select value={editData.country} onValueChange={(v) => setEditData((d) => ({ ...d, country: v }))}>
-                  <SelectTrigger className="bg-white/10 border-white/20 text-white">
+                  <SelectTrigger className="bg-white/10 border-white/20 text-foreground">
                     <SelectValue placeholder="Select country" />
                   </SelectTrigger>
-                  <SelectContent className="bg-emerald-900 border-white/20 max-h-60">
+                  <SelectContent className="bg-card border-white/20 max-h-60">
                     {COUNTRIES.map((c) => (
-                      <SelectItem key={c.code} value={c.code} className="text-white hover:bg-white/10">
+                      <SelectItem key={c.code} value={c.code} className="text-foreground hover:bg-white/10">
                         {c.flag} {c.name}
                       </SelectItem>
                     ))}
@@ -242,11 +252,11 @@ const Profile = () => {
                   </h1>
                   <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
                     profile.online_status === "online"
-                      ? "bg-emerald-500/20 text-emerald-400"
+                      ? "bg-primary/20 text-primary"
                       : "bg-white/10 text-muted-foreground"
                   }`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${
-                      profile.online_status === "online" ? "bg-emerald-400" : "bg-muted-foreground/50"
+                      profile.online_status === "online" ? "bg-primary" : "bg-muted-foreground/50"
                     }`} />
                     {profile.online_status === "online" ? "Online" : "Offline"}
                   </span>
