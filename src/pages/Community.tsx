@@ -99,10 +99,62 @@ const Community = () => {
           }
         }
       }
-      setAllPosts(data.map((p: any) => ({
-        ...p,
-        author_profile: p.author_id ? profilesMap[p.author_id] || null : null,
-      })));
+
+      // Build posts map for resolving original_post references
+      const postsMap: Record<string, any> = {};
+      const mappedPosts = data.map((p: any) => {
+        const mapped = {
+          ...p,
+          author_profile: p.author_id ? profilesMap[p.author_id] || null : null,
+        };
+        postsMap[p.id] = mapped;
+        return mapped;
+      });
+
+      // Resolve original_post for quote reposts
+      for (const p of mappedPosts) {
+        if (p.original_post_id && postsMap[p.original_post_id]) {
+          p.original_post = postsMap[p.original_post_id];
+        }
+      }
+
+      // Fetch direct reposts and merge into feed
+      const { data: reposts } = await supabase
+        .from("community_reposts")
+        .select("*")
+        .is("quote_content", null)
+        .order("created_at", { ascending: false });
+
+      const directRepostPosts: Post[] = [];
+      if (reposts) {
+        // Get reposter profiles
+        const reposterIds = [...new Set(reposts.map(r => r.user_id))];
+        let reposterProfiles: Record<string, string> = {};
+        if (reposterIds.length > 0) {
+          const { data: rProfiles } = await supabase
+            .from("profiles")
+            .select("user_id, display_name")
+            .in("user_id", reposterIds);
+          if (rProfiles) {
+            for (const rp of rProfiles) {
+              reposterProfiles[rp.user_id] = rp.display_name || "Someone";
+            }
+          }
+        }
+        for (const r of reposts) {
+          const original = postsMap[r.original_post_id];
+          if (original) {
+            directRepostPosts.push({
+              ...original,
+              id: `repost-${r.id}`,
+              created_at: r.created_at,
+              reposted_by_name: reposterProfiles[r.user_id] || "Someone",
+            });
+          }
+        }
+      }
+
+      setAllPosts([...mappedPosts, ...directRepostPosts]);
     }
     setLoading(false);
   }, []);
@@ -244,7 +296,7 @@ const Community = () => {
   useEffect(() => {
     const newPostIds = visiblePosts
       .map(p => p.id)
-      .filter(id => !viewedPostsRef.current.has(id));
+      .filter(id => !id.startsWith("repost-") && !viewedPostsRef.current.has(id));
     if (newPostIds.length === 0) return;
     newPostIds.forEach(id => viewedPostsRef.current.add(id));
     newPostIds.forEach(id => {
@@ -439,21 +491,43 @@ const Community = () => {
       toast({ title: "Sign in required", description: "Please sign in to repost.", variant: "destructive" });
       return;
     }
-    const { error } = await supabase.from("community_reposts").insert({
-      user_id: currentUser.id,
-      original_post_id: post.id,
-      quote_content: quoteContent || null,
-    });
-    if (error) {
-      toast({ title: "Error", description: "Could not repost. Try again.", variant: "destructive" });
-    } else {
-      // Increment shares_count on original post
-      await supabase.from("community_posts").update({ shares_count: post.shares_count + 1 }).eq("id", post.id);
-      setAllPosts(prev => prev.map(p => p.id === post.id ? { ...p, shares_count: p.shares_count + 1 } : p));
-      toast({ title: quoteContent ? "Quote reposted!" : "Reposted!" });
-      if (post.author_id && post.author_id !== currentUser.id) {
-        createNotification(post.author_id, currentUser.id, "repost", "reposted your post", post.id);
+    if (quoteContent) {
+      // Quote repost: create a new post with embedded original
+      const { error } = await supabase.from("community_posts").insert({
+        content: quoteContent,
+        anonymous_name: currentUser.displayName,
+        is_anonymous: false,
+        author_id: currentUser.id,
+        original_post_id: post.id,
+      });
+      if (error) {
+        toast({ title: "Error", description: "Could not repost. Try again.", variant: "destructive" });
+        return;
       }
+      // Also record in community_reposts for tracking
+      await supabase.from("community_reposts").insert({
+        user_id: currentUser.id,
+        original_post_id: post.id,
+        quote_content: quoteContent,
+      });
+    } else {
+      // Direct repost: just record in community_reposts
+      const { error } = await supabase.from("community_reposts").insert({
+        user_id: currentUser.id,
+        original_post_id: post.id,
+      });
+      if (error) {
+        toast({ title: "Error", description: "Could not repost. Try again.", variant: "destructive" });
+        return;
+      }
+    }
+
+    // Increment shares_count on original post
+    await supabase.from("community_posts").update({ shares_count: post.shares_count + 1 }).eq("id", post.id);
+    setAllPosts(prev => prev.map(p => p.id === post.id ? { ...p, shares_count: p.shares_count + 1 } : p));
+    toast({ title: quoteContent ? "Quote reposted!" : "Reposted!" });
+    if (post.author_id && post.author_id !== currentUser.id) {
+      createNotification(post.author_id, currentUser.id, "repost", "reposted your post", post.id);
     }
   };
 

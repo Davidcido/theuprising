@@ -36,6 +36,9 @@ export type Post = {
   is_anonymous?: boolean;
   engagement_score?: number;
   author_profile?: { display_name: string | null; avatar_url: string } | null;
+  original_post_id?: string | null;
+  reposted_by_name?: string | null;
+  original_post?: Post | null;
 };
 
 export type Reaction = {
@@ -98,6 +101,14 @@ const PostCard = ({
       className="p-5 rounded-2xl backdrop-blur-xl border border-white/10 transition-colors hover:border-white/20"
       style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)" }}
     >
+      {/* Repost label */}
+      {post.reposted_by_name && (
+        <div className="flex items-center gap-1.5 mb-2 text-emerald-400/70 text-xs">
+          <Repeat2 className="w-3.5 h-3.5" />
+          <span className="font-medium">{post.reposted_by_name} reposted</span>
+        </div>
+      )}
+
       {/* Post header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
@@ -146,6 +157,37 @@ const PostCard = ({
 
       {/* Content */}
       <p className="text-foreground/90 text-sm leading-relaxed mb-3 whitespace-pre-wrap break-words">{post.content}</p>
+
+      {/* Embedded original post (for quote reposts) */}
+      {post.original_post && (
+        <div
+          className="p-4 rounded-xl border border-white/10 mb-3 cursor-pointer hover:border-white/20 transition-colors"
+          style={{ background: "rgba(255,255,255,0.03)" }}
+          onClick={() => onNavigate(`/community`)}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <UserAvatar
+              avatarUrl={post.original_post.author_profile?.avatar_url}
+              displayName={!post.original_post.is_anonymous && post.original_post.author_profile?.display_name ? post.original_post.author_profile.display_name : post.original_post.anonymous_name}
+              size="xs"
+            />
+            <span className="text-xs font-semibold text-foreground/80">
+              {!post.original_post.is_anonymous && post.original_post.author_profile?.display_name
+                ? post.original_post.author_profile.display_name
+                : post.original_post.anonymous_name}
+            </span>
+            <span className="text-[10px] text-muted-foreground">· {formatTime(post.original_post.created_at)}</span>
+          </div>
+          <p className="text-foreground/70 text-xs leading-relaxed whitespace-pre-wrap break-words line-clamp-4">
+            {post.original_post.content}
+          </p>
+          <div className="flex items-center gap-4 mt-2 text-[10px] text-muted-foreground/60">
+            <span>❤️ {post.original_post.likes_count}</span>
+            <span>💬 {post.original_post.comments_count}</span>
+            <span>🔁 {post.original_post.shares_count}</span>
+          </div>
+        </div>
+      )}
 
       {/* Emoji Reactions */}
       <div className="flex flex-wrap gap-1.5 mb-3">
