@@ -5,11 +5,12 @@ import { toast } from "@/hooks/use-toast";
 type Props = {
   onSend: (blob: Blob) => Promise<void>;
   onCancel: () => void;
+  onStateChange?: (isActive: boolean) => void;
 };
 
 type RecordingState = "idle" | "recording" | "paused" | "preview";
 
-const VoiceRecorder = ({ onSend, onCancel }: Props) => {
+const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
   const [state, setState] = useState<RecordingState>("idle");
   const [time, setTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -83,6 +84,7 @@ const VoiceRecorder = ({ onSend, onCancel }: Props) => {
       recorder.start(250);
       mediaRecorderRef.current = recorder;
       setState("recording");
+      onStateChange?.(true);
       setTime(0);
       setPlaybackProgress(0);
       startTimer();
@@ -133,6 +135,7 @@ const VoiceRecorder = ({ onSend, onCancel }: Props) => {
     setAudioBlob(null);
     setAudioUrl("");
     setState("idle");
+    onStateChange?.(false);
     setTime(0);
     setPlaybackProgress(0);
     setIsPlaying(false);
@@ -145,6 +148,7 @@ const VoiceRecorder = ({ onSend, onCancel }: Props) => {
     setIsSending(true);
     try {
       await onSend(audioBlob);
+      onStateChange?.(false);
       onCancel();
     } catch {
       toast({ title: "Failed to send voice note", variant: "destructive" });
