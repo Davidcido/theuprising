@@ -83,6 +83,12 @@ export const useAdminData = () => {
       if (bannedRes.data) setBannedUsers(bannedRes.data);
       if (settingsRes.data) setCommunityStatus(settingsRes.data.value);
       if (likesRes.data) setTotalLikes(likesRes.data.length);
+      if (loginsRes.data) {
+        setLoginSessions(loginsRes.data as LoginSession[]);
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        setLoginsToday(loginsRes.data.filter((l: any) => new Date(l.login_time) >= todayStart).length);
+      }
     } catch (err) {
       console.error("Admin data fetch exception:", err);
       setDataError("Failed to load admin data. Please try again.");
