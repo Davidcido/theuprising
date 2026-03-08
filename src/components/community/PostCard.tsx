@@ -76,9 +76,9 @@ const formatTime = (ts: string) => {
 
 const PostCard = ({
   post, isLiked, isExpanded, postComments, reactionCounts, myReactions,
-  commentInput, currentUserId, communityOpen, reportMenuPost,
+  commentInput, currentUserId, currentUserName, communityOpen, reportMenuPost,
   onToggleLike, onToggleReaction, onToggleComments, onShare, onReport,
-  onSetReportMenu, onCommentInputChange, onAddComment, onCommentDelete,
+  onSetReportMenu, onCommentInputChange, onAddComment, onAddReply, onCommentDelete,
   onCommentUpdate, onNavigate,
 }: PostCardProps) => {
   return (
