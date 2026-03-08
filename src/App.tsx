@@ -29,6 +29,8 @@ import { useOnboarding } from "./hooks/useOnboarding";
 const queryClient = new QueryClient();
 
 const AppContent = () => {
+  const { showOnboarding, completeOnboarding } = useOnboarding();
+
   useEffect(() => {
     trackVisit();
   }, []);
@@ -37,7 +39,6 @@ const AppContent = () => {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN") {
-        // Small delay to ensure session is ready
         setTimeout(() => {
           registerPushSubscription().catch(console.error);
         }, 2000);
