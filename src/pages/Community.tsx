@@ -192,7 +192,7 @@ const Community = () => {
   }, [sessionId]);
 
   useEffect(() => {
-    fetchPosts();
+    fetchPosts(false);
     fetchLikedPosts();
     fetchReactions();
 
@@ -201,7 +201,21 @@ const Community = () => {
 
     const postsChannel = supabase
       .channel("community-posts")
-      .on("postgres_changes", { event: "*", schema: "public", table: "community_posts" }, () => fetchPosts())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "community_posts" }, async (payload) => {
+        const newPost = payload.new as any;
+        const enriched = await enrichPosts([newPost]);
+        if (enriched.length > 0) {
+          setAllPosts(prev => [enriched[0], ...prev]);
+        }
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "community_posts" }, (payload) => {
+        const updated = payload.new as any;
+        setAllPosts(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p));
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "community_posts" }, (payload) => {
+        const deleted = payload.old as { id: string };
+        setAllPosts(prev => prev.filter(p => p.id !== deleted.id));
+      })
       .subscribe();
 
     const commentsChannel = supabase
@@ -236,13 +250,29 @@ const Community = () => {
       })
       .subscribe();
 
+    // Real-time follows updates
+    const followsChannel = supabase
+      .channel("community-follows")
+      .on("postgres_changes", { event: "*", schema: "public", table: "follows" }, async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const { data: follows } = await supabase
+            .from("follows")
+            .select("following_id")
+            .eq("follower_id", session.user.id);
+          if (follows) setFollowingIds(new Set(follows.map(f => f.following_id)));
+        }
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(postsChannel);
       supabase.removeChannel(commentsChannel);
       supabase.removeChannel(reactionsChannel);
       supabase.removeChannel(settingsChannel);
+      supabase.removeChannel(followsChannel);
     };
-  }, [fetchPosts, fetchLikedPosts, fetchReactions]);
+  }, []);
 
   // Infinite scroll observer - loads more from DB
   useEffect(() => {
