@@ -7,6 +7,7 @@ import { Session } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import AuthModal from "@/components/auth/AuthModal";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import uprisingLogo from "@/assets/uprising-logo.jpeg";
 import { toast } from "sonner";
 
