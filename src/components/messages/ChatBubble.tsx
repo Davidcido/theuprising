@@ -330,13 +330,18 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
           {!(msgAny.attachment_url && (msg.content === "📷 Image" || msg.content === "🎤 Voice note")) && (
             <p className="whitespace-pre-wrap break-words">{msg.content}</p>
           )}
-          <div className="flex items-center gap-1.5 mt-1">
+          <div className="flex items-center gap-1.5 mt-1 justify-end">
             {isEdited && (
               <span className={`text-[10px] italic ${isMine ? "text-white/30" : "text-muted-foreground/50"}`}>(edited)</span>
             )}
             <p className={`text-[10px] ${isMine ? "text-white/40" : "text-muted-foreground/60"}`}>
               {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
             </p>
+            {isMine && (
+              msg.read
+                ? <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+                : <Check className="w-3.5 h-3.5 text-white/30" />
+            )}
           </div>
         </div>
 
