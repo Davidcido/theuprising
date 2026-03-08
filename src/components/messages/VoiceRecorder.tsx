@@ -10,6 +10,8 @@ type Props = {
 
 type RecordingState = "idle" | "recording" | "paused" | "preview";
 
+const MAX_RECORDING_SECONDS = 600; // 10 minutes
+
 const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
   const [state, setState] = useState<RecordingState>("idle");
   const [time, setTime] = useState(0);
@@ -67,7 +69,19 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
 
   const startTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => setTime((t) => t + 1), 1000);
+    timerRef.current = setInterval(() => {
+      setTime((t) => {
+        const next = t + 1;
+        if (next >= MAX_RECORDING_SECONDS) {
+          // Auto-stop at max duration
+          setTimeout(() => {
+            stopRecording();
+            toast({ title: `Maximum ${MAX_RECORDING_SECONDS / 60}-minute recording reached`, description: "Your voice note has been saved for preview." });
+          }, 0);
+        }
+        return next;
+      });
+    }, 1000);
   }, []);
 
   const stopTimer = useCallback(() => {
@@ -113,7 +127,15 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
         ? "audio/webm"
         : "audio/mp4";
 
-      const recorder = new MediaRecorder(stream, { mimeType });
+      // Use lower bitrate for smaller files (48kbps opus is good quality for voice)
+      const recorderOptions: MediaRecorderOptions = { mimeType };
+      if (mimeType.includes("opus")) {
+        recorderOptions.audioBitsPerSecond = 48000;
+      } else {
+        recorderOptions.audioBitsPerSecond = 64000;
+      }
+
+      const recorder = new MediaRecorder(stream, recorderOptions);
       chunksRef.current = [];
 
       recorder.ondataavailable = (e) => {
@@ -399,8 +421,18 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
       )}
 
       <span className="text-sm text-red-400 font-medium tabular-nums">
-        {formatTime(time)}
+        {formatTime(time)} <span className="text-[10px] text-muted-foreground/50">/ {formatTime(MAX_RECORDING_SECONDS)}</span>
       </span>
+
+      {/* Progress toward max duration */}
+      {state === "recording" && (
+        <div className="flex-1 max-w-[80px] h-1 bg-white/10 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-red-400/60 rounded-full transition-[width] duration-1000"
+            style={{ width: `${Math.min(100, (time / MAX_RECORDING_SECONDS) * 100)}%` }}
+          />
+        </div>
+      )}
 
       {state === "paused" && (
         <span className="text-[10px] text-yellow-400/80 uppercase tracking-wider font-medium">
