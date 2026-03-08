@@ -254,7 +254,9 @@ const Chat = () => {
       {/* Privacy notice */}
       <div className="px-4 py-1">
         <p className="text-center text-xs text-muted-foreground/50">
-          🔒 Your conversation is private and anonymous. No personal data is stored.
+          {memoryEnabled
+            ? "💚 Memory is on — I'll remember helpful details to support you better."
+            : "🔒 Your conversation is private. No personal data is stored."}
         </p>
       </div>
 
