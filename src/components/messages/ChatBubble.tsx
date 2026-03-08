@@ -34,6 +34,7 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioDuration, setAudioDuration] = useState<string>("");
   const [audioProgress, setAudioProgress] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const [showMenu, setShowMenu] = useState(false);
   const [showFullPicker, setShowFullPicker] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
