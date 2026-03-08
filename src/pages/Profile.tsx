@@ -381,16 +381,48 @@ const Profile = () => {
             <p className="text-muted-foreground text-sm text-center py-8">No posts yet</p>
           ) : (
             <div className="space-y-3">
-              {userPosts.map((post) => (
+              {/* Pinned post first */}
+              {pinnedPostId && userPosts.find(p => p.id === pinnedPostId) && (
+                <div className="relative">
+                  <div className="absolute top-2 left-3 z-10 flex items-center gap-1 text-amber-400 text-[10px] font-medium">
+                    <Pin className="w-3 h-3" /> Pinned
+                  </div>
+                  <div
+                    className="p-4 pt-7 rounded-2xl backdrop-blur-xl border border-amber-500/20"
+                    style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)" }}
+                  >
+                    <p className="text-foreground/90 text-sm whitespace-pre-wrap break-words">{userPosts.find(p => p.id === pinnedPostId)?.content}</p>
+                    <div className="flex items-center justify-between mt-2">
+                      <p className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(userPosts.find(p => p.id === pinnedPostId)?.created_at), { addSuffix: true })}
+                      </p>
+                      {isOwnProfile && (
+                        <button onClick={unpinPost} className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+                          Unpin
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {/* Other posts */}
+              {userPosts.filter(p => p.id !== pinnedPostId).map((post) => (
                 <div
                   key={post.id}
                   className="p-4 rounded-2xl backdrop-blur-xl border border-white/10"
                   style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)" }}
                 >
                   <p className="text-foreground/90 text-sm whitespace-pre-wrap break-words">{post.content}</p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
-                  </p>
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+                    </p>
+                    {isOwnProfile && post.id !== pinnedPostId && (
+                      <button onClick={() => pinPost(post.id)} className="text-[10px] text-muted-foreground hover:text-amber-400 transition-colors flex items-center gap-1">
+                        <Pin className="w-3 h-3" /> Pin
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
