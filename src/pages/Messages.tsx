@@ -457,13 +457,17 @@ const Messages = () => {
                 msg={msg}
                 isMine={msg.sender_id === userId}
                 replyMessage={replyMsg}
-                onSwipeReply={(m) => setReplyTo(m)}
+                onSwipeReply={(m) => { if (!selectionMode) setReplyTo(m); }}
                 onScrollToMessage={scrollToMessage}
                 onEditMessage={handleEditMessage}
                 onDeleteForMe={handleDeleteForMe}
                 onDeleteForEveryone={handleDeleteForEveryone}
                 onReact={toggleReaction}
                 reactions={getGroupedReactions(msg.id)}
+                selectionMode={selectionMode}
+                isSelected={selectedMsgIds.has(msg.id)}
+                onSelect={() => selectionMode ? toggleSelectMsg(msg.id) : undefined}
+                onLongPressSelect={() => enterSelectionMode(msg.id)}
               />
             );
           })
