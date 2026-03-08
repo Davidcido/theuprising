@@ -12,6 +12,7 @@ import CommentsTab from "@/components/admin/CommentsTab";
 import ReportsTab from "@/components/admin/ReportsTab";
 import BansTab from "@/components/admin/BansTab";
 import LoginsTab from "@/components/admin/LoginsTab";
+import AnalyticsTab from "@/components/admin/AnalyticsTab";
 import { supabase } from "@/integrations/supabase/client";
 
 const Admin = () => {
@@ -19,6 +20,8 @@ const Admin = () => {
   const {
     posts, comments, reports, bannedUsers, communityStatus, totalLikes,
     loginSessions, loginsToday,
+    visitors, visitorsToday,
+    signups, signupsToday,
     dataLoading, dataError,
     fetchAllData, deletePost, deleteComment, updateReportStatus,
     banUser, unbanUser, toggleCommunityStatus,
@@ -28,14 +31,14 @@ const Admin = () => {
     if (isAdmin) fetchAllData();
   }, [isAdmin, fetchAllData]);
 
-  // Realtime subscription for login_sessions
+  // Realtime subscriptions for analytics tables
   useEffect(() => {
     if (!isAdmin) return;
     const channel = supabase
-      .channel("admin-login-sessions")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "login_sessions" }, () => {
-        fetchAllData();
-      })
+      .channel("admin-analytics-realtime")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "login_sessions" }, () => fetchAllData())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "visitors" }, () => fetchAllData())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "signups" }, () => fetchAllData())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [isAdmin, fetchAllData]);
@@ -109,17 +112,22 @@ const Admin = () => {
               totalLikes={totalLikes}
               totalLogins={loginSessions.length}
               loginsToday={loginsToday}
+              totalVisitors={visitors.length}
+              visitorsToday={visitorsToday}
+              totalSignups={signups.length}
+              signupsToday={signupsToday}
             />
 
             <CommunityControl communityStatus={communityStatus} onToggle={toggleCommunityStatus} />
 
             <Tabs defaultValue="posts" className="space-y-4">
-              <TabsList className="bg-[#0d4a2e] border border-emerald-700">
+              <TabsList className="bg-[#0d4a2e] border border-emerald-700 flex-wrap">
                 <TabsTrigger value="posts" className="data-[state=active]:bg-emerald-700 text-emerald-300">Posts</TabsTrigger>
                 <TabsTrigger value="comments" className="data-[state=active]:bg-emerald-700 text-emerald-300">Comments</TabsTrigger>
                 <TabsTrigger value="reports" className="data-[state=active]:bg-emerald-700 text-emerald-300">Reports</TabsTrigger>
                 <TabsTrigger value="bans" className="data-[state=active]:bg-emerald-700 text-emerald-300">Bans</TabsTrigger>
                 <TabsTrigger value="logins" className="data-[state=active]:bg-emerald-700 text-emerald-300">Logins</TabsTrigger>
+                <TabsTrigger value="analytics" className="data-[state=active]:bg-emerald-700 text-emerald-300">Analytics</TabsTrigger>
               </TabsList>
 
               <TabsContent value="posts"><PostsTab posts={posts} onDelete={deletePost} /></TabsContent>
@@ -127,6 +135,15 @@ const Admin = () => {
               <TabsContent value="reports"><ReportsTab reports={reports} onUpdateStatus={updateReportStatus} /></TabsContent>
               <TabsContent value="bans"><BansTab bannedUsers={bannedUsers} onBan={banUser} onUnban={unbanUser} /></TabsContent>
               <TabsContent value="logins"><LoginsTab logins={loginSessions} loginsToday={loginsToday} /></TabsContent>
+              <TabsContent value="analytics">
+                <AnalyticsTab
+                  visitors={visitors}
+                  signups={signups}
+                  logins={loginSessions}
+                  visitorsToday={visitorsToday}
+                  signupsToday={signupsToday}
+                />
+              </TabsContent>
             </Tabs>
           </>
         )}

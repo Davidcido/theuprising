@@ -242,6 +242,24 @@ export type Database = {
         }
         Relationships: []
       }
+      signups: {
+        Row: {
+          id: string
+          signup_time: string
+          user_id: string | null
+        }
+        Insert: {
+          id?: string
+          signup_time?: string
+          user_id?: string | null
+        }
+        Update: {
+          id?: string
+          signup_time?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -257,6 +275,30 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      visitors: {
+        Row: {
+          country: string | null
+          device_type: string | null
+          id: string
+          session_id: string
+          visit_time: string
+        }
+        Insert: {
+          country?: string | null
+          device_type?: string | null
+          id?: string
+          session_id: string
+          visit_time?: string
+        }
+        Update: {
+          country?: string | null
+          device_type?: string | null
+          id?: string
+          session_id?: string
+          visit_time?: string
         }
         Relationships: []
       }

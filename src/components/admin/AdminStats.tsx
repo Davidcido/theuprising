@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { FileText, MessageSquare, AlertTriangle, Ban, Heart, LogIn } from "lucide-react";
+import { FileText, MessageSquare, AlertTriangle, Ban, Heart, LogIn, Eye, UserPlus } from "lucide-react";
 
 interface AdminStatsProps {
   postsCount: number;
@@ -9,16 +9,20 @@ interface AdminStatsProps {
   totalLikes: number;
   totalLogins: number;
   loginsToday: number;
+  totalVisitors: number;
+  visitorsToday: number;
+  totalSignups: number;
+  signupsToday: number;
 }
 
-const AdminStats = ({ postsCount, commentsCount, pendingReportsCount, bannedCount, totalLikes, totalLogins, loginsToday }: AdminStatsProps) => {
+const AdminStats = (props: AdminStatsProps) => {
   const stats = [
-    { label: "Posts", count: postsCount, icon: FileText, color: "text-emerald-400" },
-    { label: "Comments", count: commentsCount, icon: MessageSquare, color: "text-blue-400" },
-    { label: "Likes", count: totalLikes, icon: Heart, color: "text-red-400" },
-    { label: "Logins", count: totalLogins, icon: LogIn, color: "text-cyan-400", sub: `${loginsToday} today` },
-    { label: "Reports", count: pendingReportsCount, icon: AlertTriangle, color: "text-yellow-400" },
-    { label: "Banned", count: bannedCount, icon: Ban, color: "text-orange-400" },
+    { label: "Visitors", count: props.totalVisitors, icon: Eye, color: "text-purple-400", sub: `${props.visitorsToday} today` },
+    { label: "Users", count: props.totalSignups, icon: UserPlus, color: "text-teal-400", sub: `${props.signupsToday} new today` },
+    { label: "Logins", count: props.totalLogins, icon: LogIn, color: "text-cyan-400", sub: `${props.loginsToday} today` },
+    { label: "Posts", count: props.postsCount, icon: FileText, color: "text-emerald-400" },
+    { label: "Likes", count: props.totalLikes, icon: Heart, color: "text-red-400" },
+    { label: "Reports", count: props.pendingReportsCount, icon: AlertTriangle, color: "text-yellow-400" },
   ];
 
   return (
