@@ -25,7 +25,7 @@ const ensureProfile = async (userId: string, email?: string) => {
 };
 
 const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
