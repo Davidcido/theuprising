@@ -480,6 +480,10 @@ const Messages = () => {
         ) : (
           messages.map((msg) => {
             const msgAny = msg as any;
+            // Render system/call messages differently
+            if (msgAny.attachment_type === "system") {
+              return <CallSystemMessage key={msg.id} content={msg.content} createdAt={msg.created_at} />;
+            }
             const replyMsg = msgAny.reply_to_message_id ? messagesMap[msgAny.reply_to_message_id] || null : null;
             return (
               <ChatBubble
