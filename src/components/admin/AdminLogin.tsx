@@ -12,7 +12,7 @@ interface AdminLoginProps {
   error?: string | null;
 }
 
-const AdminLogin = ({ isAuthenticated, isAdmin, onLogin, onLogout }: AdminLoginProps) => {
+const AdminLogin = ({ isAuthenticated, isAdmin, onLogin, onLogout, error: authError }: AdminLoginProps) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
