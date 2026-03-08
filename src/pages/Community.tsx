@@ -20,7 +20,7 @@ const FEED_TABS: { key: FeedTab; label: string; icon: typeof Sparkles }[] = [
   { key: "trending", label: "Trending", icon: TrendingUp },
 ];
 
-const POSTS_PER_PAGE = 15;
+const POSTS_PER_PAGE = 10;
 
 const getSessionId = () => {
   let id = localStorage.getItem("uprising_session_id");
