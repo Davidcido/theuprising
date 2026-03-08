@@ -59,7 +59,8 @@ const Community = () => {
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [posting, setPosting] = useState(false);
   const [reactions, setReactions] = useState<Record<string, Reaction[]>>({});
-  const [myReactions, setMyReactions] = useState<Set<string>>(new Set()); // "postId:emoji"
+  const [myReactions, setMyReactions] = useState<Set<string>>(new Set());
+  const [communityOpen, setCommunityOpen] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const sessionId = getSessionId();
