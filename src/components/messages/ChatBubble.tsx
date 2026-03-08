@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { Play, Pause, CornerDownRight } from "lucide-react";
 import type { DirectMessage } from "@/hooks/useConversations";
@@ -18,7 +18,9 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
   const [offsetX, setOffsetX] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioDuration, setAudioDuration] = useState<string>("");
+  const [audioProgress, setAudioProgress] = useState(0);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const animRef = useRef<number>(0);
 
   // Touch handlers for swipe-to-reply
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -50,14 +52,31 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
     window.addEventListener("mouseup", onUp);
   };
 
+  const updateProgress = () => {
+    if (audioRef.current && isFinite(audioRef.current.duration)) {
+      setAudioProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
+    }
+    if (isPlaying) {
+      animRef.current = requestAnimationFrame(updateProgress);
+    }
+  };
+
+  useEffect(() => {
+    if (isPlaying) {
+      animRef.current = requestAnimationFrame(updateProgress);
+    }
+    return () => cancelAnimationFrame(animRef.current);
+  }, [isPlaying]);
+
   const toggleAudio = () => {
     if (!audioRef.current) return;
     if (isPlaying) {
       audioRef.current.pause();
+      setIsPlaying(false);
     } else {
-      audioRef.current.play();
+      audioRef.current.play().catch(() => {});
+      setIsPlaying(true);
     }
-    setIsPlaying(!isPlaying);
   };
 
   const handleAudioLoaded = () => {
@@ -65,6 +84,11 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
       const secs = Math.round(audioRef.current.duration);
       setAudioDuration(`${Math.floor(secs / 60)}:${(secs % 60).toString().padStart(2, "0")}`);
     }
+  };
+
+  const handleAudioEnded = () => {
+    setIsPlaying(false);
+    setAudioProgress(0);
   };
 
   return (
@@ -112,7 +136,7 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
 
         {/* Audio attachment */}
         {msgAny.attachment_url && msgAny.attachment_type === "audio" && (
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 min-w-[180px]">
             <button
               onClick={toggleAudio}
               className="w-8 h-8 rounded-full bg-emerald-500/30 flex items-center justify-center shrink-0"
@@ -120,18 +144,22 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
               {isPlaying ? <Pause className="w-3.5 h-3.5 text-white" /> : <Play className="w-3.5 h-3.5 text-white ml-0.5" />}
             </button>
             <div className="flex-1">
-              <div className="h-1 bg-white/20 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-400 rounded-full w-0" />
+              <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-emerald-400 rounded-full transition-[width] duration-100"
+                  style={{ width: `${audioProgress}%` }}
+                />
               </div>
               <span className="text-[10px] text-white/40 mt-0.5 block">
-                🎤 Voice message {audioDuration ? `(${audioDuration})` : ""}
+                🎤 {audioDuration || "0:00"}
               </span>
             </div>
             <audio
               ref={audioRef}
               src={msgAny.attachment_url}
+              preload="metadata"
               onLoadedMetadata={handleAudioLoaded}
-              onEnded={() => setIsPlaying(false)}
+              onEnded={handleAudioEnded}
               className="hidden"
             />
           </div>

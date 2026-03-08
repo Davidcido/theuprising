@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Mic, Square, Play, Pause, Send, X } from "lucide-react";
+import { Mic, Square, Play, Pause, Send, X, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 type Props = {
@@ -15,11 +15,13 @@ const VoiceRecorder = ({ onSend, onCancel }: Props) => {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioUrl, setAudioUrl] = useState<string>("");
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const sendingRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -42,17 +44,21 @@ const VoiceRecorder = ({ onSend, onCancel }: Props) => {
       streamRef.current = stream;
       const recorder = new MediaRecorder(stream);
       chunksRef.current = [];
-      recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         setAudioBlob(blob);
-        setAudioUrl(URL.createObjectURL(blob));
+        const url = URL.createObjectURL(blob);
+        setAudioUrl(url);
         setState("preview");
         stream.getTracks().forEach((t) => t.stop());
       };
       recorder.start();
       mediaRecorderRef.current = recorder;
       setState("recording");
+      setTime(0);
       startTimer();
     } catch {
       toast({ title: "Microphone access denied", variant: "destructive" });
@@ -79,9 +85,18 @@ const VoiceRecorder = ({ onSend, onCancel }: Props) => {
   };
 
   const handleSend = async () => {
-    if (!audioBlob) return;
-    await onSend(audioBlob);
-    onCancel();
+    if (!audioBlob || sendingRef.current) return;
+    sendingRef.current = true;
+    setIsSending(true);
+    try {
+      await onSend(audioBlob);
+      onCancel();
+    } catch {
+      toast({ title: "Failed to send voice note", variant: "destructive" });
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
   };
 
   const togglePlayback = () => {
@@ -113,11 +128,16 @@ const VoiceRecorder = ({ onSend, onCancel }: Props) => {
         </button>
         <span className="text-xs text-white/60 flex-1">🎤 {formatTime(time)}</span>
         <audio ref={audioRef} src={audioUrl} onEnded={() => setIsPlaying(false)} className="hidden" />
-        <button onClick={onCancel} className="p-1.5 rounded-full hover:bg-white/10">
+        <button onClick={onCancel} className="p-1.5 rounded-full hover:bg-white/10" disabled={isSending}>
           <X className="w-3.5 h-3.5 text-white/40" />
         </button>
-        <button onClick={handleSend} className="p-2 rounded-xl text-white" style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}>
-          <Send className="w-3.5 h-3.5" />
+        <button
+          onClick={handleSend}
+          disabled={isSending}
+          className="p-2 rounded-xl text-white disabled:opacity-50"
+          style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
+        >
+          {isSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
         </button>
       </div>
     );
