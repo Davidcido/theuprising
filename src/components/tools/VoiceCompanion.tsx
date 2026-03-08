@@ -930,7 +930,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
         </motion.button>
 
         <p className="text-center text-white/40 text-xs">
-          🎙️ Microphone access required · Uses AI voice
+          🎙️ Microphone access required · Uses device voice
         </p>
       </div>
     );
