@@ -11,6 +11,8 @@ const ICON_MAP: Record<string, typeof Bell> = {
   comment: MessageCircle,
   reply: MessageCircle,
   message: Mail,
+  repost: Repeat2,
+  reaction: Sparkles,
 };
 
 interface NotificationBellProps {
