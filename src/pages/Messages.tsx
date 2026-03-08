@@ -7,11 +7,13 @@ import UserAvatar from "@/components/UserAvatar";
 import { useConversations, useMessages } from "@/hooks/useConversations";
 import { useCallSignaling } from "@/hooks/useCallSignaling";
 import { useBlocks } from "@/hooks/useBlocks";
+import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import CallOverlay from "@/components/calls/CallOverlay";
 import IncomingCallModal from "@/components/calls/IncomingCallModal";
+import { createNotification } from "@/lib/notifications";
 
 const Messages = () => {
   const { conversationId } = useParams();
