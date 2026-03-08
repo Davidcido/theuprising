@@ -888,11 +888,17 @@ Never expose the English interpretation to the user — always reply fully in Ha
                 <SelectValue placeholder="Auto-select best voice" />
               </SelectTrigger>
               <SelectContent className="max-h-60 bg-[#1a2e23] border-white/20">
-                {availableVoices.map((v) => {
+              {availableVoices.map((v) => {
                   const isGoogle = v.name.includes("Google");
                   const isMicrosoft = v.name.includes("Microsoft");
                   const isNatural = /natural|neural|premium|enhanced/i.test(v.name);
-                  const badge = isGoogle ? "⭐ Google" : isMicrosoft ? "⭐ Microsoft" : isNatural ? "✨ Natural" : "";
+                  const badge = isGoogle ? "⭐" : isMicrosoft ? "⭐" : isNatural ? "✨" : "";
+                  // Parse language and accent from lang code
+                  const langParts = v.lang.split("-");
+                  const langName = langParts[0] === "en" ? "English" : langParts[0] === "es" ? "Spanish" : langParts[0] === "fr" ? "French" : langParts[0] === "de" ? "German" : langParts[0];
+                  const regionMap: Record<string, string> = { US: "United States", GB: "United Kingdom", AU: "Australia", IN: "India", CA: "Canada", IE: "Ireland", ZA: "South Africa", NZ: "New Zealand", NG: "Nigeria", SG: "Singapore", HK: "Hong Kong" };
+                  const accent = regionMap[langParts[1]] || langParts[1] || "";
+                  const displayName = `${v.name} — ${langName}${accent ? ` — ${accent}` : ""}`;
                   return (
                     <SelectItem
                       key={v.voiceURI}
@@ -900,10 +906,8 @@ Never expose the English interpretation to the user — always reply fully in Ha
                       className="text-white/80 text-xs focus:bg-white/10 focus:text-white"
                     >
                       <span className="flex items-center gap-2">
-                        <span className="truncate max-w-[180px]">{v.name}</span>
-                        {badge && (
-                          <span className="text-[10px] text-white/50 shrink-0">{badge}</span>
-                        )}
+                        {badge && <span className="shrink-0">{badge}</span>}
+                        <span className="truncate">{displayName}</span>
                       </span>
                     </SelectItem>
                   );
