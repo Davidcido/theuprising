@@ -10,6 +10,8 @@ type Props = {
 
 type RecordingState = "idle" | "recording" | "paused" | "preview";
 
+const MAX_RECORDING_SECONDS = 600; // 10 minutes
+
 const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
   const [state, setState] = useState<RecordingState>("idle");
   const [time, setTime] = useState(0);
