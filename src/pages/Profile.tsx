@@ -44,6 +44,7 @@ const Profile = () => {
   const isTargetBlocked = targetUserId ? isBlocked(targetUserId) : false;
   const { totalViews, weeklyViews, recentViewers } = useProfileViews(targetUserId, currentUserId);
   const { pinnedPostId, fetchPinned, pinPost, unpinPost } = usePinnedPost(currentUserId);
+  const { memoryEnabled, memories, setPreference, clearMemories, deleteMemory, disableAndClear } = useAIMemory();
 
   const handleReport = async () => {
     if (!targetUserId) return;
