@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Camera, Edit2, MapPin, UserPlus, UserMinus, MessageCircle, Check, X, ImagePlus } from "lucide-react";
+import { Camera, Edit2, MapPin, UserPlus, UserMinus, MessageCircle, Check, X, ImagePlus, Flag, Ban } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
 import { useFollow } from "@/hooks/useFollow";
+import { useBlocks } from "@/hooks/useBlocks";
 import UserAvatar from "@/components/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +36,31 @@ const Profile = () => {
   const { profile, loading, updateProfile, uploadAvatar, uploadCoverPhoto, refetch } = useProfile(targetUserId);
   const { isFollowing, followerCount, followingCount, toggleFollow, loading: followLoading } = useFollow(currentUserId, targetUserId);
   const { getOrCreateConversation } = useConversations(currentUserId);
+  const { isBlocked, blockUser, unblockUser } = useBlocks(currentUserId);
+  const isTargetBlocked = targetUserId ? isBlocked(targetUserId) : false;
+
+  const handleReport = async () => {
+    if (!targetUserId) return;
+    const sessionId = localStorage.getItem("uprising_session_id") || "anon";
+    await supabase.from("reported_content").insert({
+      content_id: targetUserId,
+      content_type: "profile",
+      reporter_session_id: sessionId,
+      reason: "Reported by user",
+    });
+    toast.success("User reported. Thank you for keeping the community safe.");
+  };
+
+  const handleBlock = async () => {
+    if (!targetUserId) return;
+    if (isTargetBlocked) {
+      await unblockUser(targetUserId);
+      toast.success("User unblocked");
+    } else {
+      await blockUser(targetUserId);
+      toast.success("User blocked");
+    }
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -186,17 +212,23 @@ const Profile = () => {
                   )
                 ) : currentUserId ? (
                   <>
-                    <Button size="sm" variant="ghost" onClick={handleMessage} className="text-muted-foreground hover:text-foreground">
+                    <Button size="sm" variant="ghost" onClick={handleMessage} className="text-muted-foreground hover:text-foreground" disabled={isTargetBlocked}>
                       <MessageCircle className="w-4 h-4" />
                     </Button>
                     <Button
                       size="sm"
                       variant={isFollowing ? "ghost" : "hero"}
                       onClick={toggleFollow}
-                      disabled={followLoading}
+                      disabled={followLoading || isTargetBlocked}
                       className={isFollowing ? "text-muted-foreground hover:text-foreground border border-white/20" : ""}
                     >
                       {isFollowing ? <><UserMinus className="w-4 h-4 mr-1" /> Unfollow</> : <><UserPlus className="w-4 h-4 mr-1" /> Follow</>}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={handleReport} className="text-yellow-400 hover:text-yellow-300">
+                      <Flag className="w-4 h-4" />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={handleBlock} className={isTargetBlocked ? "text-emerald-400 hover:text-emerald-300" : "text-red-400 hover:text-red-300"}>
+                      <Ban className="w-4 h-4" />
                     </Button>
                   </>
                 ) : null}

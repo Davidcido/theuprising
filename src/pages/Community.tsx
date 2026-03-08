@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, MessageCircle, Share2, Send, Shield, ChevronDown, ChevronUp, Eye, EyeOff } from "lucide-react";
+import { Heart, MessageCircle, Share2, Send, Shield, ChevronDown, ChevronUp, Eye, EyeOff, Flag, MoreHorizontal } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import UserAvatar from "@/components/UserAvatar";
 import { toast } from "@/hooks/use-toast";
@@ -8,6 +8,7 @@ import uprisingLogo from "@/assets/uprising-logo.jpeg";
 import { formatDistanceToNow } from "date-fns";
 import EmojiPicker from "@/components/EmojiPicker";
 import { useNavigate } from "react-router-dom";
+import CommentCard from "@/components/community/CommentCard";
 
 const REACTION_EMOJIS = [
   { emoji: "❤️", label: "Love" },
@@ -22,6 +23,7 @@ type Comment = {
   post_id: string;
   content: string;
   anonymous_name: string;
+  author_id?: string | null;
   created_at: string;
 };
 
@@ -68,12 +70,12 @@ const Community = () => {
   const [communityOpen, setCommunityOpen] = useState(true);
   const [postAnonymously, setPostAnonymously] = useState(true);
   const [currentUser, setCurrentUser] = useState<{ id: string; displayName: string } | null>(null);
+  const [reportMenuPost, setReportMenuPost] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const navigate = useNavigate();
 
   const sessionId = getSessionId();
 
-  // Get current user
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
@@ -96,7 +98,6 @@ const Community = () => {
       .select("*")
       .order("created_at", { ascending: false });
     if (!error && data) {
-      // Enrich with author profiles
       const authorIds = [...new Set(data.filter((p: any) => p.author_id).map((p: any) => p.author_id))];
       let profilesMap: Record<string, { display_name: string | null; avatar_url: string }> = {};
       if (authorIds.length > 0) {
@@ -146,33 +147,36 @@ const Community = () => {
     fetchLikedPosts();
     fetchReactions();
 
-    // Fetch community status
     supabase.from("community_settings").select("value").eq("key", "community_status").single()
       .then(({ data }) => { if (data) setCommunityOpen(data.value === "open"); });
 
     const postsChannel = supabase
       .channel("community-posts")
-      .on("postgres_changes", { event: "*", schema: "public", table: "community_posts" }, () => {
-        fetchPosts();
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "community_posts" }, () => fetchPosts())
       .subscribe();
 
     const commentsChannel = supabase
       .channel("community-comments")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "community_comments" }, (payload) => {
-        const newComment = payload.new as Comment;
-        setComments((prev) => ({
-          ...prev,
-          [newComment.post_id]: [...(prev[newComment.post_id] || []), newComment],
-        }));
+      .on("postgres_changes", { event: "*", schema: "public", table: "community_comments" }, (payload) => {
+        if (payload.eventType === "INSERT") {
+          const newComment = payload.new as Comment;
+          setComments((prev) => ({
+            ...prev,
+            [newComment.post_id]: [...(prev[newComment.post_id] || []), newComment],
+          }));
+        } else if (payload.eventType === "DELETE") {
+          const oldComment = payload.old as { id: string; post_id: string };
+          setComments((prev) => ({
+            ...prev,
+            [oldComment.post_id]: (prev[oldComment.post_id] || []).filter(c => c.id !== oldComment.id),
+          }));
+        }
       })
       .subscribe();
 
     const reactionsChannel = supabase
       .channel("community-reactions")
-      .on("postgres_changes", { event: "*", schema: "public", table: "community_reactions" }, () => {
-        fetchReactions();
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "community_reactions" }, () => fetchReactions())
       .subscribe();
 
     const settingsChannel = supabase
@@ -191,11 +195,9 @@ const Community = () => {
     };
   }, [fetchPosts, fetchLikedPosts, fetchReactions]);
 
-  // Auto-expand textarea
   const handlePostChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     if (val.length <= 10000) setNewPost(val);
-    // Auto resize
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = textareaRef.current.scrollHeight + "px";
@@ -271,7 +273,7 @@ const Community = () => {
           .select("*")
           .eq("post_id", postId)
           .order("created_at", { ascending: true });
-        if (data) setComments((prev) => ({ ...prev, [postId]: data }));
+        if (data) setComments((prev) => ({ ...prev, [postId]: data as Comment[] }));
       }
     }
   };
@@ -279,16 +281,47 @@ const Community = () => {
   const addComment = async (postId: string) => {
     const text = commentInputs[postId]?.trim();
     if (!text) return;
-    const { error } = await supabase.from("community_comments").insert({
+    const commentName = currentUser ? currentUser.displayName : sessionId;
+    const insertData: any = {
       post_id: postId,
       content: text.slice(0, 5000),
-      anonymous_name: sessionId,
-    });
+      anonymous_name: commentName,
+    };
+    if (currentUser) {
+      insertData.author_id = currentUser.id;
+    }
+    const { error } = await supabase.from("community_comments").insert(insertData);
     if (!error) {
       await supabase.rpc("increment_comments", { post_id_input: postId });
       setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
       setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
     }
+  };
+
+  const handleCommentDelete = (postId: string, commentId: string) => {
+    setComments((prev) => ({
+      ...prev,
+      [postId]: (prev[postId] || []).filter(c => c.id !== commentId),
+    }));
+    setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: Math.max(0, p.comments_count - 1) } : p));
+  };
+
+  const handleCommentUpdate = (postId: string, commentId: string, newContent: string) => {
+    setComments((prev) => ({
+      ...prev,
+      [postId]: (prev[postId] || []).map(c => c.id === commentId ? { ...c, content: newContent } : c),
+    }));
+  };
+
+  const reportPost = async (postId: string) => {
+    await supabase.from("reported_content").insert({
+      content_id: postId,
+      content_type: "post",
+      reporter_session_id: sessionId,
+      reason: "Reported by user",
+    });
+    toast({ title: "Post reported", description: "Thank you for keeping the community safe." });
+    setReportMenuPost(null);
   };
 
   const sharePost = async (post: Post) => {
@@ -332,7 +365,6 @@ const Community = () => {
           </div>
         </div>
 
-        {/* Community Closed Banner */}
         {!communityOpen && (
           <div className="p-4 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 backdrop-blur-xl mb-6 text-center">
             <p className="text-yellow-300 text-sm font-medium">🔒 Community posting is currently closed by the admin.</p>
@@ -342,10 +374,7 @@ const Community = () => {
         {/* Composer */}
         <div className={`p-5 rounded-2xl backdrop-blur-xl border border-white/15 shadow-lg mb-6 ${!communityOpen ? "opacity-50 pointer-events-none" : ""}`} style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)" }}>
           <div className="flex gap-3">
-            <UserAvatar
-              displayName={postAnonymously ? sessionId : currentUser?.displayName}
-              size="sm"
-            />
+            <UserAvatar displayName={postAnonymously ? sessionId : currentUser?.displayName} size="sm" />
             <div className="flex-1">
               <textarea
                 ref={textareaRef}
@@ -359,10 +388,7 @@ const Community = () => {
               />
               <div className="flex justify-between items-center mt-2">
                 <div className="flex items-center gap-2">
-                  <EmojiPicker onSelect={(emoji) => {
-                    setNewPost((prev) => prev + emoji);
-                    textareaRef.current?.focus();
-                  }} />
+                  <EmojiPicker onSelect={(emoji) => { setNewPost((prev) => prev + emoji); textareaRef.current?.focus(); }} />
                   {currentUser && (
                     <button
                       onClick={() => setPostAnonymously(!postAnonymously)}
@@ -424,26 +450,48 @@ const Community = () => {
                     style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)" }}
                   >
                     {/* Post header */}
-                    <div className="flex items-center gap-3 mb-3">
-                      <UserAvatar
-                        avatarUrl={post.author_profile?.avatar_url}
-                        displayName={!post.is_anonymous && post.author_profile?.display_name ? post.author_profile.display_name : post.anonymous_name}
-                        size="sm"
-                        onClick={!post.is_anonymous && post.author_id ? () => navigate(`/profile/${post.author_id}`) : undefined}
-                      />
-                      <div>
-                        <span
-                          className={`text-sm font-semibold text-foreground ${!post.is_anonymous && post.author_id ? "cursor-pointer hover:underline" : ""}`}
-                          onClick={() => { if (!post.is_anonymous && post.author_id) navigate(`/profile/${post.author_id}`); }}
-                        >
-                          {!post.is_anonymous && post.author_profile?.display_name
-                            ? post.author_profile.display_name
-                            : post.anonymous_name}
-                        </span>
-                        {post.is_anonymous && (
-                          <span className="ml-1.5 text-[10px] text-muted-foreground/60 bg-white/5 px-1.5 py-0.5 rounded-full">anon</span>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <UserAvatar
+                          avatarUrl={post.author_profile?.avatar_url}
+                          displayName={!post.is_anonymous && post.author_profile?.display_name ? post.author_profile.display_name : post.anonymous_name}
+                          size="sm"
+                          onClick={!post.is_anonymous && post.author_id ? () => navigate(`/profile/${post.author_id}`) : undefined}
+                        />
+                        <div>
+                          <span
+                            className={`text-sm font-semibold text-foreground ${!post.is_anonymous && post.author_id ? "cursor-pointer hover:underline" : ""}`}
+                            onClick={() => { if (!post.is_anonymous && post.author_id) navigate(`/profile/${post.author_id}`); }}
+                          >
+                            {!post.is_anonymous && post.author_profile?.display_name
+                              ? post.author_profile.display_name
+                              : post.anonymous_name}
+                          </span>
+                          {post.is_anonymous && (
+                            <span className="ml-1.5 text-[10px] text-muted-foreground/60 bg-white/5 px-1.5 py-0.5 rounded-full">anon</span>
+                          )}
+                          <span className="text-xs text-muted-foreground ml-2">· {formatTime(post.created_at)}</span>
+                        </div>
+                      </div>
+
+                      {/* Post menu */}
+                      <div className="relative">
+                        <button onClick={() => setReportMenuPost(reportMenuPost === post.id ? null : post.id)} className="p-1.5 rounded-full hover:bg-white/10 transition-colors">
+                          <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+                        </button>
+                        {reportMenuPost === post.id && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setReportMenuPost(null)} />
+                            <div className="absolute right-0 top-8 z-50 bg-[#0F5132] border border-white/15 rounded-xl shadow-xl overflow-hidden min-w-[160px]">
+                              <button
+                                onClick={() => reportPost(post.id)}
+                                className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-yellow-400 hover:bg-white/10 transition-colors"
+                              >
+                                <Flag className="w-3.5 h-3.5" /> Report Post
+                              </button>
+                            </div>
+                          </>
                         )}
-                        <span className="text-xs text-muted-foreground ml-2">· {formatTime(post.created_at)}</span>
                       </div>
                     </div>
 
@@ -507,18 +555,15 @@ const Community = () => {
                           exit={{ height: 0, opacity: 0 }}
                           className="overflow-hidden"
                         >
-                          <div className="mt-4 pt-3 border-t border-white/5 space-y-3">
+                          <div className="mt-4 pt-3 border-t border-white/5 space-y-2.5">
                             {postComments.map((c) => (
-                              <div key={c.id} className="flex gap-2.5 pl-2">
-                              <UserAvatar displayName={c.anonymous_name} size="xs" />
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs font-semibold text-foreground">{c.anonymous_name}</span>
-                                    <span className="text-[10px] text-muted-foreground">{formatTime(c.created_at)}</span>
-                                  </div>
-                                  <p className="text-xs text-foreground/80 mt-0.5 break-words">{c.content}</p>
-                                </div>
-                              </div>
+                              <CommentCard
+                                key={c.id}
+                                comment={c}
+                                currentUserId={currentUser?.id}
+                                onDelete={(commentId) => handleCommentDelete(post.id, commentId)}
+                                onUpdate={(commentId, newContent) => handleCommentUpdate(post.id, commentId, newContent)}
+                              />
                             ))}
                             {postComments.length === 0 && (
                               <p className="text-xs text-muted-foreground text-center py-2">No comments yet</p>
