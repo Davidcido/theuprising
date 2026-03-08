@@ -94,7 +94,26 @@ const Community = () => {
       .from("community_posts")
       .select("*")
       .order("created_at", { ascending: false });
-    if (!error && data) setPosts(data);
+    if (!error && data) {
+      // Enrich with author profiles
+      const authorIds = [...new Set(data.filter((p: any) => p.author_id).map((p: any) => p.author_id))];
+      let profilesMap: Record<string, { display_name: string | null; avatar_url: string }> = {};
+      if (authorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, display_name, avatar_url")
+          .in("user_id", authorIds);
+        if (profiles) {
+          for (const p of profiles) {
+            profilesMap[p.user_id] = { display_name: p.display_name, avatar_url: p.avatar_url };
+          }
+        }
+      }
+      setPosts(data.map((p: any) => ({
+        ...p,
+        author_profile: p.author_id ? profilesMap[p.author_id] || null : null,
+      })));
+    }
     setLoading(false);
   }, []);
 
