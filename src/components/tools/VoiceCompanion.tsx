@@ -855,8 +855,6 @@ Never expose the English interpretation to the user — always reply fully in Ha
     ? "Listening..."
     : muted
     ? "Muted"
-    : phase === "cooldown"
-    ? "Getting ready..."
     : "Ready";
 
   return (
