@@ -1,6 +1,18 @@
 import { supabase } from "@/integrations/supabase/client";
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+let cachedPublicKey: string | null = null;
+
+async function getVapidPublicKey(): Promise<string | null> {
+  if (cachedPublicKey) return cachedPublicKey;
+  try {
+    const { data, error } = await supabase.functions.invoke("get-vapid-key");
+    if (error || !data?.publicKey) return null;
+    cachedPublicKey = data.publicKey;
+    return cachedPublicKey;
+  } catch {
+    return null;
+  }
+}
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -19,16 +31,17 @@ export async function registerPushSubscription(): Promise<boolean> {
     return false;
   }
 
-  if (!VAPID_PUBLIC_KEY) {
-    console.warn("VAPID public key not configured");
-    return false;
-  }
-
   try {
     // Request permission
     const permission = await Notification.requestPermission();
     if (permission !== "granted") {
       console.log("Notification permission denied");
+      return false;
+    }
+
+    const vapidPublicKey = await getVapidPublicKey();
+    if (!vapidPublicKey) {
+      console.warn("VAPID public key not available");
       return false;
     }
 
@@ -41,9 +54,9 @@ export async function registerPushSubscription(): Promise<boolean> {
 
     if (!subscription) {
       subscription = await registration.pushManager.subscribe({
-        userActivated: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      } as any);
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+      });
     }
 
     // Get current user
@@ -62,6 +75,7 @@ export async function registerPushSubscription(): Promise<boolean> {
       { onConflict: "user_id,endpoint" }
     );
 
+    console.log("Push subscription registered successfully");
     return true;
   } catch (error) {
     console.error("Push subscription failed:", error);
