@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import UserAvatar from "@/components/UserAvatar";
 import { useConversations, useMessages, type DirectMessage } from "@/hooks/useConversations";
 import { useMessageReactions } from "@/hooks/useMessageReactions";
-import { useCallSignaling } from "@/hooks/useCallSignaling";
+import { useCallSignaling, type CallEvent } from "@/hooks/useCallSignaling";
 import { useBlocks } from "@/hooks/useBlocks";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { formatDistanceToNow } from "date-fns";
