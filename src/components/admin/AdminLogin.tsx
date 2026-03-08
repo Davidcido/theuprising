@@ -35,6 +35,9 @@ const AdminLogin = ({ isAuthenticated, isAdmin, onLogin, onLogout, error: authEr
           )}
         </CardHeader>
         <CardContent>
+          {authError && (
+            <p className="text-red-400 text-sm mb-4 text-center">{authError}</p>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
               type="email"
