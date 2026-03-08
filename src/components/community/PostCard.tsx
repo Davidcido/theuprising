@@ -162,14 +162,39 @@ const PostCard = ({
           {reportMenuPost === post.id && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => onSetReportMenu(null)} />
-              <div className="absolute right-0 top-8 z-50 bg-card border border-white/15 rounded-xl shadow-xl overflow-hidden min-w-[160px]">
-                <button
-                  onClick={() => onReport(post.id)}
-                  className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-yellow-400 hover:bg-white/10 transition-colors"
-                >
-                  <Flag className="w-3.5 h-3.5" /> Report Post
-                </button>
-              </div>
+               <div className="absolute right-0 top-8 z-50 bg-card border border-white/15 rounded-xl shadow-xl overflow-hidden min-w-[160px]">
+                 <button
+                   onClick={() => onReport(post.id)}
+                   className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-yellow-400 hover:bg-white/10 transition-colors"
+                 >
+                   <Flag className="w-3.5 h-3.5" /> Report Post
+                 </button>
+                 {onToggleBookmark && (
+                   <button
+                     onClick={() => { onToggleBookmark(post.id); onSetReportMenu(null); }}
+                     className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-foreground hover:bg-white/10 transition-colors"
+                   >
+                     <Bookmark className="w-3.5 h-3.5" fill={isBookmarked ? "currentColor" : "none"} />
+                     {isBookmarked ? "Remove Bookmark" : "Bookmark"}
+                   </button>
+                 )}
+                 {isOwnPost && onPinPost && !isPinned && (
+                   <button
+                     onClick={() => { onPinPost(post.id); onSetReportMenu(null); }}
+                     className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-amber-400 hover:bg-white/10 transition-colors"
+                   >
+                     <Pin className="w-3.5 h-3.5" /> Pin to Profile
+                   </button>
+                 )}
+                 {isOwnPost && isPinned && onUnpinPost && (
+                   <button
+                     onClick={() => { onUnpinPost(); onSetReportMenu(null); }}
+                     className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-muted-foreground hover:bg-white/10 transition-colors"
+                   >
+                     <Pin className="w-3.5 h-3.5" /> Unpin
+                   </button>
+                 )}
+               </div>
             </>
           )}
         </div>
