@@ -150,6 +150,7 @@ export const useAdminData = () => {
 
   return {
     posts, comments, reports, bannedUsers, communityStatus, totalLikes,
+    loginSessions, loginsToday,
     dataLoading, dataError,
     fetchAllData, deletePost, deleteComment, updateReportStatus,
     banUser, unbanUser, toggleCommunityStatus,
