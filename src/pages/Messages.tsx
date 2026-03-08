@@ -42,7 +42,7 @@ const Messages = () => {
   }, []);
 
   const { conversations, loading: convsLoading } = useConversations(userId);
-  const { messages, loading: msgsLoading, sendMessage } = useMessages(conversationId, userId);
+  const { messages, loading: msgsLoading, sendMessage, editMessage, deleteForMe, deleteForEveryone } = useMessages(conversationId, userId);
   const { callState, incomingCall, activeCallType, localMediaStream, remoteMediaStream, startCall, acceptCall, rejectCall, endCall } = useCallSignaling(userId);
   const { isBlocked, blockUser, unblockUser } = useBlocks(userId);
   const { isOtherTyping, typingUserName, sendTyping } = useTypingIndicator(conversationId, userId);
