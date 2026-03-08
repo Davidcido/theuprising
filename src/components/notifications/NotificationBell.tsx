@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Bell, Check, CheckCheck, UserPlus, Heart, MessageCircle, Mail } from "lucide-react";
+import { Bell, Check, CheckCheck, UserPlus, Heart, MessageCircle, Mail, Repeat2, Sparkles } from "lucide-react";
 import { useNotifications } from "@/hooks/useNotifications";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
