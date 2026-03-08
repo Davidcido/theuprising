@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Send } from "lucide-react";
+import { Send, Brain } from "lucide-react";
 import EmojiPicker from "@/components/EmojiPicker";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
@@ -197,6 +197,12 @@ const Chat = () => {
               {isTyping ? "typing..." : "Your safe space to talk"}
             </p>
           </div>
+          {memoryEnabled && (
+            <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/20 border border-primary/30">
+              <Brain className="w-3 h-3 text-primary" />
+              <span className="text-xs text-primary font-medium">Memory Enabled</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -248,7 +254,9 @@ const Chat = () => {
       {/* Privacy notice */}
       <div className="px-4 py-1">
         <p className="text-center text-xs text-muted-foreground/50">
-          🔒 Your conversation is private and anonymous. No personal data is stored.
+          {memoryEnabled
+            ? "💚 Memory is on — I'll remember helpful details to support you better."
+            : "🔒 Your conversation is private. No personal data is stored."}
         </p>
       </div>
 
@@ -272,12 +280,13 @@ const Chat = () => {
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Share what's on your mind..."
-              className="flex-1 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-white/30"
+              placeholder={showMemoryChoice ? "Please choose a memory option above..." : "Share what's on your mind..."}
+              disabled={!!showMemoryChoice}
+              className="flex-1 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-white/30 disabled:opacity-50"
             />
             <button
               type="submit"
-              disabled={!input.trim() || isTyping}
+              disabled={!input.trim() || isTyping || !!showMemoryChoice}
               className="rounded-2xl px-4 py-3 text-white hover:opacity-90 transition-opacity disabled:opacity-40 shadow-lg"
               style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
             >
