@@ -22,6 +22,7 @@ import ProtectedRoute from "./components/auth/ProtectedRoute";
 import { trackVisit } from "./lib/trackLogin";
 import { registerPushSubscription } from "./lib/pushNotifications";
 import { supabase } from "./integrations/supabase/client";
+import InstallPrompt from "./components/pwa/InstallPrompt";
 
 const queryClient = new QueryClient();
 
