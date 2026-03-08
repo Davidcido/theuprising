@@ -357,6 +357,8 @@ export type Database = {
           content: string
           conversation_id: string
           created_at: string
+          deleted_for_everyone: boolean
+          edited_at: string | null
           id: string
           read: boolean
           reply_to_message_id: string | null
@@ -368,6 +370,8 @@ export type Database = {
           content: string
           conversation_id: string
           created_at?: string
+          deleted_for_everyone?: boolean
+          edited_at?: string | null
           id?: string
           read?: boolean
           reply_to_message_id?: string | null
@@ -379,6 +383,8 @@ export type Database = {
           content?: string
           conversation_id?: string
           created_at?: string
+          deleted_for_everyone?: boolean
+          edited_at?: string | null
           id?: string
           read?: boolean
           reply_to_message_id?: string | null
@@ -448,6 +454,35 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      message_hidden_for_user: {
+        Row: {
+          created_at: string
+          id: string
+          message_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_hidden_for_user_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "direct_messages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notifications: {
         Row: {
