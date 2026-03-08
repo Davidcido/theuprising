@@ -342,9 +342,10 @@ const Community = () => {
         {/* Composer */}
         <div className={`p-5 rounded-2xl backdrop-blur-xl border border-white/15 shadow-lg mb-6 ${!communityOpen ? "opacity-50 pointer-events-none" : ""}`} style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)" }}>
           <div className="flex gap-3">
-            <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xs font-bold shrink-0">
-              {sessionId.slice(0, 2)}
-            </div>
+            <UserAvatar
+              displayName={postAnonymously ? sessionId : currentUser?.displayName}
+              size="sm"
+            />
             <div className="flex-1">
               <textarea
                 ref={textareaRef}
