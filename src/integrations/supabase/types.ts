@@ -417,6 +417,27 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_rise_content: {
+        Row: {
+          cards: Json
+          content_date: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          cards?: Json
+          content_date: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          cards?: Json
+          content_date?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: []
+      }
       direct_messages: {
         Row: {
           attachment_type: string | null
