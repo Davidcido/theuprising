@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, MessageCircle, Repeat2, Send, ChevronDown, ChevronUp, Flag, MoreHorizontal, Eye } from "lucide-react";
+import { Heart, MessageCircle, Repeat2, Send, ChevronDown, ChevronUp, Flag, MoreHorizontal, Eye, Share2 } from "lucide-react";
 import UserAvatar from "@/components/UserAvatar";
 import { formatDistanceToNow } from "date-fns";
 import EmojiPicker from "@/components/EmojiPicker";
@@ -207,12 +207,15 @@ const PostCard = ({
           <Repeat2 className="w-4 h-4" />
           <span className="text-xs">{post.shares_count}</span>
         </motion.button>
+        <div className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-sm text-muted-foreground">
+          <Eye className="w-4 h-4" />
+          <span className="text-xs">{formatCount(post.views_count ?? 0)}</span>
+        </div>
         <button
           onClick={() => onShare(post)}
           className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all"
         >
-          <Eye className="w-4 h-4" />
-          <span className="text-xs">Share</span>
+          <Share2 className="w-4 h-4" />
         </button>
       </div>
 
