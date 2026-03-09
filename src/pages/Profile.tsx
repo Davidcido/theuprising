@@ -149,24 +149,13 @@ const Profile = () => {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
-      </div>
-    );
+    return <ProfileSkeleton />;
   }
 
   if (!profile) {
-    // For own profile, attempt auto-creation instead of showing error
     if (isOwnProfile && currentUserId) {
-      return (
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="flex flex-col items-center gap-3">
-            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
-            <p className="text-muted-foreground text-sm">Setting up your profile…</p>
-          </div>
-        </div>
-      );
+      // Profile is being auto-created by trigger — show skeleton briefly
+      return <ProfileSkeleton />;
     }
     return (
       <div className="min-h-screen flex items-center justify-center">
