@@ -20,7 +20,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     );
   }
 
-  if (!session) {
+  if (!user) {
     return (
       <>
         <div className="min-h-screen flex items-center justify-center py-20">
