@@ -1135,41 +1135,42 @@ const Community = () => {
           <div className="space-y-3">
             <AnimatePresence mode="popLayout">
               {visiblePosts.map((post) => (
-                <PostCard
-                  key={post.id}
-                  post={post}
-                  isLiked={likedPosts.has(post.id)}
-                  isExpanded={expandedComments.has(post.id)}
-                  postComments={comments[post.id] || []}
-                  reactionCounts={reactionCountsMap[post.id] || {}}
-                  myReactions={myReactions}
-                  commentInput={commentInputs[post.id] || ""}
-                  currentUserId={currentUser?.id}
-                  currentUserName={currentUser?.displayName}
-                  communityOpen={communityOpen}
-                  reportMenuPost={reportMenuPost}
-                  commentReactionCounts={getCommentReactionCounts}
-                  myCommentReactions={myCommentReactions}
-                  onToggleLike={toggleLike}
-                  onToggleReaction={toggleReaction}
-                  onToggleComments={toggleComments}
-                  onShare={sharePost}
-                  onRepost={(p) => setRepostDialogPost(p)}
-                  onReport={reportPost}
-                  onSetReportMenu={setReportMenuPost}
-                  onCommentInputChange={(pid, val) => setCommentInputs(prev => ({ ...prev, [pid]: val }))}
-                  onAddComment={addComment}
-                  onAddReply={addReply}
-                  onCommentDelete={handleCommentDelete}
-                  onCommentUpdate={handleCommentUpdate}
-                  onNavigate={navigate}
-                  onToggleCommentReaction={toggleCommentReaction}
-                  isBookmarked={isBookmarked(post.id)}
-                  onToggleBookmark={toggleBookmark}
-                  isOwnPost={post.author_id === currentUser?.id}
-                  onDeletePost={handleDeletePost}
-                  onEditPost={handleEditPost}
-                />
+                <PostViewObserver key={post.id} postId={post.id} onView={trackView}>
+                  <PostCard
+                    post={post}
+                    isLiked={likedPosts.has(post.id)}
+                    isExpanded={expandedComments.has(post.id)}
+                    postComments={comments[post.id] || []}
+                    reactionCounts={reactionCountsMap[post.id] || {}}
+                    myReactions={myReactions}
+                    commentInput={commentInputs[post.id] || ""}
+                    currentUserId={currentUser?.id}
+                    currentUserName={currentUser?.displayName}
+                    communityOpen={communityOpen}
+                    reportMenuPost={reportMenuPost}
+                    commentReactionCounts={getCommentReactionCounts}
+                    myCommentReactions={myCommentReactions}
+                    onToggleLike={toggleLike}
+                    onToggleReaction={toggleReaction}
+                    onToggleComments={toggleComments}
+                    onShare={sharePost}
+                    onRepost={(p) => setRepostDialogPost(p)}
+                    onReport={reportPost}
+                    onSetReportMenu={setReportMenuPost}
+                    onCommentInputChange={(pid, val) => setCommentInputs(prev => ({ ...prev, [pid]: val }))}
+                    onAddComment={addComment}
+                    onAddReply={addReply}
+                    onCommentDelete={handleCommentDelete}
+                    onCommentUpdate={handleCommentUpdate}
+                    onNavigate={navigate}
+                    onToggleCommentReaction={toggleCommentReaction}
+                    isBookmarked={isBookmarked(post.id)}
+                    onToggleBookmark={toggleBookmark}
+                    isOwnPost={post.author_id === currentUser?.id}
+                    onDeletePost={handleDeletePost}
+                    onEditPost={handleEditPost}
+                  />
+                </PostViewObserver>
               ))}
             </AnimatePresence>
 
