@@ -60,6 +60,7 @@ export const useProfile = (userId?: string) => {
           setProfile(p);
           profileCache.set(userId, { profile: p, ts: Date.now() });
         }
+      }
     } catch {
       // On timeout or error, don't block the page
       console.warn("Profile fetch failed or timed out for", userId);
