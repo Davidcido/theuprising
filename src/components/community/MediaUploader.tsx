@@ -216,7 +216,6 @@ const MediaUploader = ({ mediaFiles, onMediaChange, maxFiles = 4, disabled }: Me
         updateJob(jobId, { state });
 
         if (state.status === "done" && state.publicUrl) {
-          // Add to completed media
           const newMedia: MediaFile = {
             url: state.publicUrl,
             type: isVideo ? "video" : "image",
@@ -224,8 +223,7 @@ const MediaUploader = ({ mediaFiles, onMediaChange, maxFiles = 4, disabled }: Me
             duration,
             size: uploadFile.size,
           };
-          onMediaChange([...mediaFiles, newMedia]);
-          // Remove job after brief delay
+          onMediaChangeRef.current([...mediaFilesRef.current, newMedia]);
           setTimeout(() => {
             setActiveJobs(prev => prev.filter(j => j.id !== jobId));
           }, 1000);
