@@ -151,7 +151,7 @@ export const useMessages = (conversationId?: string, userId?: string) => {
   }, [userId, conversationId]);
 
   const fetchMessages = useCallback(async () => {
-    if (!conversationId) { setLoading(false); return; }
+    if (!conversationId) { setMessages([]); setLoading(false); return; }
     const { data } = await supabase
       .from("direct_messages")
       .select("*")
@@ -159,6 +159,12 @@ export const useMessages = (conversationId?: string, userId?: string) => {
       .order("created_at", { ascending: true });
     if (data) setMessages(data as DirectMessage[]);
     setLoading(false);
+  }, [conversationId]);
+
+  // Clear messages immediately when conversation changes to prevent mixing
+  useEffect(() => {
+    setMessages([]);
+    setLoading(true);
   }, [conversationId]);
 
   useEffect(() => {
