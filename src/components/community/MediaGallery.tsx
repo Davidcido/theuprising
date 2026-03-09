@@ -44,19 +44,7 @@ const MediaGallery = ({ mediaUrls, compact }: MediaGalleryProps) => {
             onClick={() => setLightboxIndex(i)}
           >
             {isVideo(url) ? (
-              <>
-                <video
-                  src={url}
-                  className={`w-full object-cover ${compact ? "h-32" : "h-48"}`}
-                  muted
-                  loop
-                  autoPlay
-                  playsInline
-                />
-                <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                  <Play className="w-8 h-8 text-white/80" fill="white" />
-                </div>
-              </>
+              <LazyVideo url={url} compact={compact} />
             ) : (
               <img
                 src={url}
