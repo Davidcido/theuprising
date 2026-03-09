@@ -277,7 +277,11 @@ const Community = () => {
         const newPost = payload.new as any;
         const enriched = await enrichPosts([newPost]);
         if (enriched.length > 0) {
-          setAllPosts(prev => [enriched[0], ...prev]);
+          setAllPosts(prev => {
+            // Skip if we already have this post (from instant publish)
+            if (prev.some(p => p.id === enriched[0].id)) return prev;
+            return [enriched[0], ...prev];
+          });
         }
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "community_posts" }, (payload) => {
