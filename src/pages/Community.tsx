@@ -162,14 +162,13 @@ const Community = () => {
     const to = from + POSTS_PER_PAGE - 1;
 
     try {
-      const { data, error } = await withTimeout(
-        supabase
-          .from("community_posts")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .range(from, to),
-        8000
-      );
+      const queryPromise = supabase
+        .from("community_posts")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .range(from, to)
+        .then(res => res);
+      const { data, error } = await withTimeout(queryPromise, 8000);
 
       if (error) throw error;
       if (!data) throw new Error("No data");
