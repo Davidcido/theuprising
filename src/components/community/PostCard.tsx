@@ -479,4 +479,4 @@ const PostCard = ({
   );
 };
 
-export default PostCard;
+export default memo(PostCard);
