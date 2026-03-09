@@ -1137,6 +1137,7 @@ const Community = () => {
         }}
         userName={currentUser?.displayName || sessionId}
       />
+      <AuthModal open={authOpen} onOpenChange={setAuthOpen} />
     </div>
   );
 };
