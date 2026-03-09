@@ -474,7 +474,7 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
           )}
 
           {/* Text content */}
-          {!(msgAny.attachment_url && (msg.content === "📷 Image" || msg.content === "🎤 Voice note")) && (
+          {!(msgAny.attachment_url && (msg.content === "📷 Image" || msg.content === "🎤 Voice note" || msg.content === "🎬 Video")) && (
             <p className="whitespace-pre-wrap break-words">{msg.content}</p>
           )}
           <div className="flex items-center gap-1.5 mt-1 justify-end">
