@@ -284,9 +284,6 @@ const Messages = () => {
   if (!conversationId) {
     return (
       <div className="min-h-screen py-12 pb-24">
-        {incomingCall && callState === "ringing" && (
-          <IncomingCallModal signal={incomingCall} onAccept={acceptCall} onReject={rejectCall} />
-        )}
         <div className="container mx-auto px-4 max-w-2xl">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <h1 className="text-2xl font-display font-bold text-foreground mb-6 flex items-center gap-2">
