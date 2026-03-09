@@ -96,6 +96,9 @@ const Community = () => {
   const [myCommentReactions, setMyCommentReactions] = useState<Set<string>>(new Set());
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
+  const [showFirstPostCelebration, setShowFirstPostCelebration] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
