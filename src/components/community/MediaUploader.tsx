@@ -2,6 +2,8 @@ import { useState, useRef } from "react";
 import { Image, X, Loader2, Play, Pause, RotateCcw, FileVideo } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "@/components/ui/progress";
+import { compressVideoFile, shouldCompress } from "@/lib/videoCompression";
+import { Progress } from "@/components/ui/progress";
 
 interface MediaFile {
   url: string;
