@@ -1,5 +1,6 @@
-import { useState, memo } from "react";
+import { useState, memo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import LikesModal from "@/components/community/LikesModal";
 import { Heart, MessageCircle, Repeat2, Send, ChevronDown, ChevronUp, Flag, MoreHorizontal, Eye, Share2, Bookmark, Pin, Trash2, Pencil } from "lucide-react";
 import UserAvatar from "@/components/UserAvatar";
 import { formatDistanceToNow } from "date-fns";

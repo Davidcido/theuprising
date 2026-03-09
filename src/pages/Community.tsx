@@ -705,7 +705,7 @@ const Community = () => {
     } else {
       setLikedPosts((prev) => new Set(prev).add(postId));
       setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, likes_count: p.likes_count + 1 } : p));
-      await supabase.from("community_likes").insert({ post_id: postId, session_id: sessionId });
+      await supabase.from("community_likes").insert({ post_id: postId, session_id: sessionId, liker_user_id: currentUser?.id || null } as any);
       await supabase.rpc("increment_likes", { post_id_input: postId });
       if (currentUser && post?.author_id && post.author_id !== currentUser.id) {
         createNotification(post.author_id, currentUser.id, "like", "liked your post", postId);
