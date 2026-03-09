@@ -430,56 +430,171 @@ const Community = () => {
     }
   };
 
+  const updatePendingMedia = useCallback((postId: string, mediaId: string, update: Partial<PendingMedia>) => {
+    setAllPosts(prev => prev.map(p => {
+      if (p.id !== postId || !p._pendingMedia) return p;
+      return { ...p, _pendingMedia: p._pendingMedia.map(pm => pm.id === mediaId ? { ...pm, ...update } : pm) };
+    }));
+  }, []);
+
+  const cancelPendingUpload = useCallback((postId: string, mediaId: string) => {
+    const ctrl = bgUploadControllersRef.current.get(mediaId);
+    if (ctrl) { ctrl.abort(); bgUploadControllersRef.current.delete(mediaId); }
+    setAllPosts(prev => prev.map(p => {
+      if (p.id !== postId || !p._pendingMedia) return p;
+      const remaining = p._pendingMedia.filter(pm => pm.id !== mediaId);
+      return { ...p, _pendingMedia: remaining.length > 0 ? remaining : undefined };
+    }));
+  }, []);
+
+  const startBackgroundUpload = useCallback(async (postId: string, mediaId: string, file: File, type: "image" | "video", previewUrl: string) => {
+    let uploadFile = file;
+
+    // Compress video if needed
+    if (type === "video" && shouldCompress(file)) {
+      updatePendingMedia(postId, mediaId, { status: "compressing", message: "Optimizing video...", progress: 0 });
+      try {
+        uploadFile = await compressVideoFile(file, {
+          maxDimension: 1920,
+          onProgress: (p) => updatePendingMedia(postId, mediaId, { progress: p, message: `Optimizing video... ${p}%` }),
+        });
+      } catch {
+        // use original on failure
+      }
+    }
+
+    updatePendingMedia(postId, mediaId, { status: "uploading", message: "Uploading video...", progress: 0 });
+
+    const controller = uploadFileWithProgress("community-media", uploadFile, (state) => {
+      if (state.status === "uploading") {
+        updatePendingMedia(postId, mediaId, { progress: state.progress, message: `Uploading... ${state.progress}%` });
+      } else if (state.status === "done" && state.publicUrl) {
+        // Move from pending to media_urls
+        setAllPosts(prev => prev.map(p => {
+          if (p.id !== postId) return p;
+          const newMediaUrls = [...(p.media_urls || []), state.publicUrl!];
+          const remaining = (p._pendingMedia || []).filter(pm => pm.id !== mediaId);
+          const updated = {
+            ...p,
+            media_urls: newMediaUrls,
+            _pendingMedia: remaining.length > 0 ? remaining : undefined,
+          };
+          // Update the DB post with the new URL
+          supabase.from("community_posts").update({ media_urls: newMediaUrls }).eq("id", postId);
+          return updated;
+        }));
+        bgUploadControllersRef.current.delete(mediaId);
+      } else if (state.status === "error") {
+        updatePendingMedia(postId, mediaId, { status: "error", message: "Upload failed. Tap to retry.", progress: 0 });
+        bgUploadControllersRef.current.delete(mediaId);
+      } else if (state.status === "cancelled") {
+        cancelPendingUpload(postId, mediaId);
+      }
+    });
+
+    bgUploadControllersRef.current.set(mediaId, controller);
+  }, [updatePendingMedia, cancelPendingUpload]);
+
+  const retryPendingUpload = useCallback((postId: string, mediaId: string) => {
+    // Find the pending media info from the post
+    const post = allPosts.find(p => p.id === postId);
+    const pm = post?._pendingMedia?.find(m => m.id === mediaId);
+    if (!pm) return;
+    // We need the original file — store it in a ref
+    const fileEntry = pendingFilesRef.current.get(mediaId);
+    if (!fileEntry) return;
+    startBackgroundUpload(postId, mediaId, fileEntry.file, fileEntry.type, pm.previewUrl);
+  }, [allPosts, startBackgroundUpload]);
+
+  const pendingFilesRef = useRef<Map<string, { file: File; type: "image" | "video" }>>(new Map());
+
   const addPost = async () => {
     if ((!newPost.trim() && mediaFiles.length === 0) || posting) return;
     setPosting(true);
-    
-    const optimisticId = `optimistic-${Date.now()}`;
-    const optimisticPost: Post = {
-      id: optimisticId,
-      content: newPost.trim().slice(0, 10000),
-      anonymous_name: postAnonymously ? sessionId : (currentUser?.displayName || sessionId),
-      likes_count: 0,
-      comments_count: 0,
-      shares_count: 0,
-      views_count: 0,
-      created_at: new Date().toISOString(),
-      author_id: !postAnonymously && currentUser ? currentUser.id : null,
-      is_anonymous: postAnonymously,
-      media_urls: mediaFiles.map(m => m.url),
-      _optimistic: true,
-    };
-    
-    // Add optimistic post immediately at top
-    setAllPosts(prev => [optimisticPost, ...prev]);
+
     const savedContent = newPost;
     const savedMedia = [...mediaFiles];
     setNewPost("");
     setMediaFiles([]);
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-    
+
+    // Separate already-uploaded media (images uploaded by MediaUploader) from videos that need background upload
+    const readyUrls: string[] = [];
+    const pendingMedia: PendingMedia[] = [];
+    const filesToUpload: { id: string; file: File; type: "image" | "video"; previewUrl: string }[] = [];
+
+    for (const m of savedMedia) {
+      if (m.type === "video" && m.file) {
+        const id = `pm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const previewUrl = URL.createObjectURL(m.file);
+        pendingMedia.push({
+          id,
+          type: "video",
+          previewUrl,
+          progress: 0,
+          status: "compressing",
+          message: "Preparing...",
+        });
+        filesToUpload.push({ id, file: m.file, type: "video", previewUrl });
+        pendingFilesRef.current.set(id, { file: m.file, type: "video" });
+      } else {
+        readyUrls.push(m.url);
+      }
+    }
+
+    // Insert the post into DB immediately (with only ready media URLs)
     const insertData: any = {
       content: savedContent.trim().slice(0, 10000) || "",
       anonymous_name: postAnonymously ? sessionId : (currentUser?.displayName || sessionId),
       is_anonymous: postAnonymously,
-      media_urls: savedMedia.map(m => m.url),
+      media_urls: readyUrls,
     };
     if (!postAnonymously && currentUser) {
       insertData.author_id = currentUser.id;
     }
-    const { error } = await supabase.from("community_posts").insert(insertData);
-    if (error) {
-      // Remove optimistic post on error
-      setAllPosts(prev => prev.filter(p => p.id !== optimisticId));
+
+    const { data: insertedPost, error } = await supabase
+      .from("community_posts")
+      .insert(insertData)
+      .select()
+      .single();
+
+    if (error || !insertedPost) {
       setNewPost(savedContent);
       setMediaFiles(savedMedia);
       toast({ title: "Error", description: "Could not post. Try again.", variant: "destructive" });
-    } else {
-      // Remove optimistic post (realtime will add the real one)
-      setAllPosts(prev => prev.filter(p => p.id !== optimisticId));
-      toast({ title: "Post published successfully! 🎉" });
+      setPosting(false);
+      return;
     }
+
+    // Create the post object for the feed with pending media
+    const postId = insertedPost.id;
+    const newPostObj: Post = {
+      id: postId,
+      content: insertedPost.content,
+      anonymous_name: insertedPost.anonymous_name,
+      likes_count: 0,
+      comments_count: 0,
+      shares_count: 0,
+      views_count: 0,
+      created_at: insertedPost.created_at,
+      author_id: insertedPost.author_id,
+      is_anonymous: insertedPost.is_anonymous,
+      media_urls: readyUrls,
+      author_profile: currentUser && !postAnonymously ? { display_name: currentUser.displayName, avatar_url: "" } : null,
+      _pendingMedia: pendingMedia.length > 0 ? pendingMedia : undefined,
+      _onCancelUpload: (mediaId: string) => cancelPendingUpload(postId, mediaId),
+      _onRetryUpload: (mediaId: string) => retryPendingUpload(postId, mediaId),
+    };
+
+    setAllPosts(prev => [newPostObj, ...prev.filter(p => p.id !== postId)]);
+    toast({ title: pendingMedia.length > 0 ? "Post published! Video uploading..." : "Post published successfully! 🎉" });
     setPosting(false);
+
+    // Start background uploads
+    for (const item of filesToUpload) {
+      startBackgroundUpload(postId, item.id, item.file, item.type, item.previewUrl);
+    }
   };
 
   const handleDeletePost = async (postId: string) => {
