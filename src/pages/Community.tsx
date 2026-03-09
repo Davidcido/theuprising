@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Shield, Eye, EyeOff, Sparkles, Users, TrendingUp, RefreshCw, Bookmark, FileText } from "lucide-react";
+import { Send, Shield, Eye, EyeOff, Sparkles, Users, TrendingUp, RefreshCw, Bookmark, FileText, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import UserAvatar from "@/components/UserAvatar";
 import { toast } from "@/hooks/use-toast";
@@ -17,6 +17,11 @@ import MediaUploader from "@/components/community/MediaUploader";
 import SuggestedUsers from "@/components/community/SuggestedUsers";
 import { useBookmarks } from "@/hooks/useBookmarks";
 import { useDrafts } from "@/hooks/useDrafts";
+import WelcomePrompt from "@/components/community/WelcomePrompt";
+import ActivityBanner from "@/components/community/ActivityBanner";
+import AuthModal from "@/components/auth/AuthModal";
+import { Button } from "@/components/ui/button";
+import { withTimeout } from "@/lib/apiHelpers";
 
 type FeedTab = "foryou" | "following" | "trending";
 
@@ -84,6 +89,8 @@ const Community = () => {
   const bgUploadControllersRef = useRef<Map<string, UploadController>>(new Map());
   const [commentReactions, setCommentReactions] = useState<Record<string, { emoji: string; session_id: string }[]>>({});
   const [myCommentReactions, setMyCommentReactions] = useState<Set<string>>(new Set());
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -150,62 +157,82 @@ const Community = () => {
 
   const fetchPosts = useCallback(async (loadMore = false) => {
     if (loadMore) setLoadingMore(true);
+    setFetchError(null);
     const from = loadMore ? allPosts.length : 0;
     const to = from + POSTS_PER_PAGE - 1;
 
-    const { data, error } = await supabase
-      .from("community_posts")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .range(from, to);
+    try {
+      const { data, error } = await withTimeout(
+        supabase
+          .from("community_posts")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .range(from, to),
+        8000
+      );
 
-    if (!error && data) {
+      if (error) throw error;
+      if (!data) throw new Error("No data");
+
       const enriched = await enrichPosts(data);
       if (loadMore) {
         setAllPosts(prev => [...prev, ...enriched]);
       } else {
-        const { data: reposts } = await supabase
-          .from("community_reposts")
-          .select("*")
-          .is("quote_content", null)
-          .order("created_at", { ascending: false })
-          .limit(50);
+        let directRepostPosts: Post[] = [];
+        try {
+          const { data: reposts } = await withTimeout(
+            supabase
+              .from("community_reposts")
+              .select("*")
+              .is("quote_content", null)
+              .order("created_at", { ascending: false })
+              .limit(50),
+            5000
+          );
 
-        const directRepostPosts: Post[] = [];
-        if (reposts && reposts.length > 0) {
-          const postsMap: Record<string, any> = {};
-          for (const p of enriched) postsMap[p.id] = p;
-          const reposterIds = [...new Set(reposts.map(r => r.user_id))];
-          let reposterProfiles: Record<string, string> = {};
-          if (reposterIds.length > 0) {
-            const { data: rProfiles } = await supabase
-              .from("profiles")
-              .select("user_id, display_name")
-              .in("user_id", reposterIds);
-            if (rProfiles) {
-              for (const rp of rProfiles) reposterProfiles[rp.user_id] = rp.display_name || "Someone";
+          if (reposts && reposts.length > 0) {
+            const postsMap: Record<string, any> = {};
+            for (const p of enriched) postsMap[p.id] = p;
+            const reposterIds = [...new Set(reposts.map(r => r.user_id))];
+            let reposterProfiles: Record<string, string> = {};
+            if (reposterIds.length > 0) {
+              const { data: rProfiles } = await supabase
+                .from("profiles")
+                .select("user_id, display_name")
+                .in("user_id", reposterIds);
+              if (rProfiles) {
+                for (const rp of rProfiles) reposterProfiles[rp.user_id] = rp.display_name || "Someone";
+              }
+            }
+            for (const r of reposts) {
+              const original = postsMap[r.original_post_id];
+              if (original) {
+                directRepostPosts.push({
+                  ...original,
+                  id: `repost-${r.id}`,
+                  created_at: r.created_at,
+                  reposted_by_name: reposterProfiles[r.user_id] || "Someone",
+                });
+              }
             }
           }
-          for (const r of reposts) {
-            const original = postsMap[r.original_post_id];
-            if (original) {
-              directRepostPosts.push({
-                ...original,
-                id: `repost-${r.id}`,
-                created_at: r.created_at,
-                reposted_by_name: reposterProfiles[r.user_id] || "Someone",
-              });
-            }
-          }
+        } catch {
+          // Reposts failed — still show main posts
         }
         const merged = [...enriched, ...directRepostPosts];
         setAllPosts(merged);
-        setCachedPosts(enriched); // Cache enriched posts for next visit
+        setCachedPosts(enriched);
       }
       setHasMore(data.length === POSTS_PER_PAGE);
+    } catch (err: any) {
+      console.error("[Community] fetchPosts failed:", err?.message);
+      if (!loadMore && allPosts.length === 0) {
+        setFetchError("Could not load posts. Tap to retry.");
+      }
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
     }
-    setLoading(false);
-    setLoadingMore(false);
   }, [enrichPosts, allPosts.length]);
 
   const fetchLikedPosts = useCallback(async () => {
@@ -263,6 +290,13 @@ const Community = () => {
   useEffect(() => {
     if (expandedComments.size > 0) fetchCommentReactions();
   }, [expandedComments, comments]);
+
+  // Safety: never stay in loading state longer than 10s
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setTimeout(() => setLoading(false), 10000);
+    return () => clearTimeout(timer);
+  }, [loading]);
 
   useEffect(() => {
     fetchPosts(false);
@@ -892,6 +926,15 @@ const Community = () => {
             compact
           />
         )}
+        {/* Activity Banner */}
+        <ActivityBanner />
+
+        {/* Welcome / First Post Prompt */}
+        <WelcomePrompt
+          isLoggedIn={!!currentUser}
+          hasPosted={allPosts.some(p => p.author_id === currentUser?.id)}
+          onOpenAuth={() => setAuthOpen(true)}
+        />
 
         {!communityOpen && (
           <div className="p-4 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 backdrop-blur-xl mb-6 text-center">
@@ -1002,7 +1045,15 @@ const Community = () => {
         </div>
 
         {/* Feed */}
-        {loading ? (
+        {fetchError && allPosts.length === 0 ? (
+          <div className="text-center py-16">
+            <AlertCircle className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-40" />
+            <p className="text-foreground mb-2">{fetchError}</p>
+            <Button variant="outline" size="sm" onClick={() => { setLoading(true); setFetchError(null); fetchPosts(false); }}>
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Try Again
+            </Button>
+          </div>
+        ) : loading ? (
           <div className="space-y-3">
             {[1, 2, 3, 4].map((i) => <PostSkeleton key={i} />)}
           </div>
@@ -1093,6 +1144,7 @@ const Community = () => {
         }}
         userName={currentUser?.displayName || sessionId}
       />
+      <AuthModal open={authOpen} onOpenChange={setAuthOpen} />
     </div>
   );
 };

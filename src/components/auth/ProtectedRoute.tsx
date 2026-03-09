@@ -24,7 +24,9 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
       setSession(session);
       setLoading(false);
     });
-    return () => subscription.unsubscribe();
+    // Safety timeout — never stay stuck loading
+    const timeout = setTimeout(() => setLoading(false), 5000);
+    return () => { subscription.unsubscribe(); clearTimeout(timeout); };
   }, []);
 
   if (loading) {
