@@ -71,7 +71,7 @@ const Profile = () => {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    getSessionSafe(3000).then((session) => {
       setCurrentUserId(session?.user?.id);
     });
   }, []);
