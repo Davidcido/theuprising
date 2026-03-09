@@ -1,37 +1,18 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useState } from "react";
 import { Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AuthModal from "@/components/auth/AuthModal";
-import { getSessionSafe } from "@/lib/apiHelpers";
+import { useAuthReady } from "@/hooks/useAuthReady";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const [session, setSession] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, isReady } = useAuthReady();
   const [authOpen, setAuthOpen] = useState(false);
 
-  useEffect(() => {
-    // Use cached session for instant check
-    getSessionSafe(3000).then((s) => {
-      setSession(s);
-      setLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setLoading(false);
-    });
-
-    // Safety timeout
-    const timeout = setTimeout(() => setLoading(false), 4000);
-    return () => { subscription.unsubscribe(); clearTimeout(timeout); };
-  }, []);
-
-  if (loading) {
+  if (!isReady) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin h-8 w-8 border-4 border-emerald-400 border-t-transparent rounded-full" />
