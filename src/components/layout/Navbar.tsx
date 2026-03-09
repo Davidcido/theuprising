@@ -150,7 +150,7 @@ const Navbar = () => {
                     </span>
                   )}
                 </button>
-                <NotificationBell userId={session.user.id} />
+                <NotificationBell userId={authUser.id} />
               </>
             )}
             <button
