@@ -30,6 +30,9 @@ const Messages = () => {
   const [editText, setEditText] = useState("");
   const [pendingImage, setPendingImage] = useState<{ file: File; url: string } | null>(null);
   const [sendingImage, setSendingImage] = useState(false);
+  const [compressing, setCompressing] = useState(false);
+  const [compressionProgress, setCompressionProgress] = useState(0);
+  const [compressedSize, setCompressedSize] = useState<number | undefined>(undefined);
   const [voiceRecorderActive, setVoiceRecorderActive] = useState(false);
   const [sendingText, setSendingText] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
