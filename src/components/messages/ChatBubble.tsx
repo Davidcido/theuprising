@@ -323,6 +323,11 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
             />
           )}
 
+          {/* Video attachment */}
+          {msgAny.attachment_url && msgAny.attachment_type === "video" && (
+            <ChatVideoPlayer url={msgAny.attachment_url} />
+          )}
+
           {/* Audio attachment */}
           {msgAny.attachment_url && msgAny.attachment_type === "audio" && (
             <div className="flex items-center gap-2 mb-1 min-w-[200px]">
