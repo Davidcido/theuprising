@@ -137,7 +137,7 @@ const Navbar = () => {
 
           {/* Mobile toggle */}
           <div className="md:hidden flex items-center gap-1">
-            {session && (
+            {authUser && (
               <>
                 <button
                   onClick={() => navigate("/messages")}
