@@ -17,6 +17,7 @@ import DailyRisePopup from "./components/dailyrise/DailyRisePopup";
 import { useOnboarding } from "./hooks/useOnboarding";
 import { useDailyRise } from "./hooks/useDailyRise";
 import { AuthProvider } from "./hooks/useAuthReady";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 // Lazy-load non-critical route pages
 const Chat = lazy(() => import("./pages/Chat"));
@@ -106,7 +107,9 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <AppContent />
+          <ErrorBoundary>
+            <AppContent />
+          </ErrorBoundary>
           <InstallPrompt />
         </AuthProvider>
       </BrowserRouter>
