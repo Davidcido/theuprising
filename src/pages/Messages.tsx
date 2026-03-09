@@ -161,6 +161,7 @@ const Messages = () => {
   const sendImage = async () => {
     if (!pendingImage || !conversationId || !userId) return;
     setSendingImage(true);
+    const isVideo = pendingImage.file.type.startsWith("video/");
     const ext = pendingImage.file.name.split(".").pop();
     const path = `${conversationId}/${Date.now()}.${ext}`;
     const { error: uploadError } = await supabase.storage.from("dm-media").upload(path, pendingImage.file);
@@ -174,9 +175,9 @@ const Messages = () => {
     await supabase.from("direct_messages").insert({
       conversation_id: conversationId,
       sender_id: userId,
-      content: "📷 Image",
+      content: isVideo ? "🎬 Video" : "📷 Image",
       attachment_url: urlData.publicUrl,
-      attachment_type: "image",
+      attachment_type: isVideo ? "video" : "image",
       ...(replyId ? { reply_to_message_id: replyId } : {}),
     } as any);
     await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
