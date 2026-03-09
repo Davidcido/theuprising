@@ -243,6 +243,10 @@ const Explore = () => {
           </div>
         )}
 
+        {showSkeleton ? (
+          <ExploreSkeleton />
+        ) : (
+          <>
         {/* Trending Hashtags section */}
         {(activeSection === "hashtags" || tagFilter) && !tagFilter && (
           <div className="mb-6">
