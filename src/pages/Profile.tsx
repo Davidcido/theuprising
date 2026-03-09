@@ -324,9 +324,16 @@ const Profile = () => {
                     {getCountryFlag(profile.country)} {COUNTRIES.find((c) => c.code === profile.country)?.name}
                   </p>
                 )}
-                {profile.bio && (
+                {profile.bio ? (
                   <p className="text-foreground/80 text-sm mt-2">{profile.bio}</p>
-                )}
+                ) : isOwnProfile ? (
+                  <button
+                    onClick={() => setEditing(true)}
+                    className="text-muted-foreground/60 text-sm mt-2 italic hover:text-muted-foreground transition-colors"
+                  >
+                    Add a bio so people can know more about you.
+                  </button>
+                ) : null}
               </>
             )}
 
