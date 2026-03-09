@@ -537,6 +537,15 @@ const PostCard = ({
         </AnimatePresence>
       </motion.div>
 
+      {/* Likes modal */}
+      <LikesModal
+        open={showLikesModal}
+        onOpenChange={setShowLikesModal}
+        postId={post.id}
+        likesCount={post.likes_count}
+        onNavigate={onNavigate}
+      />
+
       {/* Delete confirmation dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent className="bg-card border-white/15">
