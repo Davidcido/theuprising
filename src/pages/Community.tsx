@@ -195,7 +195,9 @@ const Community = () => {
             }
           }
         }
-        setAllPosts([...enriched, ...directRepostPosts]);
+        const merged = [...enriched, ...directRepostPosts];
+        setAllPosts(merged);
+        setCachedPosts(enriched); // Cache enriched posts for next visit
       }
       setHasMore(data.length === POSTS_PER_PAGE);
     }
