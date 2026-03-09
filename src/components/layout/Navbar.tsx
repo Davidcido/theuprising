@@ -89,7 +89,7 @@ const Navbar = () => {
               );
             })}
 
-            {session && (
+            {authUser && (
               <>
                 <button
                   onClick={() => navigate("/messages")}
