@@ -102,6 +102,7 @@ export const useProfile = (userId?: string) => {
     if (!error) {
       setProfile((prev) => prev ? { ...prev, ...updates } : prev);
       invalidateProfileCache(userId);
+      profileCache.delete(userId);
     }
     return { error: error?.message || null };
   };
