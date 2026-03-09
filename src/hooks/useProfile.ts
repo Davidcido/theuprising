@@ -55,8 +55,11 @@ export const useProfile = (userId?: string) => {
           .insert({ user_id: userId, display_name: defaultName, online_status: "online" })
           .select("*")
           .single();
-        if (newProfile) setProfile(newProfile as unknown as Profile);
-      }
+        if (newProfile) {
+          const p = newProfile as unknown as Profile;
+          setProfile(p);
+          profileCache.set(userId, { profile: p, ts: Date.now() });
+        }
     } catch {
       // On timeout or error, don't block the page
       console.warn("Profile fetch failed or timed out for", userId);
