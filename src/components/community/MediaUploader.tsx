@@ -239,7 +239,7 @@ const MediaUploader = ({ mediaFiles, onMediaChange, maxFiles = 4, disabled }: Me
 
     controllersRef.current.set(jobId, controller);
     updateJob(jobId, { controller });
-  }, [mediaFiles, onMediaChange, updateJob]);
+  }, [updateJob]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
