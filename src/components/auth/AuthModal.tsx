@@ -48,45 +48,68 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
     }
   };
 
+  const isNetworkError = (msg: string) =>
+    msg === "Load failed" || msg === "Failed to fetch" || msg.includes("NetworkError") || msg.includes("network");
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (mode === "forgot") return handleForgotPassword(e);
     setLoading(true);
 
-    try {
-      if (mode === "signup") {
-        const { data, error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
-        if (data.session) {
-          await supabase.from("profiles").upsert({
-            user_id: data.session.user.id,
-            display_name: displayName || email.split("@")[0],
-            country: country || "",
-          }, { onConflict: "user_id" });
-          toast.success("Account created! You're now logged in.");
-          trackLogin(data.session.user.id);
-          trackSignup(data.session.user.id);
-          onOpenChange(false);
+    const MAX_RETRIES = 2;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        if (mode === "signup") {
+          const { data, error } = await supabase.auth.signUp({ email, password });
+          if (error) {
+            if (isNetworkError(error.message) && attempt < MAX_RETRIES) {
+              await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+              continue;
+            }
+            throw error;
+          }
+          if (data.session) {
+            await supabase.from("profiles").upsert({
+              user_id: data.session.user.id,
+              display_name: displayName || email.split("@")[0],
+              country: country || "",
+            }, { onConflict: "user_id" });
+            toast.success("Account created! You're now logged in.");
+            trackLogin(data.session.user.id);
+            trackSignup(data.session.user.id);
+            onOpenChange(false);
+          } else {
+            toast.success("Account created! Check your email to confirm.");
+          }
         } else {
-          toast.success("Account created! Check your email to confirm.");
+          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+          if (error) {
+            if (isNetworkError(error.message) && attempt < MAX_RETRIES) {
+              await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+              continue;
+            }
+            throw error;
+          }
+          await ensureProfile(data.session.user.id, email);
+          trackLogin(data.session?.user.id);
+          toast.success("Welcome back!");
+          onOpenChange(false);
         }
-      } else {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        await ensureProfile(data.session.user.id, email);
-        trackLogin(data.session?.user.id);
-        toast.success("Welcome back!");
-        onOpenChange(false);
+        setEmail("");
+        setPassword("");
+        setDisplayName("");
+        setCountry("");
+        break; // success — exit retry loop
+      } catch (error: any) {
+        if (isNetworkError(error.message) && attempt < MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
+        }
+        toast.error(isNetworkError(error.message) ? "Connection failed. Please check your internet and try again." : error.message);
+        break;
       }
-      setEmail("");
-      setPassword("");
-      setDisplayName("");
-      setCountry("");
-    } catch (error: any) {
-      toast.error(error.message);
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   const title = mode === "login" ? "Welcome Back" : mode === "signup" ? "Join The Uprising" : "Reset Password";
