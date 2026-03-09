@@ -161,6 +161,10 @@ const MediaUploader = ({ mediaFiles, onMediaChange, maxFiles = 4, disabled }: Me
   const videoPreviewRefs = useRef<Record<number, HTMLVideoElement | null>>({});
   const [playingIndex, setPlayingIndex] = useState<number | null>(null);
   const controllersRef = useRef<Map<string, UploadController>>(new Map());
+  const mediaFilesRef = useRef(mediaFiles);
+  mediaFilesRef.current = mediaFiles;
+  const onMediaChangeRef = useRef(onMediaChange);
+  onMediaChangeRef.current = onMediaChange;
 
   const updateJob = useCallback((id: string, update: Partial<UploadJob>) => {
     setActiveJobs(prev => prev.map(j => j.id === id ? { ...j, ...update } : j));
