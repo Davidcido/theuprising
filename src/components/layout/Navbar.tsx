@@ -38,25 +38,29 @@ const Navbar = () => {
   }, []);
 
   const handleLogout = async () => {
+    // Immediately clear UI state so user sees instant feedback
+    setSession(null);
+    setMobileOpen(false);
+    
+    // Clear stored data (preserve session_id for anonymous features)
+    const sessionIdBackup = localStorage.getItem("uprising_session_id");
+    localStorage.clear();
+    sessionStorage.clear();
+    if (sessionIdBackup) localStorage.setItem("uprising_session_id", sessionIdBackup);
+    
+    // Clear cookies
+    document.cookie.split(";").forEach((c) => {
+      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+    });
+    
+    toast.success("Logged out successfully");
+    navigate("/");
+    
+    // Sign out in background (don't block on this)
     try {
-      await supabase.auth.signOut({ scope: 'global' });
-      // Clear all stored auth data
-      localStorage.clear();
-      sessionStorage.clear();
-      // Clear cookies
-      document.cookie.split(";").forEach((c) => {
-        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-      });
-      setSession(null);
-      toast.success("Logged out successfully");
-      navigate("/");
-    } catch (error) {
-      // Force clear even if signOut fails
-      localStorage.clear();
-      sessionStorage.clear();
-      setSession(null);
-      navigate("/");
-      toast.success("Logged out");
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch {
+      // Already cleared locally, safe to ignore
     }
   };
 
