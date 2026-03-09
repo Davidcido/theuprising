@@ -24,13 +24,28 @@ export type CallEvent = {
 
 const CALL_TIMEOUT_MS = 30_000;
 
-const ICE_SERVERS: RTCIceServer[] = [
+const FALLBACK_ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
   { urls: "stun:stun2.l.google.com:19302" },
   { urls: "stun:stun3.l.google.com:19302" },
   { urls: "stun:stun4.l.google.com:19302" },
 ];
+
+const fetchTurnServers = async (): Promise<RTCIceServer[]> => {
+  try {
+    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+    const res = await fetch(`https://${projectId}.supabase.co/functions/v1/get-turn-credentials`);
+    if (!res.ok) throw new Error("Failed to fetch TURN credentials");
+    const data = await res.json();
+    if (data.iceServers && data.iceServers.length > 0) {
+      return data.iceServers;
+    }
+  } catch (e) {
+    console.warn("Could not fetch TURN servers, using STUN fallback:", e);
+  }
+  return FALLBACK_ICE_SERVERS;
+};
 
 export const useCallSignaling = (userId?: string, onCallEvent?: (event: CallEvent) => void) => {
   const [callState, setCallState] = useState<CallState>("idle");
