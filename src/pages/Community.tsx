@@ -466,6 +466,17 @@ const Community = () => {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = textareaRef.current.scrollHeight + "px";
     }
+    // Check for @mention
+    const cursorPos = e.target.selectionStart;
+    const textBefore = val.slice(0, cursorPos);
+    const atMatch = textBefore.match(/@(\w*)$/);
+    if (atMatch) {
+      setMentionQuery(atMatch[1]);
+      setShowMentionDropdown(true);
+    } else {
+      setShowMentionDropdown(false);
+      setMentionQuery("");
+    }
   };
 
   const pendingFilesRef = useRef<Map<string, { file: File; type: "image" | "video" }>>(new Map());
