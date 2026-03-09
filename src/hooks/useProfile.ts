@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { invalidateProfileCache } from "@/lib/apiHelpers";
+import { useAuthReady } from "@/hooks/useAuthReady";
 
 export type Profile = {
   id: string;
@@ -19,24 +20,22 @@ export type Profile = {
 export const useProfile = (userId?: string) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const { user: authUser } = useAuthReady();
 
   const fetchProfile = useCallback(async () => {
     if (!userId) { setLoading(false); return; }
     
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
+    try {
+      const { data } = await Promise.race([
+        supabase.from("profiles").select("*").eq("user_id", userId).single(),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000)),
+      ]);
 
-    if (data) {
-      setProfile(data as unknown as Profile);
-    } else {
-      // Only create profile if this is the current user
-      const session = await supabase.auth.getSession();
-      if (session?.data?.session?.user?.id === userId) {
-        const email = session.data.session.user.email;
-        const defaultName = email?.split("@")[0] || `user_${userId.slice(0, 4)}`;
+      if (data) {
+        setProfile(data as unknown as Profile);
+      } else if (authUser?.id === userId) {
+        // Only create profile if this is the current user (use context, not getSession)
+        const defaultName = authUser.email?.split("@")[0] || `user_${userId.slice(0, 4)}`;
         const { data: newProfile } = await supabase
           .from("profiles")
           .insert({ user_id: userId, display_name: defaultName, online_status: "online" })
@@ -44,46 +43,37 @@ export const useProfile = (userId?: string) => {
           .single();
         if (newProfile) setProfile(newProfile as unknown as Profile);
       }
+    } catch {
+      // On timeout or error, don't block the page
+      console.warn("Profile fetch failed or timed out for", userId);
     }
     setLoading(false);
-  }, [userId]);
+  }, [userId, authUser]);
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
   // Online status + heartbeat — only for current user
   useEffect(() => {
-    if (!userId || !profile) return;
+    if (!userId || !profile || !authUser || authUser.id !== userId) return;
     
-    // Check if this is the current user before setting online status
-    let isCurrent = false;
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      isCurrent = session?.user?.id === userId;
-      if (isCurrent) {
-        supabase.from("profiles").update({ online_status: "online", last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
-      }
-    });
+    // Set online immediately
+    supabase.from("profiles").update({ online_status: "online", last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
 
-    // Heartbeat every 2 minutes (reduced from 1 min)
+    // Heartbeat every 2 minutes
     const heartbeat = setInterval(() => {
-      if (isCurrent) {
-        supabase.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
-      }
+      supabase.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
     }, 120000);
 
     const handleBeforeUnload = () => {
-      if (isCurrent) {
-        supabase.from("profiles").update({ online_status: "offline", last_seen_at: new Date().toISOString() }).eq("user_id", userId);
-      }
+      supabase.from("profiles").update({ online_status: "offline", last_seen_at: new Date().toISOString() }).eq("user_id", userId);
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => {
       clearInterval(heartbeat);
       window.removeEventListener("beforeunload", handleBeforeUnload);
-      if (isCurrent) {
-        supabase.from("profiles").update({ online_status: "offline", last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
-      }
+      supabase.from("profiles").update({ online_status: "offline", last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
     };
-  }, [userId, profile]);
+  }, [userId, profile, authUser]);
 
   const updateProfile = async (updates: Partial<Pick<Profile, "display_name" | "bio" | "country" | "avatar_url" | "cover_photo">>) => {
     if (!userId) return { error: "Not authenticated" };
