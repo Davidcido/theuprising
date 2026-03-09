@@ -387,24 +387,75 @@ const Community = () => {
   const addPost = async () => {
     if ((!newPost.trim() && mediaFiles.length === 0) || posting) return;
     setPosting(true);
-    const insertData: any = {
-      content: newPost.trim().slice(0, 10000) || (mediaFiles.length > 0 ? "" : ""),
+    
+    const optimisticId = `optimistic-${Date.now()}`;
+    const optimisticPost: Post = {
+      id: optimisticId,
+      content: newPost.trim().slice(0, 10000),
       anonymous_name: postAnonymously ? sessionId : (currentUser?.displayName || sessionId),
+      likes_count: 0,
+      comments_count: 0,
+      shares_count: 0,
+      views_count: 0,
+      created_at: new Date().toISOString(),
+      author_id: !postAnonymously && currentUser ? currentUser.id : null,
       is_anonymous: postAnonymously,
       media_urls: mediaFiles.map(m => m.url),
+      _optimistic: true,
+    };
+    
+    // Add optimistic post immediately at top
+    setAllPosts(prev => [optimisticPost, ...prev]);
+    const savedContent = newPost;
+    const savedMedia = [...mediaFiles];
+    setNewPost("");
+    setMediaFiles([]);
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+    
+    const insertData: any = {
+      content: savedContent.trim().slice(0, 10000) || "",
+      anonymous_name: postAnonymously ? sessionId : (currentUser?.displayName || sessionId),
+      is_anonymous: postAnonymously,
+      media_urls: savedMedia.map(m => m.url),
     };
     if (!postAnonymously && currentUser) {
       insertData.author_id = currentUser.id;
     }
     const { error } = await supabase.from("community_posts").insert(insertData);
     if (error) {
+      // Remove optimistic post on error
+      setAllPosts(prev => prev.filter(p => p.id !== optimisticId));
+      setNewPost(savedContent);
+      setMediaFiles(savedMedia);
       toast({ title: "Error", description: "Could not post. Try again.", variant: "destructive" });
     } else {
-      setNewPost("");
-      setMediaFiles([]);
-      if (textareaRef.current) textareaRef.current.style.height = "auto";
+      // Remove optimistic post (realtime will add the real one)
+      setAllPosts(prev => prev.filter(p => p.id !== optimisticId));
+      toast({ title: "Post published successfully! 🎉" });
     }
     setPosting(false);
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    setAllPosts(prev => prev.filter(p => p.id !== postId));
+    const { error } = await supabase.from("community_posts").delete().eq("id", postId);
+    if (error) {
+      toast({ title: "Error", description: "Could not delete post.", variant: "destructive" });
+      fetchPosts(false);
+    } else {
+      toast({ title: "Post deleted" });
+    }
+  };
+
+  const handleEditPost = async (postId: string, newContent: string) => {
+    setAllPosts(prev => prev.map(p => p.id === postId ? { ...p, content: newContent } : p));
+    const { error } = await supabase.from("community_posts").update({ content: newContent }).eq("id", postId);
+    if (error) {
+      toast({ title: "Error", description: "Could not edit post.", variant: "destructive" });
+      fetchPosts(false);
+    } else {
+      toast({ title: "Post updated" });
+    }
   };
 
   const toggleLike = async (postId: string) => {
