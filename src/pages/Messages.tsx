@@ -143,13 +143,15 @@ const Messages = () => {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
-    if (!validTypes.includes(file.type)) {
-      toast({ title: "Invalid format", description: "Use jpg, png, gif, or webp", variant: "destructive" });
+    const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
+    const videoTypes = ["video/mp4", "video/webm", "video/mov", "video/quicktime"];
+    if (!imageTypes.includes(file.type) && !videoTypes.includes(file.type)) {
+      toast({ title: "Invalid format", description: "Use jpg, png, gif, webp, mp4, or webm", variant: "destructive" });
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Max 10MB", variant: "destructive" });
+    const maxSize = file.type.startsWith("video/") ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast({ title: "File too large", description: file.type.startsWith("video/") ? "Max 100MB for videos" : "Max 10MB for images", variant: "destructive" });
       return;
     }
     setPendingImage({ file, url: URL.createObjectURL(file) });
