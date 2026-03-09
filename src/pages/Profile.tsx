@@ -271,14 +271,19 @@ const Profile = () => {
                   placeholder="Display name"
                   className="bg-white/10 border-white/20 text-foreground"
                 />
-                <Textarea
-                  value={editData.bio}
-                  onChange={(e) => setEditData((d) => ({ ...d, bio: e.target.value }))}
-                  placeholder="Write a short bio..."
-                  rows={3}
-                  className="bg-white/10 border-white/20 text-foreground resize-none"
-                  maxLength={300}
-                />
+                <div>
+                  <Textarea
+                    value={editData.bio}
+                    onChange={(e) => setEditData((d) => ({ ...d, bio: e.target.value.slice(0, 200) }))}
+                    placeholder="Write a short bio about yourself..."
+                    rows={3}
+                    className="bg-white/10 border-white/20 text-foreground resize-none"
+                    maxLength={200}
+                  />
+                  <p className={`text-[11px] mt-1 text-right ${editData.bio.length >= 190 ? "text-destructive" : "text-muted-foreground"}`}>
+                    {editData.bio.length}/200
+                  </p>
+                </div>
                 <Select value={editData.country} onValueChange={(v) => setEditData((d) => ({ ...d, country: v }))}>
                   <SelectTrigger className="bg-white/10 border-white/20 text-foreground">
                     <SelectValue placeholder="Select country" />
@@ -319,9 +324,16 @@ const Profile = () => {
                     {getCountryFlag(profile.country)} {COUNTRIES.find((c) => c.code === profile.country)?.name}
                   </p>
                 )}
-                {profile.bio && (
+                {profile.bio ? (
                   <p className="text-foreground/80 text-sm mt-2">{profile.bio}</p>
-                )}
+                ) : isOwnProfile ? (
+                  <button
+                    onClick={() => setEditing(true)}
+                    className="text-muted-foreground/60 text-sm mt-2 italic hover:text-muted-foreground transition-colors"
+                  >
+                    Add a bio so people can know more about you.
+                  </button>
+                ) : null}
               </>
             )}
 
