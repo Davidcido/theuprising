@@ -28,6 +28,14 @@ export const useProfile = (userId?: string) => {
 
   const fetchProfile = useCallback(async () => {
     if (!userId) { setLoading(false); return; }
+
+    // Use cache if fresh
+    const cached = profileCache.get(userId);
+    if (cached && Date.now() - cached.ts < PROFILE_CACHE_TTL) {
+      setProfile(cached.profile);
+      setLoading(false);
+      return;
+    }
     
     try {
       const { data } = await Promise.race([
