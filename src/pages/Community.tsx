@@ -107,6 +107,7 @@ const Community = () => {
   const { saveDraft } = useDrafts(currentUser?.id);
 
   const sessionId = getSessionId();
+  const { trackView } = usePostViewTracker();
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
