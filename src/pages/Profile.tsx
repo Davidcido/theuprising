@@ -343,14 +343,14 @@ const Profile = () => {
 
             {/* Stats */}
             <div className="flex flex-wrap gap-4 mt-4 text-sm">
-              <div className="text-center">
+              <button onClick={() => setFollowListMode("followers")} className="text-center hover:opacity-80 transition-opacity">
                 <span className="font-bold text-foreground">{followerCount}</span>
                 <span className="text-muted-foreground ml-1">Followers</span>
-              </div>
-              <div className="text-center">
+              </button>
+              <button onClick={() => setFollowListMode("following")} className="text-center hover:opacity-80 transition-opacity">
                 <span className="font-bold text-foreground">{followingCount}</span>
                 <span className="text-muted-foreground ml-1">Following</span>
-              </div>
+              </button>
               <div className="text-center">
                 <span className="font-bold text-foreground">{userPosts.length}</span>
                 <span className="text-muted-foreground ml-1">Posts</span>
