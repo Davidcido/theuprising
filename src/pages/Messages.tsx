@@ -21,6 +21,7 @@ import ImagePreview from "@/components/messages/ImagePreview";
 import VoiceRecorder from "@/components/messages/VoiceRecorder";
 import EmojiPicker from "@/components/EmojiPicker";
 import CallSystemMessage from "@/components/messages/CallSystemMessage";
+import { compressVideoFile, shouldCompress } from "@/lib/videoCompression";
 const Messages = () => {
   const { conversationId } = useParams();
   const [userId, setUserId] = useState<string | undefined>();
@@ -143,73 +144,6 @@ const Messages = () => {
     }
   };
 
-  const compressVideo = async (file: File): Promise<File> => {
-    return new Promise((resolve) => {
-      const video = document.createElement("video");
-      video.muted = true;
-      video.playsInline = true;
-      video.preload = "auto";
-      const srcUrl = URL.createObjectURL(file);
-      video.src = srcUrl;
-
-      video.onloadedmetadata = () => {
-        let w = video.videoWidth;
-        let h = video.videoHeight;
-        const maxDim = 1280;
-        if (w > maxDim || h > maxDim) {
-          const scale = maxDim / Math.max(w, h);
-          w = Math.round(w * scale);
-          h = Math.round(h * scale);
-        }
-        w = w % 2 === 0 ? w : w - 1;
-        h = h % 2 === 0 ? h : h - 1;
-
-        const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d")!;
-        const stream = canvas.captureStream(30);
-
-        try {
-          const audioCtx = new AudioContext();
-          const source = audioCtx.createMediaElementSource(video);
-          const dest = audioCtx.createMediaStreamDestination();
-          source.connect(dest);
-          source.connect(audioCtx.destination);
-          dest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
-        } catch {}
-
-        const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-          ? "video/webm;codecs=vp9" : "video/webm";
-        const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 1_500_000 });
-        const chunks: Blob[] = [];
-        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-        recorder.onstop = () => {
-          URL.revokeObjectURL(srcUrl);
-          const blob = new Blob(chunks, { type: "video/webm" });
-          if (blob.size >= file.size) { resolve(file); }
-          else { resolve(new File([blob], file.name.replace(/\.[^.]+$/, ".webm"), { type: "video/webm" })); }
-        };
-
-        const duration = video.duration;
-        let lastProg = 0;
-        recorder.start(100);
-        video.play();
-
-        const drawFrame = () => {
-          if (video.ended || video.paused) { recorder.stop(); return; }
-          ctx.drawImage(video, 0, 0, w, h);
-          const p = Math.min(100, (video.currentTime / duration) * 100);
-          if (p - lastProg > 2) { lastProg = p; setCompressionProgress(Math.round(p)); }
-          requestAnimationFrame(drawFrame);
-        };
-        drawFrame();
-        video.onended = () => recorder.stop();
-      };
-      video.onerror = () => { URL.revokeObjectURL(srcUrl); resolve(file); };
-    });
-  };
-
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -226,13 +160,16 @@ const Messages = () => {
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
 
-    if (file.type.startsWith("video/") && file.size > 5 * 1024 * 1024) {
+    if (shouldCompress(file)) {
       setPendingImage({ file, url: URL.createObjectURL(file) });
       setCompressing(true);
       setCompressionProgress(0);
       setCompressedSize(undefined);
       try {
-        const compressed = await compressVideo(file);
+        const compressed = await compressVideoFile(file, {
+          maxDimension: 1280,
+          onProgress: setCompressionProgress,
+        });
         const newUrl = URL.createObjectURL(compressed);
         setCompressedSize(compressed.size);
         setPendingImage({ file: compressed, url: newUrl });

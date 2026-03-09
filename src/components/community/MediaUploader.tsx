@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Image, X, Loader2, Play, Pause, RotateCcw, FileVideo } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "@/components/ui/progress";
+import { compressVideoFile, shouldCompress } from "@/lib/videoCompression";
 
 interface MediaFile {
   url: string;
@@ -168,10 +169,17 @@ const MediaUploader = ({ mediaFiles, onMediaChange, maxFiles = 4, disabled }: Me
       } else if (isVideo) {
         setUploadStatus(`Processing video ${idx + 1}/${totalFiles}...`);
         duration = await getVideoDuration(file);
+        if (shouldCompress(file)) {
+          setUploadStatus(`Optimizing video ${idx + 1}/${totalFiles}...`);
+          uploadFile = await compressVideoFile(file, {
+            maxDimension: 1920,
+            onProgress: (p) => setUploadProgress(((idx + p / 100) / totalFiles) * 50),
+          });
+        }
       }
 
       setUploadStatus(`Uploading ${idx + 1}/${totalFiles}...`);
-      const ext = isImage ? "webp" : file.name.split(".").pop();
+      const ext = isImage ? "webp" : uploadFile.name.split(".").pop();
       const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { error } = await supabase.storage.from("community-media").upload(path, uploadFile);
       if (error) continue;
