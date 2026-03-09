@@ -3,6 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { invalidateProfileCache } from "@/lib/apiHelpers";
 import { useAuthReady } from "@/hooks/useAuthReady";
 
+// Module-level cache so profile persists across navigations
+const profileCache = new Map<string, { profile: any; ts: number }>();
+const PROFILE_CACHE_TTL = 60_000; // 1 minute
+
 export type Profile = {
   id: string;
   user_id: string;
