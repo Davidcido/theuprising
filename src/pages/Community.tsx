@@ -623,9 +623,34 @@ const Community = () => {
       _onRetryUpload: (mediaId: string) => retryPendingUpload(postId, mediaId),
     };
 
+    // Check if this is user's first post for celebration
+    const isFirstPost = !allPosts.some(p => p.author_id === currentUser?.id && p.id !== postId);
+    
     setAllPosts(prev => [newPostObj, ...prev.filter(p => p.id !== postId)]);
     toast({ title: pendingMedia.length > 0 ? "Post published! Video uploading..." : "Post published successfully! 🎉" });
     setPosting(false);
+
+    if (isFirstPost && currentUser) {
+      setShowFirstPostCelebration(true);
+    }
+
+    // Send mention notifications
+    if (currentUser) {
+      const mentions = extractMentions(savedContent);
+      if (mentions.length > 0) {
+        const { data: mentionedProfiles } = await supabase
+          .from("profiles")
+          .select("user_id, display_name")
+          .in("display_name", mentions);
+        if (mentionedProfiles) {
+          for (const mp of mentionedProfiles) {
+            if (mp.user_id !== currentUser.id) {
+              createNotification(mp.user_id, currentUser.id, "mention", "mentioned you in a post", postId);
+            }
+          }
+        }
+      }
+    }
 
     // Start background uploads
     for (const item of filesToUpload) {
