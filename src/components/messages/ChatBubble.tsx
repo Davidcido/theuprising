@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { formatDistanceToNow } from "date-fns";
+import { Volume2, VolumeX, Maximize } from "lucide-react";
 import { Play, Pause, CornerDownRight, Pencil, Trash2, EyeOff, SmilePlus, Check, CheckCheck } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EmojiPicker as FrimoussePicker } from "frimousse";
