@@ -190,7 +190,10 @@ const Community = () => {
   }, [sessionId]);
 
   const fetchReactions = useCallback(async () => {
-    const { data } = await supabase.from("community_reactions").select("*");
+    // Only fetch reactions for currently loaded posts to reduce payload
+    const postIds = allPosts.map(p => p.id).filter(id => !id.startsWith("repost-") && !id.startsWith("optimistic-"));
+    if (postIds.length === 0) return;
+    const { data } = await supabase.from("community_reactions").select("*").in("post_id", postIds);
     if (data) {
       const grouped: Record<string, Reaction[]> = {};
       const mine = new Set<string>();
@@ -202,10 +205,15 @@ const Community = () => {
       setReactions(grouped);
       setMyReactions(mine);
     }
-  }, [sessionId]);
+  }, [sessionId, allPosts]);
 
   const fetchCommentReactions = useCallback(async () => {
-    const { data } = await supabase.from("comment_reactions").select("*");
+    // Defer comment reactions loading - only fetch when comments are expanded
+    const expandedPostIds = [...expandedComments];
+    if (expandedPostIds.length === 0) return;
+    const commentIds = expandedPostIds.flatMap(pid => (comments[pid] || []).map(c => c.id));
+    if (commentIds.length === 0) return;
+    const { data } = await supabase.from("comment_reactions").select("*").in("comment_id", commentIds);
     if (data) {
       const grouped: Record<string, { emoji: string; session_id: string }[]> = {};
       const mine = new Set<string>();
@@ -217,7 +225,7 @@ const Community = () => {
       setCommentReactions(grouped);
       setMyCommentReactions(mine);
     }
-  }, [sessionId]);
+  }, [sessionId, expandedComments, comments]);
 
   useEffect(() => {
     fetchPosts(false);
