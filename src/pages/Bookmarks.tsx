@@ -7,19 +7,14 @@ import { formatDistanceToNow } from "date-fns";
 import UserAvatar from "@/components/UserAvatar";
 import MediaGallery from "@/components/community/MediaGallery";
 import { useNavigate } from "react-router-dom";
+import { useAuthReady } from "@/hooks/useAuthReady";
 
 const Bookmarks = () => {
-  const [userId, setUserId] = useState<string>();
+  const { user: authUser } = useAuthReady();
+  const userId = authUser?.id;
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUserId(session?.user?.id);
-    });
-  }, []);
-
   const { bookmarkedIds, toggleBookmark } = useBookmarks(userId);
 
   useEffect(() => {

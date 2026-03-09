@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Send, ArrowLeft, Mail, Image, Phone, Video, Flag, Ban, X, Check, Pencil, Copy, CheckSquare, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { getSessionSafe } from "@/lib/apiHelpers";
+import { useAuthReady } from "@/hooks/useAuthReady";
 import UserAvatar from "@/components/UserAvatar";
 import { useConversations, useMessages, type DirectMessage } from "@/hooks/useConversations";
 import { useMessageReactions } from "@/hooks/useMessageReactions";
@@ -25,7 +25,8 @@ import CallSystemMessage from "@/components/messages/CallSystemMessage";
 import { compressVideoFile, shouldCompress } from "@/lib/videoCompression";
 const Messages = () => {
   const { conversationId } = useParams();
-  const [userId, setUserId] = useState<string | undefined>();
+  const { user: authUser } = useAuthReady();
+  const userId = authUser?.id;
   const [newMessage, setNewMessage] = useState("");
   const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
   const [editingMsg, setEditingMsg] = useState<DirectMessage | null>(null);
@@ -44,11 +45,7 @@ const Messages = () => {
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    getSessionSafe(3000).then((session) => {
-      setUserId(session?.user?.id);
-    });
-  }, []);
+  // userId now comes from useAuthReady — no manual session fetch needed
 
   const { conversations, loading: convsLoading } = useConversations(userId);
   const { messages, loading: msgsLoading, sendMessage, editMessage, deleteForMe, deleteForEveryone } = useMessages(conversationId, userId);
