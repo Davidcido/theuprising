@@ -211,7 +211,7 @@ const Navbar = () => {
                     </Link>
                   </>
                 )}
-                {session ? (
+                {authUser ? (
                   <button
                     onClick={() => { handleLogout(); setMobileOpen(false); }}
                     className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-white/60 hover:text-white hover:bg-white/10"
