@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Camera, Edit2, MapPin, UserPlus, UserMinus, MessageCircle, Check, X, ImagePlus, Flag, Ban, Eye, Pin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getSessionSafe } from "@/lib/apiHelpers";
 import { useProfile } from "@/hooks/useProfile";
 import { useFollow } from "@/hooks/useFollow";
 import { useBlocks } from "@/hooks/useBlocks";
@@ -70,7 +71,7 @@ const Profile = () => {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    getSessionSafe(3000).then((session) => {
       setCurrentUserId(session?.user?.id);
     });
   }, []);

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AuthModal from "@/components/auth/AuthModal";
+import { getSessionSafe } from "@/lib/apiHelpers";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -13,19 +13,21 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [authOpen, setAuthOpen] = useState(false);
-  const location = useLocation();
 
   useEffect(() => {
+    // Use cached session for instant check
+    getSessionSafe(3000).then((s) => {
+      setSession(s);
+      setLoading(false);
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setLoading(false);
     });
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
-    // Safety timeout — never stay stuck loading
-    const timeout = setTimeout(() => setLoading(false), 5000);
+
+    // Safety timeout
+    const timeout = setTimeout(() => setLoading(false), 4000);
     return () => { subscription.unsubscribe(); clearTimeout(timeout); };
   }, []);
 

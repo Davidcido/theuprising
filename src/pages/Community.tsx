@@ -21,7 +21,7 @@ import WelcomePrompt from "@/components/community/WelcomePrompt";
 import ActivityBanner from "@/components/community/ActivityBanner";
 import AuthModal from "@/components/auth/AuthModal";
 import { Button } from "@/components/ui/button";
-import { withTimeout } from "@/lib/apiHelpers";
+import { withTimeout, getSessionSafe } from "@/lib/apiHelpers";
 import { usePostViewTracker } from "@/hooks/usePostViewTracker";
 import PostViewObserver from "@/components/community/PostViewObserver";
 import FirstPostCelebration from "@/components/community/FirstPostCelebration";
@@ -110,23 +110,19 @@ const Community = () => {
   const { trackView } = usePostViewTracker();
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    getSessionSafe(3000).then(async (session) => {
       if (session) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("display_name")
-          .eq("user_id", session.user.id)
-          .single();
+        // Fetch profile and follows in parallel
+        const [profileRes, followsRes] = await Promise.all([
+          supabase.from("profiles").select("display_name").eq("user_id", session.user.id).single(),
+          supabase.from("follows").select("following_id").eq("follower_id", session.user.id),
+        ]);
         setCurrentUser({
           id: session.user.id,
-          displayName: profile?.display_name || session.user.email?.split("@")[0] || "User",
+          displayName: profileRes.data?.display_name || session.user.email?.split("@")[0] || "User",
         });
-        const { data: follows } = await supabase
-          .from("follows")
-          .select("following_id")
-          .eq("follower_id", session.user.id);
-        if (follows) {
-          setFollowingIds(new Set(follows.map(f => f.following_id)));
+        if (followsRes.data) {
+          setFollowingIds(new Set(followsRes.data.map(f => f.following_id)));
         }
       }
     });
