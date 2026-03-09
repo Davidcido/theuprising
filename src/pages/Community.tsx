@@ -157,62 +157,82 @@ const Community = () => {
 
   const fetchPosts = useCallback(async (loadMore = false) => {
     if (loadMore) setLoadingMore(true);
+    setFetchError(null);
     const from = loadMore ? allPosts.length : 0;
     const to = from + POSTS_PER_PAGE - 1;
 
-    const { data, error } = await supabase
-      .from("community_posts")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .range(from, to);
+    try {
+      const { data, error } = await withTimeout(
+        supabase
+          .from("community_posts")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .range(from, to),
+        8000
+      );
 
-    if (!error && data) {
+      if (error) throw error;
+      if (!data) throw new Error("No data");
+
       const enriched = await enrichPosts(data);
       if (loadMore) {
         setAllPosts(prev => [...prev, ...enriched]);
       } else {
-        const { data: reposts } = await supabase
-          .from("community_reposts")
-          .select("*")
-          .is("quote_content", null)
-          .order("created_at", { ascending: false })
-          .limit(50);
+        let directRepostPosts: Post[] = [];
+        try {
+          const { data: reposts } = await withTimeout(
+            supabase
+              .from("community_reposts")
+              .select("*")
+              .is("quote_content", null)
+              .order("created_at", { ascending: false })
+              .limit(50),
+            5000
+          );
 
-        const directRepostPosts: Post[] = [];
-        if (reposts && reposts.length > 0) {
-          const postsMap: Record<string, any> = {};
-          for (const p of enriched) postsMap[p.id] = p;
-          const reposterIds = [...new Set(reposts.map(r => r.user_id))];
-          let reposterProfiles: Record<string, string> = {};
-          if (reposterIds.length > 0) {
-            const { data: rProfiles } = await supabase
-              .from("profiles")
-              .select("user_id, display_name")
-              .in("user_id", reposterIds);
-            if (rProfiles) {
-              for (const rp of rProfiles) reposterProfiles[rp.user_id] = rp.display_name || "Someone";
+          if (reposts && reposts.length > 0) {
+            const postsMap: Record<string, any> = {};
+            for (const p of enriched) postsMap[p.id] = p;
+            const reposterIds = [...new Set(reposts.map(r => r.user_id))];
+            let reposterProfiles: Record<string, string> = {};
+            if (reposterIds.length > 0) {
+              const { data: rProfiles } = await supabase
+                .from("profiles")
+                .select("user_id, display_name")
+                .in("user_id", reposterIds);
+              if (rProfiles) {
+                for (const rp of rProfiles) reposterProfiles[rp.user_id] = rp.display_name || "Someone";
+              }
+            }
+            for (const r of reposts) {
+              const original = postsMap[r.original_post_id];
+              if (original) {
+                directRepostPosts.push({
+                  ...original,
+                  id: `repost-${r.id}`,
+                  created_at: r.created_at,
+                  reposted_by_name: reposterProfiles[r.user_id] || "Someone",
+                });
+              }
             }
           }
-          for (const r of reposts) {
-            const original = postsMap[r.original_post_id];
-            if (original) {
-              directRepostPosts.push({
-                ...original,
-                id: `repost-${r.id}`,
-                created_at: r.created_at,
-                reposted_by_name: reposterProfiles[r.user_id] || "Someone",
-              });
-            }
-          }
+        } catch {
+          // Reposts failed — still show main posts
         }
         const merged = [...enriched, ...directRepostPosts];
         setAllPosts(merged);
-        setCachedPosts(enriched); // Cache enriched posts for next visit
+        setCachedPosts(enriched);
       }
       setHasMore(data.length === POSTS_PER_PAGE);
+    } catch (err: any) {
+      console.error("[Community] fetchPosts failed:", err?.message);
+      if (!loadMore && allPosts.length === 0) {
+        setFetchError("Could not load posts. Tap to retry.");
+      }
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
     }
-    setLoading(false);
-    setLoadingMore(false);
   }, [enrichPosts, allPosts.length]);
 
   const fetchLikedPosts = useCallback(async () => {
