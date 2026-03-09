@@ -50,10 +50,7 @@ const compressImage = (file: File, maxWidth = 1920, quality = 0.8): Promise<File
         quality
       );
     };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve(file);
-    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
     img.src = url;
   });
 };
@@ -63,14 +60,8 @@ const getVideoDuration = (file: File): Promise<number> => {
     const video = document.createElement("video");
     video.preload = "metadata";
     const url = URL.createObjectURL(file);
-    video.onloadedmetadata = () => {
-      URL.revokeObjectURL(url);
-      resolve(video.duration);
-    };
-    video.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve(0);
-    };
+    video.onloadedmetadata = () => { URL.revokeObjectURL(url); resolve(video.duration); };
+    video.onerror = () => { URL.revokeObjectURL(url); resolve(0); };
     video.src = url;
   });
 };
@@ -86,6 +77,57 @@ const formatDuration = (seconds: number) => {
   const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
 };
+
+const VideoPreview = ({ media, index, onRemove, onTogglePlay, onRestart, isPlaying, videoRef }: {
+  media: MediaFile;
+  index: number;
+  onRemove: () => void;
+  onTogglePlay: () => void;
+  onRestart: () => void;
+  isPlaying: boolean;
+  videoRef: (el: HTMLVideoElement | null) => void;
+}) => (
+  <div className="relative rounded-xl overflow-hidden border border-white/10">
+    <div className="relative">
+      <video
+        ref={videoRef}
+        src={media.url}
+        className="w-full h-40 object-cover"
+        playsInline
+        onEnded={onRestart}
+      />
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={(e) => { e.stopPropagation(); onTogglePlay(); }}
+            className="p-1 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+          >
+            {isPlaying ? <Pause className="w-3 h-3 text-white" /> : <Play className="w-3 h-3 text-white" fill="white" />}
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onRestart(); }}
+            className="p-1 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+          >
+            <RotateCcw className="w-3 h-3 text-white" />
+          </button>
+          <div className="flex-1" />
+          <div className="flex items-center gap-1.5 text-[10px] text-white/70">
+            <FileVideo className="w-3 h-3" />
+            {media.duration ? formatDuration(media.duration) : ""}
+            {media.size ? ` · ${formatFileSize(media.size)}` : ""}
+          </div>
+        </div>
+      </div>
+    </div>
+    <button
+      onClick={onRemove}
+      className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/60 hover:bg-black/80 transition-colors"
+      title="Remove media"
+    >
+      <X className="w-3.5 h-3.5 text-white" />
+    </button>
+  </div>
+);
 
 const MediaUploader = ({ mediaFiles, onMediaChange, maxFiles = 4, disabled }: MediaUploaderProps) => {
   const [uploading, setUploading] = useState(false);
@@ -164,9 +206,7 @@ const MediaUploader = ({ mediaFiles, onMediaChange, maxFiles = 4, disabled }: Me
       video.pause();
       setPlayingIndex(null);
     } else {
-      if (playingIndex !== null) {
-        videoPreviewRefs.current[playingIndex]?.pause();
-      }
+      if (playingIndex !== null) videoPreviewRefs.current[playingIndex]?.pause();
       video.play();
       setPlayingIndex(index);
     }
@@ -185,61 +225,33 @@ const MediaUploader = ({ mediaFiles, onMediaChange, maxFiles = 4, disabled }: Me
       {mediaFiles.length > 0 && (
         <div className={`grid gap-2 mb-2 ${mediaFiles.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
           {mediaFiles.map((m, i) => (
-            <div key={i} className="relative rounded-xl overflow-hidden border border-white/10">
-              {m.type === "image" ? (
+            m.type === "video" ? (
+              <VideoPreview
+                key={i}
+                media={m}
+                index={i}
+                onRemove={() => removeMedia(i)}
+                onTogglePlay={() => toggleVideoPlay(i)}
+                onRestart={() => restartVideo(i)}
+                isPlaying={playingIndex === i}
+                videoRef={(el) => { videoPreviewRefs.current[i] = el; }}
+              />
+            ) : (
+              <div key={i} className="relative rounded-xl overflow-hidden border border-white/10">
                 <img src={m.url} alt="" className="w-full h-40 object-cover" />
-              ) : (
-                <div className="relative">
-                  <video
-                    ref={(el) => { videoPreviewRefs.current[i] = el; }}
-                    src={m.url}
-                    className="w-full h-40 object-cover"
-                    muted={false}
-                    playsInline
-                    onEnded={() => setPlayingIndex(null)}
-                  />
-                  {/* Video controls overlay */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); toggleVideoPlay(i); }}
-                        className="p-1 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
-                      >
-                        {playingIndex === i ? (
-                          <Pause className="w-3 h-3 text-white" />
-                        ) : (
-                          <Play className="w-3 h-3 text-white" fill="white" />
-                        )}
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); restartVideo(i); }}
-                        className="p-1 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
-                      >
-                        <RotateCcw className="w-3 h-3 text-white" />
-                      </button>
-                      <div className="flex-1" />
-                      <div className="flex items-center gap-1.5 text-[10px] text-white/70">
-                        <FileVideo className="w-3 h-3" />
-                        {m.duration ? formatDuration(m.duration) : ""}
-                        {m.size ? ` · ${formatFileSize(m.size)}` : ""}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              <button
-                onClick={() => removeMedia(i)}
-                className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/60 hover:bg-black/80 transition-colors"
-                title="Remove media"
-              >
-                <X className="w-3.5 h-3.5 text-white" />
-              </button>
-            </div>
+                <button
+                  onClick={() => removeMedia(i)}
+                  className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/60 hover:bg-black/80 transition-colors"
+                  title="Remove media"
+                >
+                  <X className="w-3.5 h-3.5 text-white" />
+                </button>
+              </div>
+            )
           ))}
         </div>
       )}
 
-      {/* Upload progress */}
       {uploading && (
         <div className="mb-2 space-y-1">
           <Progress value={uploadProgress} className="h-1.5" />
@@ -247,7 +259,6 @@ const MediaUploader = ({ mediaFiles, onMediaChange, maxFiles = 4, disabled }: Me
         </div>
       )}
 
-      {/* Upload complete status */}
       {!uploading && uploadStatus && (
         <p className="text-[10px] text-emerald-400 mb-1">{uploadStatus}</p>
       )}
