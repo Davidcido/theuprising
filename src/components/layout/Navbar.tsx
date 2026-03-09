@@ -1,15 +1,15 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Heart, MessageCircle, Sparkles, Users, Menu, X, LogIn, LogOut, User, Mail, Compass, Sun } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
-import { Session } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import AuthModal from "@/components/auth/AuthModal";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import uprisingLogo from "@/assets/uprising-logo.jpeg";
 import { toast } from "sonner";
+import { useAuthReady } from "@/hooks/useAuthReady";
 
 const navItems = [
   { to: "/", label: "Home", icon: Heart },
@@ -30,8 +30,6 @@ const Navbar = () => {
   const unreadMessages = useUnreadMessages(authUser?.id);
 
   const handleLogout = async () => {
-    // Immediately clear UI state so user sees instant feedback
-    setSession(null);
     setMobileOpen(false);
     
     // Clear stored data (preserve session_id for anonymous features)
