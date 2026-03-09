@@ -15,7 +15,10 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   if (!isReady) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-4 border-emerald-400 border-t-transparent rounded-full" />
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+          <p className="text-muted-foreground text-sm">Checking your session…</p>
+        </div>
       </div>
     );
   }
@@ -27,7 +30,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
           <div className="text-center max-w-md mx-4 p-8 rounded-3xl backdrop-blur-xl border border-white/15"
             style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)" }}
           >
-            <Shield className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
+            <Shield className="w-12 h-12 text-primary mx-auto mb-4" />
             <h2 className="text-xl font-bold text-foreground mb-2">Account Required</h2>
             <p className="text-muted-foreground text-sm mb-6">
               You must create an account or log in to access this feature.

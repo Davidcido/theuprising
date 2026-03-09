@@ -1,28 +1,35 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { User } from "@supabase/supabase-js";
+import { User, Session } from "@supabase/supabase-js";
 
-export function useAuthReady() {
-  const [isReady, setIsReady] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
+interface AuthState {
+  user: User | null;
+  session: Session | null;
+  isReady: boolean;
+}
+
+const AuthContext = createContext<AuthState>({ user: null, session: null, isReady: false });
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [state, setState] = useState<AuthState>({ user: null, session: null, isReady: false });
 
   useEffect(() => {
-    // 1. Set up listener FIRST (before getSession) to catch all events
+    // 1. Listen FIRST so we catch INITIAL_SESSION event
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        setUser(session?.user ?? null);
-        setIsReady(true);
+        setState({ user: session?.user ?? null, session, isReady: true });
       }
     );
 
-    // 2. Then restore from storage
+    // 2. Then explicitly restore from storage (fallback for browsers where listener is slow)
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setIsReady(true);
+      setState(prev => prev.isReady ? prev : { user: session?.user ?? null, session, isReady: true });
     });
 
     // 3. Safety timeout for Safari edge cases
-    const timeout = setTimeout(() => setIsReady(true), 5000);
+    const timeout = setTimeout(() => {
+      setState(prev => prev.isReady ? prev : { ...prev, isReady: true });
+    }, 5000);
 
     return () => {
       subscription.unsubscribe();
@@ -30,5 +37,9 @@ export function useAuthReady() {
     };
   }, []);
 
-  return { user, isReady };
+  return <AuthContext.Provider value={state}>{children}</AuthContext.Provider>;
+}
+
+export function useAuthReady() {
+  return useContext(AuthContext);
 }
