@@ -291,6 +291,13 @@ const Community = () => {
     if (expandedComments.size > 0) fetchCommentReactions();
   }, [expandedComments, comments]);
 
+  // Safety: never stay in loading state longer than 10s
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setTimeout(() => setLoading(false), 10000);
+    return () => clearTimeout(timer);
+  }, [loading]);
+
   useEffect(() => {
     fetchPosts(false);
     fetchLikedPosts();
