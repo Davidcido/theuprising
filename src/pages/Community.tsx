@@ -286,7 +286,11 @@ const Community = () => {
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "community_posts" }, (payload) => {
         const updated = payload.new as any;
-        setAllPosts(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p));
+        setAllPosts(prev => prev.map(p => {
+          if (p.id !== updated.id) return p;
+          // Preserve pending media and callbacks during background uploads
+          return { ...p, ...updated, _pendingMedia: p._pendingMedia, _onCancelUpload: p._onCancelUpload, _onRetryUpload: p._onRetryUpload };
+        }));
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "community_posts" }, (payload) => {
         const deleted = payload.old as { id: string };
