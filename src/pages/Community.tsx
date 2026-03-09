@@ -438,6 +438,8 @@ const Community = () => {
     }
   };
 
+  const pendingFilesRef = useRef<Map<string, { file: File; type: "image" | "video" }>>(new Map());
+
   const updatePendingMedia = useCallback((postId: string, mediaId: string, update: Partial<PendingMedia>) => {
     setAllPosts(prev => prev.map(p => {
       if (p.id !== postId || !p._pendingMedia) return p;
@@ -477,7 +479,6 @@ const Community = () => {
       if (state.status === "uploading") {
         updatePendingMedia(postId, mediaId, { progress: state.progress, message: `Uploading... ${state.progress}%` });
       } else if (state.status === "done" && state.publicUrl) {
-        // Move from pending to media_urls
         setAllPosts(prev => prev.map(p => {
           if (p.id !== postId) return p;
           const newMediaUrls = [...(p.media_urls || []), state.publicUrl!];
@@ -487,7 +488,6 @@ const Community = () => {
             media_urls: newMediaUrls,
             _pendingMedia: remaining.length > 0 ? remaining : undefined,
           };
-          // Update the DB post with the new URL
           supabase.from("community_posts").update({ media_urls: newMediaUrls }).eq("id", postId);
           return updated;
         }));
@@ -504,17 +504,15 @@ const Community = () => {
   }, [updatePendingMedia, cancelPendingUpload]);
 
   const retryPendingUpload = useCallback((postId: string, mediaId: string) => {
-    // Find the pending media info from the post
-    const post = allPosts.find(p => p.id === postId);
-    const pm = post?._pendingMedia?.find(m => m.id === mediaId);
-    if (!pm) return;
-    // We need the original file — store it in a ref
     const fileEntry = pendingFilesRef.current.get(mediaId);
     if (!fileEntry) return;
-    startBackgroundUpload(postId, mediaId, fileEntry.file, fileEntry.type, pm.previewUrl);
-  }, [allPosts, startBackgroundUpload]);
-
-  const pendingFilesRef = useRef<Map<string, { file: File; type: "image" | "video" }>>(new Map());
+    setAllPosts(prev => {
+      const post = prev.find(p => p.id === postId);
+      const pm = post?._pendingMedia?.find(m => m.id === mediaId);
+      if (pm) startBackgroundUpload(postId, mediaId, fileEntry.file, fileEntry.type, pm.previewUrl);
+      return prev;
+    });
+  }, [startBackgroundUpload]);
 
   const addPost = async () => {
     if ((!newPost.trim() && mediaFiles.length === 0) || posting) return;
