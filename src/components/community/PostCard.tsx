@@ -36,6 +36,16 @@ export type Comment = {
   created_at: string;
 };
 
+export type PendingMedia = {
+  id: string;
+  type: "image" | "video";
+  previewUrl: string; // local blob URL
+  progress: number; // 0-100
+  status: "compressing" | "uploading" | "done" | "error";
+  message: string;
+  finalUrl?: string;
+};
+
 export type Post = {
   id: string;
   content: string;
@@ -54,6 +64,9 @@ export type Post = {
   original_post?: Post | null;
   media_urls?: string[];
   _optimistic?: boolean;
+  _pendingMedia?: PendingMedia[];
+  _onCancelUpload?: (mediaId: string) => void;
+  _onRetryUpload?: (mediaId: string) => void;
 };
 
 export type Reaction = {
