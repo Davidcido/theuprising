@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Shield, Eye, EyeOff, Sparkles, Users, TrendingUp, RefreshCw, Bookmark, FileText } from "lucide-react";
+import { Send, Shield, Eye, EyeOff, Sparkles, Users, TrendingUp, RefreshCw, Bookmark, FileText, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import UserAvatar from "@/components/UserAvatar";
 import { toast } from "@/hooks/use-toast";
@@ -16,6 +16,12 @@ import RepostDialog from "@/components/community/RepostDialog";
 import MediaUploader from "@/components/community/MediaUploader";
 import SuggestedUsers from "@/components/community/SuggestedUsers";
 import { useBookmarks } from "@/hooks/useBookmarks";
+import { useDrafts } from "@/hooks/useDrafts";
+import WelcomePrompt from "@/components/community/WelcomePrompt";
+import ActivityBanner from "@/components/community/ActivityBanner";
+import AuthModal from "@/components/auth/AuthModal";
+import { Button } from "@/components/ui/button";
+import { withTimeout } from "@/lib/apiHelpers";
 import { useDrafts } from "@/hooks/useDrafts";
 
 type FeedTab = "foryou" | "following" | "trending";
