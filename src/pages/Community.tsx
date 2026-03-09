@@ -961,6 +961,12 @@ const Community = () => {
         {/* Activity Banner */}
         <ActivityBanner />
 
+        {/* First Post Celebration */}
+        <FirstPostCelebration
+          show={showFirstPostCelebration}
+          onDismiss={() => setShowFirstPostCelebration(false)}
+        />
+
         {/* Welcome / First Post Prompt */}
         <WelcomePrompt
           isLoggedIn={!!currentUser}
