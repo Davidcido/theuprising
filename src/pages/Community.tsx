@@ -226,8 +226,20 @@ const Community = () => {
       setHasMore(data.length === POSTS_PER_PAGE);
     } catch (err: any) {
       console.error("[Community] fetchPosts failed:", err?.message);
+      // Auto-retry once before showing error
+      if (retryCount < 1) {
+        console.log("[Community] Retrying fetch...");
+        return fetchPosts(loadMore, retryCount + 1);
+      }
+      // Fall back to cached posts if available
       if (!loadMore && allPosts.length === 0) {
-        setFetchError("Could not load posts. Tap to retry.");
+        const cached = getCachedPosts();
+        if (cached && cached.length > 0) {
+          console.log("[Community] Using cached posts as fallback");
+          setAllPosts(cached);
+        } else {
+          setFetchError("Could not load posts. Tap to retry.");
+        }
       }
     } finally {
       setLoading(false);
