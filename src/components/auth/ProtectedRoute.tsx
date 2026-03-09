@@ -17,7 +17,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
-          <p className="text-muted-foreground text-sm">Checking your session…</p>
+          <p className="text-muted-foreground text-sm">Loading your space…</p>
         </div>
       </div>
     );
