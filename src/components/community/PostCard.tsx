@@ -58,7 +58,7 @@ export type Post = {
   author_id?: string | null;
   is_anonymous?: boolean;
   engagement_score?: number;
-  author_profile?: { display_name: string | null; avatar_url: string } | null;
+  author_profile?: { display_name: string | null; avatar_url: string; created_at?: string } | null;
   original_post_id?: string | null;
   reposted_by_name?: string | null;
   original_post?: Post | null;
