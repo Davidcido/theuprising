@@ -294,6 +294,61 @@ const PostCard = ({
           <MediaGallery mediaUrls={post.media_urls} />
         )}
 
+        {/* Pending media uploads */}
+        {post._pendingMedia && post._pendingMedia.length > 0 && (
+          <div className="grid gap-1.5 mb-3 grid-cols-1">
+            {post._pendingMedia.map((pm) => (
+              <div key={pm.id} className="relative rounded-xl overflow-hidden border border-white/10 bg-white/5">
+                {pm.type === "video" ? (
+                  <video src={pm.previewUrl} className="w-full h-48 object-cover opacity-50" muted playsInline preload="metadata" />
+                ) : (
+                  <img src={pm.previewUrl} alt="" className="w-full h-48 object-cover opacity-50" />
+                )}
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 gap-2">
+                  {pm.status === "error" ? (
+                    <>
+                      <p className="text-red-400 text-xs font-medium">Video upload failed</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => post._onRetryUpload?.(pm.id)}
+                          className="px-3 py-1 rounded-full bg-white/10 text-white text-xs hover:bg-white/20 transition-colors"
+                        >
+                          Retry
+                        </button>
+                        <button
+                          onClick={() => post._onCancelUpload?.(pm.id)}
+                          className="px-3 py-1 rounded-full bg-red-500/20 text-red-300 text-xs hover:bg-red-500/30 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <p className="text-white/80 text-xs font-medium">{pm.message}</p>
+                      <div className="w-32">
+                        <div className="h-1 bg-white/20 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-emerald-400 rounded-full transition-all duration-300"
+                            style={{ width: `${pm.progress}%` }}
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => post._onCancelUpload?.(pm.id)}
+                        className="px-3 py-1 rounded-full bg-white/10 text-white/60 text-[10px] hover:bg-white/20 transition-colors mt-1"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Embedded original post (for quote reposts) */}
         {post.original_post && (
           <div
