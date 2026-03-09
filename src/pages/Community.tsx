@@ -387,12 +387,11 @@ const Community = () => {
     const followsChannel = supabase
       .channel("community-follows")
       .on("postgres_changes", { event: "*", schema: "public", table: "follows" }, async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
+        if (authUser) {
           const { data: follows } = await supabase
             .from("follows")
             .select("following_id")
-            .eq("follower_id", session.user.id);
+            .eq("follower_id", authUser.id);
           if (follows) setFollowingIds(new Set(follows.map(f => f.following_id)));
         }
       })

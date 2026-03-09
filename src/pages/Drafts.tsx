@@ -7,22 +7,21 @@ import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { useAuthReady } from "@/hooks/useAuthReady";
 
 const Drafts = () => {
-  const [userId, setUserId] = useState<string>();
+  const { user: authUser } = useAuthReady();
+  const userId = authUser?.id;
   const [userName, setUserName] = useState<string>("");
   const navigate = useNavigate();
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session) {
-        setUserId(session.user.id);
-        const { data: profile } = await supabase.from("profiles").select("display_name").eq("user_id", session.user.id).single();
-        setUserName(profile?.display_name || session.user.email?.split("@")[0] || "User");
-      }
-    });
-  }, []);
-
+    if (!userId) return;
+    supabase.from("profiles").select("display_name").eq("user_id", userId).single()
+      .then(({ data: profile }) => {
+        setUserName(profile?.display_name || authUser?.email?.split("@")[0] || "User");
+      });
+  }, [userId, authUser]);
   const { drafts, loading, deleteDraft } = useDrafts(userId);
 
   const publishDraft = async (draft: any) => {
