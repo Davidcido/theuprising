@@ -913,7 +913,7 @@ const Community = () => {
                   isLiked={likedPosts.has(post.id)}
                   isExpanded={expandedComments.has(post.id)}
                   postComments={comments[post.id] || []}
-                  reactionCounts={getReactionCounts(post.id)}
+                  reactionCounts={reactionCountsMap[post.id] || {}}
                   myReactions={myReactions}
                   commentInput={commentInputs[post.id] || ""}
                   currentUserId={currentUser?.id}
