@@ -22,7 +22,6 @@ import ActivityBanner from "@/components/community/ActivityBanner";
 import AuthModal from "@/components/auth/AuthModal";
 import { Button } from "@/components/ui/button";
 import { withTimeout } from "@/lib/apiHelpers";
-import { useDrafts } from "@/hooks/useDrafts";
 
 type FeedTab = "foryou" | "following" | "trending";
 
