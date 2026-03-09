@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
     }
 
     const response = await fetch(
-      `https://uprising.metered.live/api/v1/turn/credentials?apiKey=${apiKey}`
+      `https://theuprisingcompanioncommunity.metered.live/api/v1/turn/credentials?apiKey=${apiKey}`
     );
 
     if (!response.ok) {
