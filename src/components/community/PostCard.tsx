@@ -7,6 +7,7 @@ import EmojiPicker from "@/components/EmojiPicker";
 import CommentCard from "@/components/community/CommentCard";
 import MediaGallery from "@/components/community/MediaGallery";
 import HashtagText from "@/components/community/HashtagText";
+import NewMemberBadge from "@/components/community/NewMemberBadge";
 import {
   AlertDialog,
   AlertDialogAction,
