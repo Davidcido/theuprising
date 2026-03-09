@@ -44,11 +44,7 @@ const Messages = () => {
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    getSessionSafe(3000).then((session) => {
-      setUserId(session?.user?.id);
-    });
-  }, []);
+  // userId now comes from useAuthReady — no manual session fetch needed
 
   const { conversations, loading: convsLoading } = useConversations(userId);
   const { messages, loading: msgsLoading, sendMessage, editMessage, deleteForMe, deleteForEveryone } = useMessages(conversationId, userId);
