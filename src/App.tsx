@@ -107,7 +107,9 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <AppContent />
+          <ErrorBoundary>
+            <AppContent />
+          </ErrorBoundary>
           <InstallPrompt />
         </AuthProvider>
       </BrowserRouter>
