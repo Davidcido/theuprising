@@ -1038,7 +1038,15 @@ const Community = () => {
         </div>
 
         {/* Feed */}
-        {loading ? (
+        {fetchError && allPosts.length === 0 ? (
+          <div className="text-center py-16">
+            <AlertCircle className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-40" />
+            <p className="text-foreground mb-2">{fetchError}</p>
+            <Button variant="outline" size="sm" onClick={() => { setLoading(true); setFetchError(null); fetchPosts(false); }}>
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Try Again
+            </Button>
+          </div>
+        ) : loading ? (
           <div className="space-y-3">
             {[1, 2, 3, 4].map((i) => <PostSkeleton key={i} />)}
           </div>
