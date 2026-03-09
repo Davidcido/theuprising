@@ -45,7 +45,7 @@ const Messages = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    getSessionSafe(3000).then((session) => {
       setUserId(session?.user?.id);
     });
   }, []);
