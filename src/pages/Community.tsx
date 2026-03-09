@@ -22,6 +22,11 @@ import ActivityBanner from "@/components/community/ActivityBanner";
 import AuthModal from "@/components/auth/AuthModal";
 import { Button } from "@/components/ui/button";
 import { withTimeout } from "@/lib/apiHelpers";
+import { usePostViewTracker } from "@/hooks/usePostViewTracker";
+import PostViewObserver from "@/components/community/PostViewObserver";
+import FirstPostCelebration from "@/components/community/FirstPostCelebration";
+import { extractMentions } from "@/components/community/HashtagText";
+import MentionDropdown from "@/components/community/MentionDropdown";
 
 type FeedTab = "foryou" | "following" | "trending";
 
