@@ -23,6 +23,7 @@ import { usePinnedPost } from "@/hooks/usePinnedPost";
 import { useAIMemory } from "@/hooks/useAIMemory";
 import MemorySettings from "@/components/chat/MemorySettings";
 import ProfileSkeleton from "@/components/profile/ProfileSkeleton";
+import FollowListModal from "@/components/profile/FollowListModal";
 
 const Profile = () => {
   const { userId: paramUserId } = useParams();
