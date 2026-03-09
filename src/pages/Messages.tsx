@@ -363,9 +363,6 @@ const Messages = () => {
           onEndCall={endCall}
         />
       )}
-      {incomingCall && callState === "ringing" && (
-        <IncomingCallModal signal={incomingCall} onAccept={acceptCall} onReject={rejectCall} />
-      )}
 
       {/* Selection toolbar */}
       {selectionMode && (
