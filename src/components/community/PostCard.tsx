@@ -425,15 +425,22 @@ const PostCard = ({
 
         {/* Actions */}
         <div className="flex items-center gap-1 border-t border-white/5 pt-3">
-          <motion.button
-            onClick={() => onToggleLike(post.id)}
-            whileTap={{ scale: 1.3 }}
-            transition={{ type: "spring", stiffness: 400, damping: 10 }}
-            className={`flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-sm transition-all ${isLiked ? "text-red-400" : "text-muted-foreground hover:text-red-400 hover:bg-white/5"}`}
-          >
-            <Heart className="w-4 h-4" fill={isLiked ? "currentColor" : "none"} />
-            <span className="text-xs">{post.likes_count}</span>
-          </motion.button>
+          <div className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-sm">
+            <motion.button
+              onClick={() => onToggleLike(post.id)}
+              whileTap={{ scale: 1.3 }}
+              transition={{ type: "spring", stiffness: 400, damping: 10 }}
+              className={`inline-flex items-center gap-1 transition-all ${isLiked ? "text-red-400" : "text-muted-foreground hover:text-red-400"}`}
+            >
+              <Heart className="w-4 h-4" fill={isLiked ? "currentColor" : "none"} />
+            </motion.button>
+            <button
+              onClick={() => post.likes_count > 0 && setShowLikesModal(true)}
+              className={`text-xs transition-colors ${isLiked ? "text-red-400" : "text-muted-foreground"} ${post.likes_count > 0 ? "hover:underline cursor-pointer" : ""}`}
+            >
+              {post.likes_count}
+            </button>
+          </div>
           <button
             onClick={() => onToggleComments(post.id)}
             className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-blue-400 hover:bg-white/5 transition-all"
