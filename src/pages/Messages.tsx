@@ -7,14 +7,14 @@ import { useAuthReady } from "@/hooks/useAuthReady";
 import UserAvatar from "@/components/UserAvatar";
 import { useConversations, useMessages, type DirectMessage } from "@/hooks/useConversations";
 import { useMessageReactions } from "@/hooks/useMessageReactions";
-import { useCallSignaling, type CallEvent } from "@/hooks/useCallSignaling";
+import { useGlobalCalls } from "@/hooks/useGlobalCalls";
 import { useBlocks } from "@/hooks/useBlocks";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import CallOverlay from "@/components/calls/CallOverlay";
-import IncomingCallModal from "@/components/calls/IncomingCallModal";
+
 import { createNotification } from "@/lib/notifications";
 import ChatBubble from "@/components/messages/ChatBubble";
 import ReplyPreview from "@/components/messages/ReplyPreview";
@@ -49,36 +49,7 @@ const Messages = () => {
 
   const { conversations, loading: convsLoading } = useConversations(userId);
   const { messages, loading: msgsLoading, sendMessage, editMessage, deleteForMe, deleteForEveryone } = useMessages(conversationId, userId);
-  const handleCallEvent = useCallback(async (event: CallEvent) => {
-    if (!userId || !event.conversationId) return;
-    const icon = event.callType === "video" ? "📹" : "📞";
-    const typeLabel = event.callType === "video" ? "video" : "voice";
-    let content = "";
-
-    if (event.type === "started") {
-      content = `${icon} You started a ${typeLabel} call`;
-    } else if (event.type === "missed") {
-      content = `${icon} Missed ${typeLabel} call`;
-    } else if (event.type === "ended" && event.duration) {
-      const mins = Math.floor(event.duration / 60);
-      const secs = event.duration % 60;
-      const dur = mins > 0 ? `${mins}m ${secs.toString().padStart(2, "0")}s` : `${secs}s`;
-      content = `${icon} ${typeLabel.charAt(0).toUpperCase() + typeLabel.slice(1)} call ended — duration ${dur}`;
-    } else if (event.type === "rejected") {
-      content = `${icon} ${typeLabel.charAt(0).toUpperCase() + typeLabel.slice(1)} call declined`;
-    }
-
-    if (content) {
-      await supabase.from("direct_messages").insert({
-        conversation_id: event.conversationId,
-        sender_id: userId,
-        content,
-        attachment_type: "system",
-      } as any);
-    }
-  }, [userId]);
-
-  const { callState, incomingCall, activeCallType, localMediaStream, remoteMediaStream, startCall, acceptCall, rejectCall, endCall } = useCallSignaling(userId, handleCallEvent);
+  const { callState, incomingCall, activeCallType, activeConversationId, localMediaStream, remoteMediaStream, startCall, acceptCall, rejectCall, endCall } = useGlobalCalls();
   const { isBlocked, blockUser, unblockUser } = useBlocks(userId);
   const { isOtherTyping, typingUserName, sendTyping } = useTypingIndicator(conversationId, userId);
   const { toggleReaction, getGroupedReactions } = useMessageReactions(conversationId, userId);
@@ -313,9 +284,6 @@ const Messages = () => {
   if (!conversationId) {
     return (
       <div className="min-h-screen py-12 pb-24">
-        {incomingCall && callState === "ringing" && (
-          <IncomingCallModal signal={incomingCall} onAccept={acceptCall} onReject={rejectCall} />
-        )}
         <div className="container mx-auto px-4 max-w-2xl">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <h1 className="text-2xl font-display font-bold text-foreground mb-6 flex items-center gap-2">
@@ -394,9 +362,6 @@ const Messages = () => {
           remoteStream={remoteMediaStream}
           onEndCall={endCall}
         />
-      )}
-      {incomingCall && callState === "ringing" && (
-        <IncomingCallModal signal={incomingCall} onAccept={acceptCall} onReject={rejectCall} />
       )}
 
       {/* Selection toolbar */}

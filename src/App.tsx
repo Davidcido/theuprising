@@ -18,6 +18,7 @@ import { useOnboarding } from "./hooks/useOnboarding";
 import { useDailyRise } from "./hooks/useDailyRise";
 import { AuthProvider } from "./hooks/useAuthReady";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { GlobalCallProvider } from "./hooks/useGlobalCalls";
 
 // Lazy-load non-critical route pages
 const Chat = lazy(() => import("./pages/Chat"));
@@ -107,10 +108,12 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <ErrorBoundary>
-            <AppContent />
-          </ErrorBoundary>
-          <InstallPrompt />
+          <GlobalCallProvider>
+            <ErrorBoundary>
+              <AppContent />
+            </ErrorBoundary>
+            <InstallPrompt />
+          </GlobalCallProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
