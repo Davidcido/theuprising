@@ -145,7 +145,8 @@ export const useCallSignaling = (userId?: string, onCallEvent?: (event: CallEven
   endCallRef.current = endCall;
 
   const setupPeerConnection = useCallback(async (callType: "voice" | "video") => {
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const iceServers = await fetchTurnServers();
+    const pc = new RTCPeerConnection({ iceServers });
     peerConnection.current = pc;
 
     try {
