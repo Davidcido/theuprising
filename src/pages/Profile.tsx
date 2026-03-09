@@ -71,11 +71,7 @@ const Profile = () => {
     }
   };
 
-  useEffect(() => {
-    getSessionSafe(3000).then((session) => {
-      setCurrentUserId(session?.user?.id);
-    });
-  }, []);
+  // currentUserId is now derived from useAuthReady — no need for getSessionSafe
 
   useEffect(() => {
     if (profile) {
