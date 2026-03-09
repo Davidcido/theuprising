@@ -376,11 +376,16 @@ const Community = () => {
   useEffect(() => {
     const newPostIds = visiblePosts
       .map(p => p.id)
-      .filter(id => !id.startsWith("repost-") && !viewedPostsRef.current.has(id));
+      .filter(id => !id.startsWith("repost-") && !id.startsWith("optimistic-") && !viewedPostsRef.current.has(id));
     if (newPostIds.length === 0) return;
     newPostIds.forEach(id => viewedPostsRef.current.add(id));
-    newPostIds.forEach(id => {
-      supabase.rpc("increment_views", { post_id_input: id });
+    // Batch view increments with a small delay to avoid flooding
+    const timer = setTimeout(() => {
+      newPostIds.forEach(id => {
+        supabase.rpc("increment_views", { post_id_input: id });
+      });
+    }, 500);
+    return () => clearTimeout(timer);
     });
   }, [visiblePosts]);
 
