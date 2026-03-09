@@ -138,6 +138,7 @@ const PostCard = ({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.content);
+  const [showLikesModal, setShowLikesModal] = useState(false);
 
   const handleDelete = () => {
     onDeletePost?.(post.id);
