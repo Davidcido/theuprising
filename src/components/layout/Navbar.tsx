@@ -165,13 +165,22 @@ const Navbar = () => {
         {/* Mobile menu */}
         <AnimatePresence>
           {mobileOpen && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="md:hidden border-b border-white/10 backdrop-blur-xl"
-              style={{ background: "rgba(15, 81, 50, 0.9)" }}
-            >
+            <>
+              {/* Backdrop for closing on outside tap */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[-1] md:hidden"
+                onClick={() => setMobileOpen(false)}
+              />
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="md:hidden border-b border-white/10 backdrop-blur-xl"
+                style={{ background: "rgba(15, 81, 50, 0.95)" }}
+              >
               <div className="px-4 py-3 flex flex-col gap-1">
                 {navItems.map((item) => {
                   const active = location.pathname === item.to;
@@ -229,7 +238,8 @@ const Navbar = () => {
                   </button>
                 )}
               </div>
-            </motion.div>
+              </motion.div>
+            </>
           )}
         </AnimatePresence>
       </nav>
