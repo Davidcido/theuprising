@@ -125,15 +125,15 @@ const Community = () => {
 
   const enrichPosts = useCallback(async (data: any[]): Promise<Post[]> => {
     const authorIds = [...new Set(data.filter((p: any) => p.author_id).map((p: any) => p.author_id))];
-    let profilesMap: Record<string, { display_name: string | null; avatar_url: string }> = {};
+    let profilesMap: Record<string, { display_name: string | null; avatar_url: string; created_at?: string }> = {};
     if (authorIds.length > 0) {
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, display_name, avatar_url")
+        .select("user_id, display_name, avatar_url, created_at")
         .in("user_id", authorIds);
       if (profiles) {
         for (const p of profiles) {
-          profilesMap[p.user_id] = { display_name: p.display_name, avatar_url: p.avatar_url ?? "" };
+          profilesMap[p.user_id] = { display_name: p.display_name, avatar_url: p.avatar_url ?? "", created_at: p.created_at };
         }
       }
     }
