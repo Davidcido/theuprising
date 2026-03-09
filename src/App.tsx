@@ -16,6 +16,7 @@ import OnboardingFlow from "./components/onboarding/OnboardingFlow";
 import DailyRisePopup from "./components/dailyrise/DailyRisePopup";
 import { useOnboarding } from "./hooks/useOnboarding";
 import { useDailyRise } from "./hooks/useDailyRise";
+import { AuthProvider } from "./hooks/useAuthReady";
 
 // Lazy-load non-critical route pages
 const Chat = lazy(() => import("./pages/Chat"));
