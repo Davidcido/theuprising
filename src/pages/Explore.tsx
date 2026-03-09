@@ -9,6 +9,7 @@ import MediaGallery from "@/components/community/MediaGallery";
 import { formatDistanceToNow } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { useAuthReady } from "@/hooks/useAuthReady";
+import ExploreSkeleton from "@/components/explore/ExploreSkeleton";
 
 type ExplorePost = {
   id: string;
