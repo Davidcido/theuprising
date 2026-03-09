@@ -143,13 +143,15 @@ const Messages = () => {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
-    if (!validTypes.includes(file.type)) {
-      toast({ title: "Invalid format", description: "Use jpg, png, gif, or webp", variant: "destructive" });
+    const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
+    const videoTypes = ["video/mp4", "video/webm", "video/mov", "video/quicktime"];
+    if (!imageTypes.includes(file.type) && !videoTypes.includes(file.type)) {
+      toast({ title: "Invalid format", description: "Use jpg, png, gif, webp, mp4, or webm", variant: "destructive" });
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Max 10MB", variant: "destructive" });
+    const maxSize = file.type.startsWith("video/") ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast({ title: "File too large", description: file.type.startsWith("video/") ? "Max 100MB for videos" : "Max 10MB for images", variant: "destructive" });
       return;
     }
     setPendingImage({ file, url: URL.createObjectURL(file) });
@@ -159,6 +161,7 @@ const Messages = () => {
   const sendImage = async () => {
     if (!pendingImage || !conversationId || !userId) return;
     setSendingImage(true);
+    const isVideo = pendingImage.file.type.startsWith("video/");
     const ext = pendingImage.file.name.split(".").pop();
     const path = `${conversationId}/${Date.now()}.${ext}`;
     const { error: uploadError } = await supabase.storage.from("dm-media").upload(path, pendingImage.file);
@@ -172,9 +175,9 @@ const Messages = () => {
     await supabase.from("direct_messages").insert({
       conversation_id: conversationId,
       sender_id: userId,
-      content: "📷 Image",
+      content: isVideo ? "🎬 Video" : "📷 Image",
       attachment_url: urlData.publicUrl,
-      attachment_type: "image",
+      attachment_type: isVideo ? "video" : "image",
       ...(replyId ? { reply_to_message_id: replyId } : {}),
     } as any);
     await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
@@ -572,7 +575,7 @@ const Messages = () => {
                 )}
 
                 <div className="flex gap-2 items-end">
-                  <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.gif,.webp" className="hidden" onChange={handleFileSelect} />
+                  <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.webm,.mov" className="hidden" onChange={handleFileSelect} />
 
                   {!voiceRecorderActive && (
                     <>
