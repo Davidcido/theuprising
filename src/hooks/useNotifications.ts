@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export type Notification = {
@@ -17,9 +17,12 @@ export const useNotifications = (userId?: string) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const fetchingRef = useRef(false);
 
   const fetchNotifications = useCallback(async () => {
-    if (!userId) { setLoading(false); return; }
+    if (!userId || fetchingRef.current) { setLoading(false); return; }
+    fetchingRef.current = true;
+
     const { data } = await supabase
       .from("notifications")
       .select("*")
@@ -28,7 +31,6 @@ export const useNotifications = (userId?: string) => {
       .limit(50);
 
     if (data) {
-      // Fetch actor profiles
       const actorIds = [...new Set(data.filter((n) => n.actor_id).map((n) => n.actor_id!))];
       let profilesMap: Record<string, { display_name: string | null; avatar_url: string }> = {};
       if (actorIds.length > 0) {
@@ -51,6 +53,7 @@ export const useNotifications = (userId?: string) => {
       setUnreadCount(enriched.filter((n) => !n.read).length);
     }
     setLoading(false);
+    fetchingRef.current = false;
   }, [userId]);
 
   useEffect(() => {
@@ -64,8 +67,19 @@ export const useNotifications = (userId?: string) => {
         schema: "public",
         table: "notifications",
         filter: `user_id=eq.${userId}`,
-      }, () => {
-        fetchNotifications();
+      }, (payload) => {
+        // Optimistic insert instead of full refetch
+        const newNotif = payload.new as any;
+        setNotifications((prev) => [{ ...newNotif, actor_profile: null }, ...prev]);
+        setUnreadCount((c) => c + 1);
+        // Background enrichment
+        if (newNotif.actor_id) {
+          supabase.from("profiles").select("user_id, display_name, avatar_url").eq("user_id", newNotif.actor_id).single().then(({ data: profile }) => {
+            if (profile) {
+              setNotifications((prev) => prev.map(n => n.id === newNotif.id ? { ...n, actor_profile: { display_name: profile.display_name, avatar_url: profile.avatar_url } } : n));
+            }
+          });
+        }
       })
       .subscribe();
 
@@ -73,16 +87,16 @@ export const useNotifications = (userId?: string) => {
   }, [fetchNotifications, userId]);
 
   const markAsRead = async (notificationId: string) => {
-    await supabase.from("notifications").update({ read: true }).eq("id", notificationId);
     setNotifications((prev) => prev.map((n) => n.id === notificationId ? { ...n, read: true } : n));
     setUnreadCount((c) => Math.max(0, c - 1));
+    await supabase.from("notifications").update({ read: true }).eq("id", notificationId);
   };
 
   const markAllRead = async () => {
     if (!userId) return;
-    await supabase.from("notifications").update({ read: true }).eq("user_id", userId).eq("read", false);
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
+    await supabase.from("notifications").update({ read: true }).eq("user_id", userId).eq("read", false);
   };
 
   return { notifications, unreadCount, loading, markAsRead, markAllRead, refetch: fetchNotifications };

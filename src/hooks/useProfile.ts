@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { invalidateProfileCache } from "@/lib/apiHelpers";
 
 export type Profile = {
   id: string;
@@ -21,6 +22,7 @@ export const useProfile = (userId?: string) => {
 
   const fetchProfile = useCallback(async () => {
     if (!userId) { setLoading(false); return; }
+    
     const { data } = await supabase
       .from("profiles")
       .select("*")
@@ -30,38 +32,56 @@ export const useProfile = (userId?: string) => {
     if (data) {
       setProfile(data as unknown as Profile);
     } else {
-      const { data: session } = await supabase.auth.getSession();
-      const email = session?.session?.user?.email;
-      const defaultName = email?.split("@")[0] || `user_${userId.slice(0, 4)}`;
-      const { data: newProfile } = await supabase
-        .from("profiles")
-        .insert({ user_id: userId, display_name: defaultName, online_status: "online" })
-        .select("*")
-        .single();
-      if (newProfile) setProfile(newProfile as unknown as Profile);
+      // Only create profile if this is the current user
+      const session = await supabase.auth.getSession();
+      if (session?.data?.session?.user?.id === userId) {
+        const email = session.data.session.user.email;
+        const defaultName = email?.split("@")[0] || `user_${userId.slice(0, 4)}`;
+        const { data: newProfile } = await supabase
+          .from("profiles")
+          .insert({ user_id: userId, display_name: defaultName, online_status: "online" })
+          .select("*")
+          .single();
+        if (newProfile) setProfile(newProfile as unknown as Profile);
+      }
     }
     setLoading(false);
   }, [userId]);
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
+  // Online status + heartbeat — only for current user
   useEffect(() => {
     if (!userId || !profile) return;
-    supabase.from("profiles").update({ online_status: "online", last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
+    
+    // Check if this is the current user before setting online status
+    let isCurrent = false;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      isCurrent = session?.user?.id === userId;
+      if (isCurrent) {
+        supabase.from("profiles").update({ online_status: "online", last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
+      }
+    });
 
-    // Heartbeat to update last_seen_at periodically
+    // Heartbeat every 2 minutes (reduced from 1 min)
     const heartbeat = setInterval(() => {
-      supabase.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
-    }, 60000); // Every minute
+      if (isCurrent) {
+        supabase.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
+      }
+    }, 120000);
 
     const handleBeforeUnload = () => {
-      supabase.from("profiles").update({ online_status: "offline", last_seen_at: new Date().toISOString() }).eq("user_id", userId);
+      if (isCurrent) {
+        supabase.from("profiles").update({ online_status: "offline", last_seen_at: new Date().toISOString() }).eq("user_id", userId);
+      }
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => {
       clearInterval(heartbeat);
       window.removeEventListener("beforeunload", handleBeforeUnload);
-      supabase.from("profiles").update({ online_status: "offline", last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
+      if (isCurrent) {
+        supabase.from("profiles").update({ online_status: "offline", last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
+      }
     };
   }, [userId, profile]);
 
@@ -73,6 +93,7 @@ export const useProfile = (userId?: string) => {
       .eq("user_id", userId);
     if (!error) {
       setProfile((prev) => prev ? { ...prev, ...updates } : prev);
+      invalidateProfileCache(userId);
     }
     return { error: error?.message || null };
   };
