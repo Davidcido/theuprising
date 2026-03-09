@@ -179,15 +179,14 @@ const Community = () => {
       } else {
         let directRepostPosts: Post[] = [];
         try {
-          const { data: reposts } = await withTimeout(
-            supabase
+          const repostsPromise = supabase
               .from("community_reposts")
               .select("*")
               .is("quote_content", null)
               .order("created_at", { ascending: false })
-              .limit(50),
-            5000
-          );
+              .limit(50)
+              .then(res => res);
+          const { data: reposts } = await withTimeout(repostsPromise, 5000);
 
           if (reposts && reposts.length > 0) {
             const postsMap: Record<string, any> = {};
