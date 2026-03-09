@@ -975,8 +975,8 @@ const Community = () => {
 
         {/* Welcome / First Post Prompt */}
         <WelcomePrompt
-          isLoggedIn={!!currentUser}
-          hasPosted={allPosts.some(p => p.author_id === currentUser?.id)}
+          isLoggedIn={!!authUser}
+          hasPosted={allPosts.some(p => p.author_id === (currentUser?.id || authUser?.id))}
           onOpenAuth={() => setAuthOpen(true)}
         />
 
