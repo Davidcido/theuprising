@@ -97,6 +97,19 @@ export default defineConfig(({ mode }) => ({
     dedupe: ["react", "react-dom", "react/jsx-runtime", "@tanstack/react-query"],
   },
   optimizeDeps: {
-    include: ["react", "react-dom", "@tanstack/react-query"],
+    include: ["react", "react-dom", "@tanstack/react-query", "framer-motion", "date-fns", "lucide-react"],
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-ui': ['framer-motion', 'lucide-react', 'date-fns'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+        },
+      },
+    },
+    target: 'es2020',
+    minify: 'esbuild',
   },
 }));
