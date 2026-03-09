@@ -978,16 +978,31 @@ const Community = () => {
         <div className={`p-5 rounded-2xl backdrop-blur-xl border border-white/15 shadow-lg mb-6 ${!communityOpen ? "opacity-50 pointer-events-none" : ""}`} style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)" }}>
           <div className="flex gap-3">
             <UserAvatar displayName={postAnonymously ? sessionId : currentUser?.displayName} size="sm" />
-            <div className="flex-1">
+            <div className="flex-1 relative">
               <textarea
                 ref={textareaRef}
                 value={newPost}
                 onChange={handlePostChange}
-                placeholder={communityOpen ? "What's on your mind?" : "Community posting is currently closed."}
+                placeholder={communityOpen ? "What's on your mind? Use @ to mention someone" : "Community posting is currently closed."}
                 rows={2}
                 disabled={!communityOpen}
                 className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 resize-none overflow-hidden disabled:cursor-not-allowed"
                 style={{ minHeight: "60px" }}
+                onBlur={() => setTimeout(() => setShowMentionDropdown(false), 200)}
+              />
+              <MentionDropdown
+                query={mentionQuery}
+                visible={showMentionDropdown}
+                onSelect={(user) => {
+                  const cursorPos = textareaRef.current?.selectionStart || newPost.length;
+                  const textBefore = newPost.slice(0, cursorPos);
+                  const textAfter = newPost.slice(cursorPos);
+                  const replaced = textBefore.replace(/@\w*$/, `@${user.display_name || "User"} `);
+                  setNewPost(replaced + textAfter);
+                  setShowMentionDropdown(false);
+                  setMentionQuery("");
+                  setTimeout(() => textareaRef.current?.focus(), 50);
+                }}
               />
 
               {/* Media uploader */}
