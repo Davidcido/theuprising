@@ -14,7 +14,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import CallOverlay from "@/components/calls/CallOverlay";
-import IncomingCallModal from "@/components/calls/IncomingCallModal";
+
 import { createNotification } from "@/lib/notifications";
 import ChatBubble from "@/components/messages/ChatBubble";
 import ReplyPreview from "@/components/messages/ReplyPreview";
