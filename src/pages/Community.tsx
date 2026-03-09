@@ -21,12 +21,13 @@ import WelcomePrompt from "@/components/community/WelcomePrompt";
 import ActivityBanner from "@/components/community/ActivityBanner";
 import AuthModal from "@/components/auth/AuthModal";
 import { Button } from "@/components/ui/button";
-import { withTimeout, getSessionSafe } from "@/lib/apiHelpers";
+import { withTimeout } from "@/lib/apiHelpers";
 import { usePostViewTracker } from "@/hooks/usePostViewTracker";
 import PostViewObserver from "@/components/community/PostViewObserver";
 import FirstPostCelebration from "@/components/community/FirstPostCelebration";
 import { extractMentions } from "@/components/community/HashtagText";
 import MentionDropdown from "@/components/community/MentionDropdown";
+import { useAuthReady } from "@/hooks/useAuthReady";
 
 type FeedTab = "foryou" | "following" | "trending";
 
@@ -84,6 +85,7 @@ const Community = () => {
   const [myReactions, setMyReactions] = useState<Set<string>>(new Set());
   const [communityOpen, setCommunityOpen] = useState(true);
   const [postAnonymously, setPostAnonymously] = useState(true);
+  const { user: authUser } = useAuthReady();
   const [currentUser, setCurrentUser] = useState<{ id: string; displayName: string } | null>(null);
   const [reportMenuPost, setReportMenuPost] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<FeedTab>("foryou");
@@ -110,23 +112,24 @@ const Community = () => {
   const { trackView } = usePostViewTracker();
 
   useEffect(() => {
-    getSessionSafe(3000).then(async (session) => {
-      if (session) {
-        // Fetch profile and follows in parallel
-        const [profileRes, followsRes] = await Promise.all([
-          supabase.from("profiles").select("display_name").eq("user_id", session.user.id).single(),
-          supabase.from("follows").select("following_id").eq("follower_id", session.user.id),
-        ]);
-        setCurrentUser({
-          id: session.user.id,
-          displayName: profileRes.data?.display_name || session.user.email?.split("@")[0] || "User",
-        });
-        if (followsRes.data) {
-          setFollowingIds(new Set(followsRes.data.map(f => f.following_id)));
-        }
+    if (!authUser) {
+      setCurrentUser(null);
+      return;
+    }
+    // Fetch profile and follows in parallel
+    Promise.all([
+      supabase.from("profiles").select("display_name").eq("user_id", authUser.id).single(),
+      supabase.from("follows").select("following_id").eq("follower_id", authUser.id),
+    ]).then(([profileRes, followsRes]) => {
+      setCurrentUser({
+        id: authUser.id,
+        displayName: profileRes.data?.display_name || authUser.email?.split("@")[0] || "User",
+      });
+      if (followsRes.data) {
+        setFollowingIds(new Set(followsRes.data.map(f => f.following_id)));
       }
     });
-  }, []);
+  }, [authUser]);
 
   const enrichPosts = useCallback(async (data: any[]): Promise<Post[]> => {
     const authorIds = [...new Set(data.filter((p: any) => p.author_id).map((p: any) => p.author_id))];

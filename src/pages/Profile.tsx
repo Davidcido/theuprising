@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Camera, Edit2, MapPin, UserPlus, UserMinus, MessageCircle, Check, X, ImagePlus, Flag, Ban, Eye, Pin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { getSessionSafe } from "@/lib/apiHelpers";
+import { useAuthReady } from "@/hooks/useAuthReady";
 import { useProfile } from "@/hooks/useProfile";
 import { useFollow } from "@/hooks/useFollow";
 import { useBlocks } from "@/hooks/useBlocks";
@@ -25,7 +25,8 @@ import MemorySettings from "@/components/chat/MemorySettings";
 
 const Profile = () => {
   const { userId: paramUserId } = useParams();
-  const [currentUserId, setCurrentUserId] = useState<string | undefined>();
+  const { user: authUser } = useAuthReady();
+  const currentUserId = authUser?.id;
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState({ display_name: "", bio: "", country: "" });
   const [userPosts, setUserPosts] = useState<any[]>([]);
@@ -70,11 +71,7 @@ const Profile = () => {
     }
   };
 
-  useEffect(() => {
-    getSessionSafe(3000).then((session) => {
-      setCurrentUserId(session?.user?.id);
-    });
-  }, []);
+  // currentUserId is now derived from useAuthReady — no need for getSessionSafe
 
   useEffect(() => {
     if (profile) {
