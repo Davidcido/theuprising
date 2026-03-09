@@ -34,6 +34,7 @@ const Profile = () => {
   const [userPosts, setUserPosts] = useState<any[]>([]);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [followListMode, setFollowListMode] = useState<"followers" | "following" | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
