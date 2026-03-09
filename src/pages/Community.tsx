@@ -707,14 +707,16 @@ const Community = () => {
     }
   };
 
-  const getReactionCounts = (postId: string) => {
-    const postReactions = reactions[postId] || [];
-    const counts: Record<string, number> = {};
-    for (const r of postReactions) {
-      counts[r.emoji] = (counts[r.emoji] || 0) + 1;
+  const reactionCountsMap = useMemo(() => {
+    const result: Record<string, Record<string, number>> = {};
+    for (const [postId, postReactions] of Object.entries(reactions)) {
+      result[postId] = {};
+      for (const r of postReactions) {
+        result[postId][r.emoji] = (result[postId][r.emoji] || 0) + 1;
+      }
     }
-    return counts;
-  };
+    return result;
+  }, [reactions]);
 
   const getCommentReactionCounts = useMemo(() => {
     const result: Record<string, Record<string, number>> = {};
