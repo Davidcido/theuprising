@@ -22,6 +22,7 @@ import { useProfileViews } from "@/hooks/useProfileViews";
 import { usePinnedPost } from "@/hooks/usePinnedPost";
 import { useAIMemory } from "@/hooks/useAIMemory";
 import MemorySettings from "@/components/chat/MemorySettings";
+import ProfileSkeleton from "@/components/profile/ProfileSkeleton";
 
 const Profile = () => {
   const { userId: paramUserId } = useParams();
