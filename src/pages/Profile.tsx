@@ -148,13 +148,13 @@ const Profile = () => {
     }
   };
 
-  if (loading) {
+  // Show skeleton only when we have no profile data at all
+  if (!profile && loading) {
     return <ProfileSkeleton />;
   }
 
-  if (!profile) {
+  if (!profile && !loading) {
     if (isOwnProfile && currentUserId) {
-      // Profile is being auto-created by trigger — show skeleton briefly
       return <ProfileSkeleton />;
     }
     return (

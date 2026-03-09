@@ -1,7 +1,21 @@
 import { motion } from "framer-motion";
 import { Sun } from "lucide-react";
 import { useDailyRiseContent } from "@/hooks/useDailyRiseContent";
-import { Skeleton } from "@/components/ui/skeleton";
+
+const DailyRiseSkeleton = () => (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-pulse">
+    {Array.from({ length: 6 }).map((_, i) => (
+      <div key={i} className="flex items-start gap-4 p-5 rounded-3xl border border-white/10" style={{ background: "rgba(255,255,255,0.04)" }}>
+        <div className="w-11 h-11 rounded-2xl bg-white/10 shrink-0" />
+        <div className="flex-1 space-y-2 py-1">
+          <div className="h-2 bg-white/10 rounded w-16" />
+          <div className="h-3.5 bg-white/10 rounded w-3/4" />
+          <div className="h-2.5 bg-white/8 rounded w-full" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
 
 const DailyRise = () => {
   const { data: cards, isLoading } = useDailyRiseContent();
@@ -20,20 +34,16 @@ const DailyRise = () => {
           >
             <Sun className="w-8 h-8 text-yellow-300" />
           </motion.div>
-          <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="text-3xl md:text-5xl font-display font-bold text-white mb-3">Daily Rise</motion.h1>
-          <motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="text-white/50 mb-1">Your daily update from the Uprising community.</motion.p>
-          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="text-sm text-white/30">{today}</motion.p>
+          <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="text-3xl md:text-5xl font-display font-bold text-foreground mb-3">Daily Rise</motion.h1>
+          <motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="text-muted-foreground mb-1">Your daily update from the Uprising community.</motion.p>
+          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="text-sm text-muted-foreground/50">{today}</motion.p>
         </div>
       </section>
 
       <section className="pb-16">
         <div className="container mx-auto px-4 max-w-3xl">
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="h-28 rounded-3xl bg-white/5" />
-              ))}
-            </div>
+            <DailyRiseSkeleton />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {cards?.map((card, i) => (

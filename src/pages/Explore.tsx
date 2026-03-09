@@ -59,15 +59,15 @@ const Explore = () => {
     const fetchData = async () => {
       setLoading(true);
 
-      // Fetch recent posts with engagement
-      const { data: postsData } = await supabase
-        .from("community_posts")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(200);
+      // Fetch posts and creator profiles in parallel
+      const [postsResult, profilesResult] = await Promise.all([
+        supabase.from("community_posts").select("*").order("created_at", { ascending: false }).limit(200),
+        supabase.from("profiles").select("user_id, display_name, avatar_url, bio").limit(50),
+      ]);
 
-      if (postsData) {
-        const authorIds = [...new Set(postsData.filter(p => p.author_id).map(p => p.author_id!))];
+      // Process posts
+      if (postsResult.data) {
+        const authorIds = [...new Set(postsResult.data.filter(p => p.author_id).map(p => p.author_id!))];
         let profilesMap: Record<string, { display_name: string | null; avatar_url: string }> = {};
         if (authorIds.length > 0) {
           const { data: profiles } = await supabase
@@ -76,21 +76,16 @@ const Explore = () => {
             .in("user_id", authorIds);
           if (profiles) profiles.forEach(p => { profilesMap[p.user_id] = { display_name: p.display_name, avatar_url: p.avatar_url ?? "" }; });
         }
-        setPosts(postsData.map(p => ({
+        setPosts(postsResult.data.map(p => ({
           ...p,
           media_urls: p.media_urls || [],
           author_profile: p.author_id ? profilesMap[p.author_id] || null : null,
         })));
       }
 
-      // Fetch popular creators
-      const { data: allProfiles } = await supabase
-        .from("profiles")
-        .select("user_id, display_name, avatar_url, bio")
-        .limit(50);
-
-      if (allProfiles) {
-        const userIds = allProfiles.map(p => p.user_id);
+      // Process creators
+      if (profilesResult.data) {
+        const userIds = profilesResult.data.map(p => p.user_id);
         const [{ data: postCounts }, { data: followerCounts }] = await Promise.all([
           supabase.from("community_posts").select("author_id").in("author_id", userIds),
           supabase.from("follows").select("following_id").in("following_id", userIds),
@@ -101,7 +96,7 @@ const Explore = () => {
         const fCounts: Record<string, number> = {};
         followerCounts?.forEach(f => { fCounts[f.following_id] = (fCounts[f.following_id] || 0) + 1; });
 
-        const scored = allProfiles
+        const scored = profilesResult.data
           .map(p => ({
             ...p,
             post_count: pCounts[p.user_id] || 0,
