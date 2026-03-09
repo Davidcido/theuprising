@@ -7,7 +7,7 @@ import { useAuthReady } from "@/hooks/useAuthReady";
 import UserAvatar from "@/components/UserAvatar";
 import { useConversations, useMessages, type DirectMessage } from "@/hooks/useConversations";
 import { useMessageReactions } from "@/hooks/useMessageReactions";
-import { useCallSignaling, type CallEvent } from "@/hooks/useCallSignaling";
+import { useGlobalCalls } from "@/hooks/useGlobalCalls";
 import { useBlocks } from "@/hooks/useBlocks";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { formatDistanceToNow } from "date-fns";
