@@ -328,22 +328,18 @@ const Community = () => {
   }, [activeTab]);
 
   const displayPosts = useMemo(() => {
-    let sorted: Post[];
+    // Always sort by created_at descending (newest first) as the base
+    const chronological = [...allPosts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    
     switch (activeTab) {
       case "foryou":
-        sorted = [...allPosts].sort((a, b) => {
-          const scoreA = (a.engagement_score || 0) + (a.author_id && followingIds.has(a.author_id) ? 20 : 0);
-          const scoreB = (b.engagement_score || 0) + (b.author_id && followingIds.has(b.author_id) ? 20 : 0);
-          return scoreB - scoreA;
-        });
-        break;
+        return chronological;
       case "following":
-        sorted = allPosts.filter(p => p.author_id && followingIds.has(p.author_id));
-        break;
+        return chronological.filter(p => p.author_id && followingIds.has(p.author_id));
       case "trending": {
         const now = Date.now();
         const cutoff = now - 48 * 60 * 60 * 1000;
-        sorted = [...allPosts]
+        return chronological
           .filter(p => new Date(p.created_at).getTime() > cutoff)
           .sort((a, b) => {
             const hoursA = Math.max(1, (now - new Date(a.created_at).getTime()) / 3600000);
@@ -352,12 +348,10 @@ const Community = () => {
             const velocityB = ((b.likes_count * 3) + (b.comments_count * 4) + (b.shares_count * 5)) / hoursB;
             return velocityB - velocityA;
           });
-        break;
       }
       default:
-        sorted = allPosts;
+        return chronological;
     }
-    return sorted;
   }, [allPosts, activeTab, followingIds]);
 
   const visiblePosts = displayPosts;
