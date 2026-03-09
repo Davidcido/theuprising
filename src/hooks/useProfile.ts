@@ -44,7 +44,9 @@ export const useProfile = (userId?: string) => {
       ]);
 
       if (data) {
-        setProfile(data as unknown as Profile);
+        const p = data as unknown as Profile;
+        setProfile(p);
+        profileCache.set(userId, { profile: p, ts: Date.now() });
       } else if (authUser?.id === userId) {
         // Only create profile if this is the current user (use context, not getSession)
         const defaultName = authUser.email?.split("@")[0] || `user_${userId.slice(0, 4)}`;
