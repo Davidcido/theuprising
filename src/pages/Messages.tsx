@@ -656,8 +656,12 @@ const Messages = () => {
                     onCancel={() => {
                       URL.revokeObjectURL(pendingImage.url);
                       setPendingImage(null);
+                      setCompressedSize(undefined);
                     }}
                     sending={sendingImage}
+                    compressing={compressing}
+                    compressionProgress={compressionProgress}
+                    compressedSize={compressedSize}
                   />
                 )}
 
