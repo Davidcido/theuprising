@@ -3,6 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { invalidateProfileCache } from "@/lib/apiHelpers";
 import { useAuthReady } from "@/hooks/useAuthReady";
 
+// Module-level cache so profile persists across navigations
+const profileCache = new Map<string, { profile: any; ts: number }>();
+const PROFILE_CACHE_TTL = 60_000; // 1 minute
+
 export type Profile = {
   id: string;
   user_id: string;
@@ -24,6 +28,14 @@ export const useProfile = (userId?: string) => {
 
   const fetchProfile = useCallback(async () => {
     if (!userId) { setLoading(false); return; }
+
+    // Use cache if fresh
+    const cached = profileCache.get(userId);
+    if (cached && Date.now() - cached.ts < PROFILE_CACHE_TTL) {
+      setProfile(cached.profile);
+      setLoading(false);
+      return;
+    }
     
     try {
       const { data } = await Promise.race([
@@ -32,7 +44,9 @@ export const useProfile = (userId?: string) => {
       ]);
 
       if (data) {
-        setProfile(data as unknown as Profile);
+        const p = data as unknown as Profile;
+        setProfile(p);
+        profileCache.set(userId, { profile: p, ts: Date.now() });
       } else if (authUser?.id === userId) {
         // Only create profile if this is the current user (use context, not getSession)
         const defaultName = authUser.email?.split("@")[0] || `user_${userId.slice(0, 4)}`;
@@ -41,7 +55,11 @@ export const useProfile = (userId?: string) => {
           .insert({ user_id: userId, display_name: defaultName, online_status: "online" })
           .select("*")
           .single();
-        if (newProfile) setProfile(newProfile as unknown as Profile);
+        if (newProfile) {
+          const p = newProfile as unknown as Profile;
+          setProfile(p);
+          profileCache.set(userId, { profile: p, ts: Date.now() });
+        }
       }
     } catch {
       // On timeout or error, don't block the page
@@ -84,6 +102,7 @@ export const useProfile = (userId?: string) => {
     if (!error) {
       setProfile((prev) => prev ? { ...prev, ...updates } : prev);
       invalidateProfileCache(userId);
+      profileCache.delete(userId);
     }
     return { error: error?.message || null };
   };
