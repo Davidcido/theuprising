@@ -90,6 +90,8 @@ const Community = () => {
   const bgUploadControllersRef = useRef<Map<string, UploadController>>(new Map());
   const [commentReactions, setCommentReactions] = useState<Record<string, { emoji: string; session_id: string }[]>>({});
   const [myCommentReactions, setMyCommentReactions] = useState<Set<string>>(new Set());
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
