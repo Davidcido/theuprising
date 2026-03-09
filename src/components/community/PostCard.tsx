@@ -414,7 +414,12 @@ const PostCard = ({
         <div className="flex items-center gap-4 text-[10px] text-muted-foreground/50 mb-2 px-1">
           <span>💬 {formatCount(post.comments_count)} comments</span>
           <span>🔁 {formatCount(post.shares_count)} reposts</span>
-          <span>❤️ {formatCount(post.likes_count)} likes</span>
+          <button
+            onClick={() => post.likes_count > 0 && setShowLikesModal(true)}
+            className={`hover:text-red-400 transition-colors ${post.likes_count > 0 ? "cursor-pointer hover:underline" : ""}`}
+          >
+            ❤️ {formatCount(post.likes_count)} likes
+          </button>
           {(post.views_count ?? 0) > 0 && <span>👁 {formatCount(post.views_count!)} views</span>}
         </div>
 
