@@ -451,7 +451,6 @@ const Community = () => {
   const visiblePosts = displayPosts;
 
   // View tracking is now handled per-post via PostViewObserver + usePostViewTracker
-  }, [visiblePosts]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
