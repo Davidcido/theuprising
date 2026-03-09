@@ -35,10 +35,32 @@ const getSessionId = () => {
   return id;
 };
 
+const CACHE_KEY = "uprising_community_cache";
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+const getCachedPosts = (): Post[] | null => {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const { posts, ts } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL) return null;
+    return posts;
+  } catch { return null; }
+};
+
+const setCachedPosts = (posts: Post[]) => {
+  try {
+    // Only cache first page worth of posts (lightweight)
+    const toCache = posts.filter(p => !p._optimistic && !p.id.startsWith("repost-")).slice(0, POSTS_PER_PAGE);
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ posts: toCache, ts: Date.now() }));
+  } catch {}
+};
+
 const Community = () => {
-  const [allPosts, setAllPosts] = useState<Post[]>([]);
+  const cachedPosts = useRef(getCachedPosts());
+  const [allPosts, setAllPosts] = useState<Post[]>(cachedPosts.current || []);
   const [newPost, setNewPost] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cachedPosts.current);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
@@ -173,7 +195,9 @@ const Community = () => {
             }
           }
         }
-        setAllPosts([...enriched, ...directRepostPosts]);
+        const merged = [...enriched, ...directRepostPosts];
+        setAllPosts(merged);
+        setCachedPosts(enriched); // Cache enriched posts for next visit
       }
       setHasMore(data.length === POSTS_PER_PAGE);
     }
@@ -683,14 +707,16 @@ const Community = () => {
     }
   };
 
-  const getReactionCounts = (postId: string) => {
-    const postReactions = reactions[postId] || [];
-    const counts: Record<string, number> = {};
-    for (const r of postReactions) {
-      counts[r.emoji] = (counts[r.emoji] || 0) + 1;
+  const reactionCountsMap = useMemo(() => {
+    const result: Record<string, Record<string, number>> = {};
+    for (const [postId, postReactions] of Object.entries(reactions)) {
+      result[postId] = {};
+      for (const r of postReactions) {
+        result[postId][r.emoji] = (result[postId][r.emoji] || 0) + 1;
+      }
     }
-    return counts;
-  };
+    return result;
+  }, [reactions]);
 
   const getCommentReactionCounts = useMemo(() => {
     const result: Record<string, Record<string, number>> = {};
@@ -887,7 +913,7 @@ const Community = () => {
                   isLiked={likedPosts.has(post.id)}
                   isExpanded={expandedComments.has(post.id)}
                   postComments={comments[post.id] || []}
-                  reactionCounts={getReactionCounts(post.id)}
+                  reactionCounts={reactionCountsMap[post.id] || {}}
                   myReactions={myReactions}
                   commentInput={commentInputs[post.id] || ""}
                   currentUserId={currentUser?.id}
