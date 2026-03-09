@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from "react";
-import { X, Play, Volume2, VolumeX } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { X, Play, Volume2, VolumeX, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface MediaGalleryProps {
@@ -7,39 +7,156 @@ interface MediaGalleryProps {
   compact?: boolean;
 }
 
-const LazyVideo = ({ url, compact }: { url: string; compact?: boolean }) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
+// Global tracker: only one video plays at a time
+let currentlyPlayingVideo: HTMLVideoElement | null = null;
 
+const generateThumbnail = (url: string): Promise<string> => {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.crossOrigin = "anonymous";
+    video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
+    video.onloadeddata = () => {
+      video.currentTime = 1;
+    };
+    video.onseeked = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth || 320;
+        canvas.height = video.videoHeight || 180;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", 0.7));
+        } else {
+          resolve("");
+        }
+      } catch {
+        resolve("");
+      }
+    };
+    video.onerror = () => resolve("");
+    setTimeout(() => resolve(""), 5000);
+    video.src = url;
+  });
+};
+
+const FeedVideo = ({ url, compact }: { url: string; compact?: boolean }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const [thumbnail, setThumbnail] = useState<string>("");
+  const [loaded, setLoaded] = useState(false);
+
+  // Generate thumbnail on mount
   useEffect(() => {
-    const el = ref.current;
+    generateThumbnail(url).then(setThumbnail);
+  }, [url]);
+
+  // IntersectionObserver for autoplay/autopause
+  useEffect(() => {
+    const el = containerRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) { setVisible(true); observer.disconnect(); } },
-      { rootMargin: "200px" }
+      ([entry]) => {
+        setIsVisible(entry.isIntersecting);
+        const video = videoRef.current;
+        if (!video) return;
+
+        if (entry.isIntersecting) {
+          // Pause any other playing video
+          if (currentlyPlayingVideo && currentlyPlayingVideo !== video) {
+            currentlyPlayingVideo.pause();
+          }
+          video.play().then(() => {
+            currentlyPlayingVideo = video;
+            setIsPlaying(true);
+          }).catch(() => {});
+        } else {
+          video.pause();
+          setIsPlaying(false);
+          if (currentlyPlayingVideo === video) {
+            currentlyPlayingVideo = null;
+          }
+        }
+      },
+      { threshold: 0.6 }
     );
     observer.observe(el);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      const video = videoRef.current;
+      if (video && currentlyPlayingVideo === video) {
+        currentlyPlayingVideo = null;
+      }
+    };
   }, []);
 
+  const toggleMute = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = !video.muted;
+    setIsMuted(video.muted);
+  };
+
+  const handleVideoClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const video = videoRef.current;
+    if (!video) return;
+    // Tap to unmute/mute
+    video.muted = !video.muted;
+    setIsMuted(video.muted);
+  };
+
   return (
-    <div ref={ref}>
-      {visible ? (
-        <>
-          <video
-            src={url}
-            className={`w-full object-cover ${compact ? "h-32" : "h-48"}`}
-            muted
-            playsInline
-            preload="metadata"
-          />
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-            <Play className="w-8 h-8 text-white/80" fill="white" />
-          </div>
-        </>
+    <div ref={containerRef} className="relative" onClick={handleVideoClick}>
+      {/* Thumbnail fallback */}
+      {!loaded && thumbnail && (
+        <img
+          src={thumbnail}
+          alt=""
+          className={`w-full object-cover absolute inset-0 ${compact ? "h-32" : "h-48"}`}
+        />
+      )}
+      {isVisible ? (
+        <video
+          ref={videoRef}
+          src={url}
+          className={`w-full object-cover ${compact ? "h-32" : "h-48"}`}
+          muted={isMuted}
+          playsInline
+          loop
+          preload="metadata"
+          onLoadedData={() => setLoaded(true)}
+        />
       ) : (
         <div className={`w-full ${compact ? "h-32" : "h-48"} bg-white/5 flex items-center justify-center`}>
-          <Play className="w-8 h-8 text-white/30" />
+          {thumbnail ? (
+            <img src={thumbnail} alt="" className={`w-full object-cover ${compact ? "h-32" : "h-48"}`} />
+          ) : (
+            <Play className="w-8 h-8 text-white/30" />
+          )}
+        </div>
+      )}
+      {/* Mute/unmute indicator */}
+      <button
+        onClick={toggleMute}
+        className="absolute bottom-2 right-2 p-1.5 rounded-full bg-black/50 hover:bg-black/70 transition-colors z-10"
+      >
+        {isMuted ? (
+          <VolumeX className="w-3.5 h-3.5 text-white" />
+        ) : (
+          <Volume2 className="w-3.5 h-3.5 text-white" />
+        )}
+      </button>
+      {/* Play indicator when paused */}
+      {!isPlaying && isVisible && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+          <Play className="w-8 h-8 text-white/80" fill="white" />
         </div>
       )}
     </div>
@@ -48,26 +165,15 @@ const LazyVideo = ({ url, compact }: { url: string; compact?: boolean }) => {
 
 const MediaGallery = ({ mediaUrls, compact }: MediaGalleryProps) => {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [mutedVideos, setMutedVideos] = useState<Set<number>>(new Set(mediaUrls.map((_, i) => i)));
+  const [lightboxMuted, setLightboxMuted] = useState(true);
 
   if (!mediaUrls || mediaUrls.length === 0) return null;
 
   const isVideo = (url: string) => /\.(mp4|webm|mov|avi|mkv)(\?|$)/i.test(url);
 
-  const toggleMute = (index: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setMutedVideos(prev => {
-      const n = new Set(prev);
-      if (n.has(index)) n.delete(index); else n.add(index);
-      return n;
-    });
-  };
-
   const gridClass = mediaUrls.length === 1
     ? "grid-cols-1"
     : mediaUrls.length === 2
-    ? "grid-cols-2"
-    : mediaUrls.length === 3
     ? "grid-cols-2"
     : "grid-cols-2";
 
@@ -83,7 +189,7 @@ const MediaGallery = ({ mediaUrls, compact }: MediaGalleryProps) => {
             onClick={() => setLightboxIndex(i)}
           >
             {isVideo(url) ? (
-              <LazyVideo url={url} compact={compact} />
+              <FeedVideo url={url} compact={compact} />
             ) : (
               <img
                 src={url}
@@ -118,6 +224,24 @@ const MediaGallery = ({ mediaUrls, compact }: MediaGalleryProps) => {
               <X className="w-5 h-5 text-white" />
             </button>
 
+            {/* Navigation arrows */}
+            {mediaUrls.length > 1 && lightboxIndex > 0 && (
+              <button
+                className="absolute left-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors z-10"
+                onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex - 1); }}
+              >
+                <ChevronLeft className="w-5 h-5 text-white" />
+              </button>
+            )}
+            {mediaUrls.length > 1 && lightboxIndex < mediaUrls.length - 1 && (
+              <button
+                className="absolute right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors z-10"
+                onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex + 1); }}
+              >
+                <ChevronRight className="w-5 h-5 text-white" />
+              </button>
+            )}
+
             <motion.div
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
@@ -132,13 +256,13 @@ const MediaGallery = ({ mediaUrls, compact }: MediaGalleryProps) => {
                     className="w-full max-h-[85vh] rounded-xl"
                     controls
                     autoPlay
-                    muted={mutedVideos.has(lightboxIndex)}
+                    muted={lightboxMuted}
                   />
                   <button
-                    onClick={(e) => toggleMute(lightboxIndex, e)}
+                    onClick={() => setLightboxMuted(!lightboxMuted)}
                     className="absolute bottom-4 right-4 p-2 rounded-full bg-black/50 hover:bg-black/70 transition-colors"
                   >
-                    {mutedVideos.has(lightboxIndex) ? (
+                    {lightboxMuted ? (
                       <VolumeX className="w-4 h-4 text-white" />
                     ) : (
                       <Volume2 className="w-4 h-4 text-white" />
@@ -166,7 +290,7 @@ const MediaGallery = ({ mediaUrls, compact }: MediaGalleryProps) => {
                     }`}
                   >
                     {isVideo(url) ? (
-                      <video src={url} className="w-full h-full object-cover" muted />
+                      <video src={url} className="w-full h-full object-cover" muted preload="metadata" />
                     ) : (
                       <img src={url} alt="" className="w-full h-full object-cover" />
                     )}
