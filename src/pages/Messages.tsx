@@ -21,6 +21,7 @@ import ImagePreview from "@/components/messages/ImagePreview";
 import VoiceRecorder from "@/components/messages/VoiceRecorder";
 import EmojiPicker from "@/components/EmojiPicker";
 import CallSystemMessage from "@/components/messages/CallSystemMessage";
+import { compressVideoFile, shouldCompress } from "@/lib/videoCompression";
 const Messages = () => {
   const { conversationId } = useParams();
   const [userId, setUserId] = useState<string | undefined>();

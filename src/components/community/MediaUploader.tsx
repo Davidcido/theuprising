@@ -3,7 +3,6 @@ import { Image, X, Loader2, Play, Pause, RotateCcw, FileVideo } from "lucide-rea
 import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "@/components/ui/progress";
 import { compressVideoFile, shouldCompress } from "@/lib/videoCompression";
-import { Progress } from "@/components/ui/progress";
 
 interface MediaFile {
   url: string;
