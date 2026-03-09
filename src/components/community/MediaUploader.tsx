@@ -187,58 +187,49 @@ const MediaUploader = ({ mediaFiles, onMediaChange, maxFiles = 4, disabled }: Me
       updateJob(jobId, { state: { status: "compressing", progress: 30, message: "Compressing image..." } });
       uploadFile = await compressImage(file);
       compressedSize = uploadFile.size;
-    } else if (isVideo) {
-      duration = await getVideoDuration(file);
-      updateJob(jobId, { duration });
-      if (shouldCompress(file)) {
-        updateJob(jobId, { state: { status: "compressing", progress: 0, message: "Optimizing video..." } });
-        uploadFile = await compressVideoFile(file, {
-          maxDimension: 1920,
-          onProgress: (p) => {
-            updateJob(jobId, {
-              state: { status: "compressing", progress: p, message: `Optimizing video... ${p}%` },
-            });
-          },
-        });
-        compressedSize = uploadFile.size;
-      }
-    }
 
-    updateJob(jobId, { compressedSize });
+      updateJob(jobId, { compressedSize });
+      updateJob(jobId, { state: { status: "uploading", progress: 0, message: "Uploading..." } });
 
-    // Upload with progress
-    updateJob(jobId, { state: { status: "uploading", progress: 0, message: "Uploading..." } });
-
-    const controller = uploadFileWithProgress(
-      "community-media",
-      uploadFile,
-      (state) => {
-        updateJob(jobId, { state });
-
-        if (state.status === "done" && state.publicUrl) {
-          const newMedia: MediaFile = {
-            url: state.publicUrl,
-            type: isVideo ? "video" : "image",
-            file: uploadFile,
-            duration,
-            size: uploadFile.size,
-          };
-          onMediaChangeRef.current([...mediaFilesRef.current, newMedia]);
-          setTimeout(() => {
+      const controller = uploadFileWithProgress(
+        "community-media",
+        uploadFile,
+        (state) => {
+          updateJob(jobId, { state });
+          if (state.status === "done" && state.publicUrl) {
+            const newMedia: MediaFile = {
+              url: state.publicUrl,
+              type: "image",
+              file: uploadFile,
+              size: uploadFile.size,
+            };
+            onMediaChangeRef.current([...mediaFilesRef.current, newMedia]);
+            setTimeout(() => setActiveJobs(prev => prev.filter(j => j.id !== jobId)), 1000);
+            controllersRef.current.delete(jobId);
+          }
+          if (state.status === "cancelled") {
             setActiveJobs(prev => prev.filter(j => j.id !== jobId));
-          }, 1000);
-          controllersRef.current.delete(jobId);
-        }
-
-        if (state.status === "cancelled") {
-          setActiveJobs(prev => prev.filter(j => j.id !== jobId));
-          controllersRef.current.delete(jobId);
-        }
-      },
-    );
-
-    controllersRef.current.set(jobId, controller);
-    updateJob(jobId, { controller });
+            controllersRef.current.delete(jobId);
+          }
+        },
+      );
+      controllersRef.current.set(jobId, controller);
+      updateJob(jobId, { controller });
+    } else if (isVideo) {
+      // Videos are NOT uploaded here — they're added as local previews
+      // and will be uploaded in the background when the post is submitted
+      duration = await getVideoDuration(file);
+      const previewUrl = URL.createObjectURL(file);
+      const newMedia: MediaFile = {
+        url: previewUrl,
+        type: "video",
+        file,
+        duration,
+        size: file.size,
+      };
+      onMediaChangeRef.current([...mediaFilesRef.current, newMedia]);
+      setActiveJobs(prev => prev.filter(j => j.id !== jobId));
+    }
   }, [updateJob]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
