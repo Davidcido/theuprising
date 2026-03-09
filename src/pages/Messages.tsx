@@ -25,7 +25,8 @@ import CallSystemMessage from "@/components/messages/CallSystemMessage";
 import { compressVideoFile, shouldCompress } from "@/lib/videoCompression";
 const Messages = () => {
   const { conversationId } = useParams();
-  const [userId, setUserId] = useState<string | undefined>();
+  const { user: authUser } = useAuthReady();
+  const userId = authUser?.id;
   const [newMessage, setNewMessage] = useState("");
   const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
   const [editingMsg, setEditingMsg] = useState<DirectMessage | null>(null);
