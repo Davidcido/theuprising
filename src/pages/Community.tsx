@@ -190,7 +190,10 @@ const Community = () => {
   }, [sessionId]);
 
   const fetchReactions = useCallback(async () => {
-    const { data } = await supabase.from("community_reactions").select("*");
+    // Only fetch reactions for currently loaded posts to reduce payload
+    const postIds = allPosts.map(p => p.id).filter(id => !id.startsWith("repost-") && !id.startsWith("optimistic-"));
+    if (postIds.length === 0) return;
+    const { data } = await supabase.from("community_reactions").select("*").in("post_id", postIds);
     if (data) {
       const grouped: Record<string, Reaction[]> = {};
       const mine = new Set<string>();
@@ -202,10 +205,15 @@ const Community = () => {
       setReactions(grouped);
       setMyReactions(mine);
     }
-  }, [sessionId]);
+  }, [sessionId, allPosts]);
 
   const fetchCommentReactions = useCallback(async () => {
-    const { data } = await supabase.from("comment_reactions").select("*");
+    // Defer comment reactions loading - only fetch when comments are expanded
+    const expandedPostIds = [...expandedComments];
+    if (expandedPostIds.length === 0) return;
+    const commentIds = expandedPostIds.flatMap(pid => (comments[pid] || []).map(c => c.id));
+    if (commentIds.length === 0) return;
+    const { data } = await supabase.from("comment_reactions").select("*").in("comment_id", commentIds);
     if (data) {
       const grouped: Record<string, { emoji: string; session_id: string }[]> = {};
       const mine = new Set<string>();
@@ -217,13 +225,21 @@ const Community = () => {
       setCommentReactions(grouped);
       setMyCommentReactions(mine);
     }
-  }, [sessionId]);
+  }, [sessionId, expandedComments, comments]);
+
+  // Load reactions when posts change
+  useEffect(() => {
+    if (allPosts.length > 0) fetchReactions();
+  }, [allPosts.length]);
+
+  // Load comment reactions when comments are expanded
+  useEffect(() => {
+    if (expandedComments.size > 0) fetchCommentReactions();
+  }, [expandedComments, comments]);
 
   useEffect(() => {
     fetchPosts(false);
     fetchLikedPosts();
-    fetchReactions();
-    fetchCommentReactions();
 
     supabase.from("community_settings").select("value").eq("key", "community_status").single()
       .then(({ data }) => { if (data) setCommunityOpen(data.value === "open"); });
@@ -360,12 +376,15 @@ const Community = () => {
   useEffect(() => {
     const newPostIds = visiblePosts
       .map(p => p.id)
-      .filter(id => !id.startsWith("repost-") && !viewedPostsRef.current.has(id));
+      .filter(id => !id.startsWith("repost-") && !id.startsWith("optimistic-") && !viewedPostsRef.current.has(id));
     if (newPostIds.length === 0) return;
     newPostIds.forEach(id => viewedPostsRef.current.add(id));
-    newPostIds.forEach(id => {
-      supabase.rpc("increment_views", { post_id_input: id });
-    });
+    const timer = setTimeout(() => {
+      newPostIds.forEach(id => {
+        supabase.rpc("increment_views", { post_id_input: id });
+      });
+    }, 500);
+    return () => clearTimeout(timer);
   }, [visiblePosts]);
 
   const handleRefresh = async () => {
