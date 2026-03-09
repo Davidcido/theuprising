@@ -156,9 +156,23 @@ const Profile = () => {
   }
 
   if (!profile) {
+    // For own profile, attempt auto-creation instead of showing error
+    if (isOwnProfile && currentUserId) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+            <p className="text-muted-foreground text-sm">Setting up your profile…</p>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Profile not found</p>
+        <div className="text-center p-8">
+          <p className="text-muted-foreground mb-4">This profile doesn't exist yet.</p>
+          <Button variant="outline" onClick={() => navigate("/community")}>Back to Community</Button>
+        </div>
       </div>
     );
   }
