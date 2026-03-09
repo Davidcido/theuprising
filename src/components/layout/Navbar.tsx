@@ -102,7 +102,7 @@ const Navbar = () => {
                     </span>
                   )}
                 </button>
-                <NotificationBell userId={session.user.id} />
+                <NotificationBell userId={authUser.id} />
                 <button
                   onClick={() => navigate("/profile")}
                   className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all"
