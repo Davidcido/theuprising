@@ -80,7 +80,8 @@ const Community = () => {
   const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
   const [repostDialogPost, setRepostDialogPost] = useState<Post | null>(null);
-  const [mediaFiles, setMediaFiles] = useState<{ url: string; type: "image" | "video" }[]>([]);
+  const [mediaFiles, setMediaFiles] = useState<{ url: string; type: "image" | "video"; file?: File }[]>([]);
+  const bgUploadControllersRef = useRef<Map<string, UploadController>>(new Map());
   const [commentReactions, setCommentReactions] = useState<Record<string, { emoji: string; session_id: string }[]>>({});
   const [myCommentReactions, setMyCommentReactions] = useState<Set<string>>(new Set());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
