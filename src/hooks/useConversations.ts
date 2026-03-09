@@ -151,7 +151,7 @@ export const useMessages = (conversationId?: string, userId?: string) => {
   }, [userId, conversationId]);
 
   const fetchMessages = useCallback(async () => {
-    if (!conversationId) { setLoading(false); return; }
+    if (!conversationId) { setMessages([]); setLoading(false); return; }
     const { data } = await supabase
       .from("direct_messages")
       .select("*")
