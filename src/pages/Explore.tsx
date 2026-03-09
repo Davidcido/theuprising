@@ -41,6 +41,7 @@ const formatCount = (n: number) => {
 };
 
 const Explore = () => {
+  const { user: authUser, isReady } = useAuthReady();
   const [searchParams] = useSearchParams();
   const tagFilter = searchParams.get("tag");
   const navigate = useNavigate();
