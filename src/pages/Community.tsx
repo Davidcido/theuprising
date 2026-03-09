@@ -35,10 +35,32 @@ const getSessionId = () => {
   return id;
 };
 
+const CACHE_KEY = "uprising_community_cache";
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+const getCachedPosts = (): Post[] | null => {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const { posts, ts } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL) return null;
+    return posts;
+  } catch { return null; }
+};
+
+const setCachedPosts = (posts: Post[]) => {
+  try {
+    // Only cache first page worth of posts (lightweight)
+    const toCache = posts.filter(p => !p._optimistic && !p.id.startsWith("repost-")).slice(0, POSTS_PER_PAGE);
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ posts: toCache, ts: Date.now() }));
+  } catch {}
+};
+
 const Community = () => {
-  const [allPosts, setAllPosts] = useState<Post[]>([]);
+  const cachedPosts = useRef(getCachedPosts());
+  const [allPosts, setAllPosts] = useState<Post[]>(cachedPosts.current || []);
   const [newPost, setNewPost] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cachedPosts.current);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
