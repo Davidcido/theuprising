@@ -240,18 +240,21 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          liker_user_id: string | null
           post_id: string
           session_id: string
         }
         Insert: {
           created_at?: string
           id?: string
+          liker_user_id?: string | null
           post_id: string
           session_id: string
         }
         Update: {
           created_at?: string
           id?: string
+          liker_user_id?: string | null
           post_id?: string
           session_id?: string
         }
