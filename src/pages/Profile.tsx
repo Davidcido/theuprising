@@ -23,6 +23,7 @@ import { usePinnedPost } from "@/hooks/usePinnedPost";
 import { useAIMemory } from "@/hooks/useAIMemory";
 import MemorySettings from "@/components/chat/MemorySettings";
 import ProfileSkeleton from "@/components/profile/ProfileSkeleton";
+import FollowListModal from "@/components/profile/FollowListModal";
 
 const Profile = () => {
   const { userId: paramUserId } = useParams();
@@ -33,6 +34,7 @@ const Profile = () => {
   const [userPosts, setUserPosts] = useState<any[]>([]);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [followListMode, setFollowListMode] = useState<"followers" | "following" | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
@@ -341,14 +343,14 @@ const Profile = () => {
 
             {/* Stats */}
             <div className="flex flex-wrap gap-4 mt-4 text-sm">
-              <div className="text-center">
+              <button onClick={() => setFollowListMode("followers")} className="text-center hover:opacity-80 transition-opacity">
                 <span className="font-bold text-foreground">{followerCount}</span>
                 <span className="text-muted-foreground ml-1">Followers</span>
-              </div>
-              <div className="text-center">
+              </button>
+              <button onClick={() => setFollowListMode("following")} className="text-center hover:opacity-80 transition-opacity">
                 <span className="font-bold text-foreground">{followingCount}</span>
                 <span className="text-muted-foreground ml-1">Following</span>
-              </div>
+              </button>
               <div className="text-center">
                 <span className="font-bold text-foreground">{userPosts.length}</span>
                 <span className="text-muted-foreground ml-1">Posts</span>
@@ -459,6 +461,16 @@ const Profile = () => {
             </div>
           )}
         </div>
+
+        {targetUserId && (
+          <FollowListModal
+            open={followListMode !== null}
+            onOpenChange={(open) => { if (!open) setFollowListMode(null); }}
+            targetUserId={targetUserId}
+            currentUserId={currentUserId}
+            mode={followListMode || "followers"}
+          />
+        )}
       </div>
     </div>
   );
