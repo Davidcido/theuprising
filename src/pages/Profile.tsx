@@ -461,6 +461,16 @@ const Profile = () => {
             </div>
           )}
         </div>
+
+        {targetUserId && (
+          <FollowListModal
+            open={followListMode !== null}
+            onOpenChange={(open) => { if (!open) setFollowListMode(null); }}
+            targetUserId={targetUserId}
+            currentUserId={currentUserId}
+            mode={followListMode || "followers"}
+          />
+        )}
       </div>
     </div>
   );
