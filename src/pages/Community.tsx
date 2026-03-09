@@ -379,14 +379,12 @@ const Community = () => {
       .filter(id => !id.startsWith("repost-") && !id.startsWith("optimistic-") && !viewedPostsRef.current.has(id));
     if (newPostIds.length === 0) return;
     newPostIds.forEach(id => viewedPostsRef.current.add(id));
-    // Batch view increments with a small delay to avoid flooding
     const timer = setTimeout(() => {
       newPostIds.forEach(id => {
         supabase.rpc("increment_views", { post_id_input: id });
       });
     }, 500);
     return () => clearTimeout(timer);
-    });
   }, [visiblePosts]);
 
   const handleRefresh = async () => {
