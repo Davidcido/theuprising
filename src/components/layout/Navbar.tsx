@@ -112,7 +112,7 @@ const Navbar = () => {
               </>
             )}
 
-            {session ? (
+            {authUser ? (
               <Button
                 variant="ghost"
                 size="sm"
