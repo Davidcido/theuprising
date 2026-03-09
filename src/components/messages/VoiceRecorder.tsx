@@ -280,7 +280,7 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
     }
   };
 
-  const togglePlayback = () => {
+  const togglePlayback = async () => {
     const audio = audioRef.current;
     if (!audio || !audioUrlRef.current) return;
 
@@ -290,17 +290,31 @@ const VoiceRecorder = ({ onSend, onCancel, onStateChange }: Props) => {
       setIsPlaying(false);
     } else {
       // Reset to start if ended
-      if (audio.ended || audio.currentTime >= audio.duration) {
+      if (audio.ended || (isFinite(audio.duration) && audio.currentTime >= audio.duration)) {
         audio.currentTime = 0;
         setPlaybackProgress(0);
       }
-      audio.play().then(() => {
+
+      // Unlock audio context synchronously within user gesture
+      try {
+        // For browsers that need the audio element unlocked first
+        await audio.play().catch(() => {});
+        audio.pause();
+        audio.currentTime = audio.currentTime || 0;
+        
+        // Ensure src is set
+        if (!audio.src && audioUrlRef.current) {
+          audio.src = audioUrlRef.current;
+          audio.load();
+        }
+        
+        await audio.play();
         setIsPlaying(true);
         startProgressTracking();
-      }).catch((e) => {
+      } catch (e) {
         console.error("Playback error:", e);
         toast({ title: "Could not play audio", variant: "destructive" });
-      });
+      }
     }
   };
 

@@ -161,6 +161,12 @@ export const useMessages = (conversationId?: string, userId?: string) => {
     setLoading(false);
   }, [conversationId]);
 
+  // Clear messages immediately when conversation changes to prevent mixing
+  useEffect(() => {
+    setMessages([]);
+    setLoading(true);
+  }, [conversationId]);
+
   useEffect(() => {
     fetchHiddenIds();
     fetchMessages().then(() => markAsRead());
