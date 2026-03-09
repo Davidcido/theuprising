@@ -54,38 +54,26 @@ export const useProfile = (userId?: string) => {
 
   // Online status + heartbeat — only for current user
   useEffect(() => {
-    if (!userId || !profile) return;
+    if (!userId || !profile || !authUser || authUser.id !== userId) return;
     
-    // Check if this is the current user before setting online status
-    let isCurrent = false;
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      isCurrent = session?.user?.id === userId;
-      if (isCurrent) {
-        supabase.from("profiles").update({ online_status: "online", last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
-      }
-    });
+    // Set online immediately
+    supabase.from("profiles").update({ online_status: "online", last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
 
-    // Heartbeat every 2 minutes (reduced from 1 min)
+    // Heartbeat every 2 minutes
     const heartbeat = setInterval(() => {
-      if (isCurrent) {
-        supabase.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
-      }
+      supabase.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
     }, 120000);
 
     const handleBeforeUnload = () => {
-      if (isCurrent) {
-        supabase.from("profiles").update({ online_status: "offline", last_seen_at: new Date().toISOString() }).eq("user_id", userId);
-      }
+      supabase.from("profiles").update({ online_status: "offline", last_seen_at: new Date().toISOString() }).eq("user_id", userId);
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => {
       clearInterval(heartbeat);
       window.removeEventListener("beforeunload", handleBeforeUnload);
-      if (isCurrent) {
-        supabase.from("profiles").update({ online_status: "offline", last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
-      }
+      supabase.from("profiles").update({ online_status: "offline", last_seen_at: new Date().toISOString() }).eq("user_id", userId).then();
     };
-  }, [userId, profile]);
+  }, [userId, profile, authUser]);
 
   const updateProfile = async (updates: Partial<Pick<Profile, "display_name" | "bio" | "country" | "avatar_url" | "cover_photo">>) => {
     if (!userId) return { error: "Not authenticated" };
