@@ -919,6 +919,15 @@ const Community = () => {
             compact
           />
         )}
+        {/* Activity Banner */}
+        <ActivityBanner />
+
+        {/* Welcome / First Post Prompt */}
+        <WelcomePrompt
+          isLoggedIn={!!currentUser}
+          hasPosted={allPosts.some(p => p.author_id === currentUser?.id)}
+          onOpenAuth={() => setAuthOpen(true)}
+        />
 
         {!communityOpen && (
           <div className="p-4 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 backdrop-blur-xl mb-6 text-center">
