@@ -894,6 +894,8 @@ const Community = () => {
                   isBookmarked={isBookmarked(post.id)}
                   onToggleBookmark={toggleBookmark}
                   isOwnPost={post.author_id === currentUser?.id}
+                  onDeletePost={handleDeletePost}
+                  onEditPost={handleEditPost}
                 />
               ))}
             </AnimatePresence>
