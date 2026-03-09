@@ -108,10 +108,12 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <ErrorBoundary>
-            <AppContent />
-          </ErrorBoundary>
-          <InstallPrompt />
+          <GlobalCallProvider>
+            <ErrorBoundary>
+              <AppContent />
+            </ErrorBoundary>
+            <InstallPrompt />
+          </GlobalCallProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
