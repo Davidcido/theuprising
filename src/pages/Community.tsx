@@ -160,21 +160,19 @@ const Community = () => {
     return mappedPosts;
   }, []);
 
-  const fetchPosts = useCallback(async (loadMore = false) => {
+  const fetchPosts = useCallback(async (loadMore = false, retryCount = 0) => {
     if (loadMore) setLoadingMore(true);
     setFetchError(null);
     const from = loadMore ? allPosts.length : 0;
     const to = from + POSTS_PER_PAGE - 1;
 
     try {
-      const { data, error } = await withTimeout(
-        supabase
-          .from("community_posts")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .range(from, to),
-        8000
-      );
+      // Direct query without aggressive timeout — let Supabase handle it
+      const { data, error } = await supabase
+        .from("community_posts")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
       if (!data) throw new Error("No data");
@@ -185,15 +183,12 @@ const Community = () => {
       } else {
         let directRepostPosts: Post[] = [];
         try {
-          const { data: reposts } = await withTimeout(
-            supabase
-              .from("community_reposts")
-              .select("*")
-              .is("quote_content", null)
-              .order("created_at", { ascending: false })
-              .limit(50),
-            5000
-          );
+          const { data: reposts } = await supabase
+            .from("community_reposts")
+            .select("*")
+            .is("quote_content", null)
+            .order("created_at", { ascending: false })
+            .limit(50);
 
           if (reposts && reposts.length > 0) {
             const postsMap: Record<string, any> = {};
@@ -231,8 +226,20 @@ const Community = () => {
       setHasMore(data.length === POSTS_PER_PAGE);
     } catch (err: any) {
       console.error("[Community] fetchPosts failed:", err?.message);
+      // Auto-retry once before showing error
+      if (retryCount < 1) {
+        console.log("[Community] Retrying fetch...");
+        return fetchPosts(loadMore, retryCount + 1);
+      }
+      // Fall back to cached posts if available
       if (!loadMore && allPosts.length === 0) {
-        setFetchError("Could not load posts. Tap to retry.");
+        const cached = getCachedPosts();
+        if (cached && cached.length > 0) {
+          console.log("[Community] Using cached posts as fallback");
+          setAllPosts(cached);
+        } else {
+          setFetchError("Could not load posts. Tap to retry.");
+        }
       }
     } finally {
       setLoading(false);
