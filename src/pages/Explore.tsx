@@ -8,6 +8,7 @@ import HashtagText from "@/components/community/HashtagText";
 import MediaGallery from "@/components/community/MediaGallery";
 import { formatDistanceToNow } from "date-fns";
 import { Input } from "@/components/ui/input";
+import { useAuthReady } from "@/hooks/useAuthReady";
 
 type ExplorePost = {
   id: string;
