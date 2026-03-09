@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { X, Play, Volume2, VolumeX } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -6,6 +6,45 @@ interface MediaGalleryProps {
   mediaUrls: string[];
   compact?: boolean;
 }
+
+const LazyVideo = ({ url, compact }: { url: string; compact?: boolean }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setVisible(true); observer.disconnect(); } },
+      { rootMargin: "200px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={ref}>
+      {visible ? (
+        <>
+          <video
+            src={url}
+            className={`w-full object-cover ${compact ? "h-32" : "h-48"}`}
+            muted
+            playsInline
+            preload="metadata"
+          />
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+            <Play className="w-8 h-8 text-white/80" fill="white" />
+          </div>
+        </>
+      ) : (
+        <div className={`w-full ${compact ? "h-32" : "h-48"} bg-white/5 flex items-center justify-center`}>
+          <Play className="w-8 h-8 text-white/30" />
+        </div>
+      )}
+    </div>
+  );
+};
 
 const MediaGallery = ({ mediaUrls, compact }: MediaGalleryProps) => {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -44,19 +83,7 @@ const MediaGallery = ({ mediaUrls, compact }: MediaGalleryProps) => {
             onClick={() => setLightboxIndex(i)}
           >
             {isVideo(url) ? (
-              <>
-                <video
-                  src={url}
-                  className={`w-full object-cover ${compact ? "h-32" : "h-48"}`}
-                  muted
-                  loop
-                  autoPlay
-                  playsInline
-                />
-                <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                  <Play className="w-8 h-8 text-white/80" fill="white" />
-                </div>
-              </>
+              <LazyVideo url={url} compact={compact} />
             ) : (
               <img
                 src={url}
