@@ -450,19 +450,7 @@ const Community = () => {
 
   const visiblePosts = displayPosts;
 
-  const viewedPostsRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    const newPostIds = visiblePosts
-      .map(p => p.id)
-      .filter(id => !id.startsWith("repost-") && !id.startsWith("optimistic-") && !viewedPostsRef.current.has(id));
-    if (newPostIds.length === 0) return;
-    newPostIds.forEach(id => viewedPostsRef.current.add(id));
-    const timer = setTimeout(() => {
-      newPostIds.forEach(id => {
-        supabase.rpc("increment_views", { post_id_input: id });
-      });
-    }, 500);
-    return () => clearTimeout(timer);
+  // View tracking is now handled per-post via PostViewObserver + usePostViewTracker
   }, [visiblePosts]);
 
   const handleRefresh = async () => {
