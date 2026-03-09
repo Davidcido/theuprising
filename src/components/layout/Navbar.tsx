@@ -191,7 +191,7 @@ const Navbar = () => {
                     </Link>
                   );
                 })}
-                {session && (
+                {authUser && (
                   <>
                     <Link
                       to="/profile"
