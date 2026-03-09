@@ -45,6 +45,8 @@ const LazyVideo = ({ url, compact }: { url: string; compact?: boolean }) => {
     </div>
   );
 };
+
+const MediaGallery = ({ mediaUrls, compact }: MediaGalleryProps) => {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [mutedVideos, setMutedVideos] = useState<Set<number>>(new Set(mediaUrls.map((_, i) => i)));
 
