@@ -25,17 +25,9 @@ const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [session, setSession] = useState<Session | null>(null);
+  const { user: authUser, session } = useAuthReady();
   const [authOpen, setAuthOpen] = useState(false);
-  const unreadMessages = useUnreadMessages(session?.user?.id);
-
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
-    return () => subscription.unsubscribe();
-  }, []);
+  const unreadMessages = useUnreadMessages(authUser?.id);
 
   const handleLogout = async () => {
     // Immediately clear UI state so user sees instant feedback
