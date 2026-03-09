@@ -199,6 +199,9 @@ const PostCard = ({
                   ? post.author_profile.display_name
                   : post.anonymous_name}
               </span>
+              {!post.is_anonymous && post.author_profile?.created_at && (
+                <NewMemberBadge createdAt={post.author_profile.created_at} />
+              )}
               {post.is_anonymous && (
                 <span className="ml-1.5 text-[10px] text-muted-foreground/60 bg-white/5 px-1.5 py-0.5 rounded-full">anon</span>
               )}
