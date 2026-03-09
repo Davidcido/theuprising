@@ -160,21 +160,19 @@ const Community = () => {
     return mappedPosts;
   }, []);
 
-  const fetchPosts = useCallback(async (loadMore = false) => {
+  const fetchPosts = useCallback(async (loadMore = false, retryCount = 0) => {
     if (loadMore) setLoadingMore(true);
     setFetchError(null);
     const from = loadMore ? allPosts.length : 0;
     const to = from + POSTS_PER_PAGE - 1;
 
     try {
-      const { data, error } = await withTimeout(
-        supabase
-          .from("community_posts")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .range(from, to),
-        8000
-      );
+      // Direct query without aggressive timeout — let Supabase handle it
+      const { data, error } = await supabase
+        .from("community_posts")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
       if (!data) throw new Error("No data");
