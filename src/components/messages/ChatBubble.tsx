@@ -27,6 +27,114 @@ type Props = {
 const EDIT_WINDOW_MS = 15 * 60 * 1000;
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
 
+const ChatVideoPlayer = ({ url }: { url: string }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [visible, setVisible] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [muted, setMuted] = useState(true);
+  const [thumbnail, setThumbnail] = useState("");
+
+  // Generate thumbnail
+  useEffect(() => {
+    const video = document.createElement("video");
+    video.crossOrigin = "anonymous";
+    video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
+    video.onloadeddata = () => { video.currentTime = 1; };
+    video.onseeked = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth || 320;
+        canvas.height = video.videoHeight || 180;
+        const ctx = canvas.getContext("2d");
+        if (ctx) { ctx.drawImage(video, 0, 0, canvas.width, canvas.height); setThumbnail(canvas.toDataURL("image/jpeg", 0.7)); }
+      } catch {}
+    };
+    video.onerror = () => {};
+    video.src = url;
+  }, [url]);
+
+  // Lazy load + auto-pause on scroll
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+        } else if (videoRef.current && !videoRef.current.paused) {
+          videoRef.current.pause();
+          setPlaying(false);
+        }
+      },
+      { threshold: 0.3 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const togglePlay = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const v = videoRef.current;
+    if (!v) return;
+    if (v.paused) { v.play().then(() => setPlaying(true)).catch(() => {}); }
+    else { v.pause(); setPlaying(false); }
+  };
+
+  const toggleMute = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (videoRef.current) { videoRef.current.muted = !videoRef.current.muted; setMuted(videoRef.current.muted); }
+  };
+
+  return (
+    <div ref={containerRef} className="relative rounded-xl overflow-hidden mb-2 max-w-[280px]">
+      {visible ? (
+        <>
+          <video
+            ref={videoRef}
+            src={url}
+            className="w-full rounded-xl cursor-pointer"
+            playsInline
+            muted={muted}
+            preload="metadata"
+            onClick={togglePlay}
+            onEnded={() => setPlaying(false)}
+          />
+          {!playing && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30 cursor-pointer" onClick={togglePlay}>
+              <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
+                <Play className="w-5 h-5 text-white ml-0.5" fill="white" />
+              </div>
+            </div>
+          )}
+          {playing && (
+            <div className="absolute bottom-2 right-2 flex gap-1.5">
+              <button onClick={toggleMute} className="p-1.5 rounded-full bg-black/50 hover:bg-black/70 transition-colors">
+                {muted ? <VolumeX className="w-3.5 h-3.5 text-white" /> : <Volume2 className="w-3.5 h-3.5 text-white" />}
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="w-full aspect-video bg-white/5 flex items-center justify-center rounded-xl">
+          {thumbnail ? (
+            <img src={thumbnail} alt="" className="w-full rounded-xl" />
+          ) : (
+            <Play className="w-8 h-8 text-white/30" />
+          )}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
+              <Play className="w-5 h-5 text-white ml-0.5" fill="white" />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage, onEditMessage, onDeleteForMe, onDeleteForEveryone, onReact, reactions = [], selectionMode, isSelected, onSelect, onLongPressSelect }: Props) => {
   const msgAny = msg as any;
   const touchStartX = useRef(0);
