@@ -6,10 +6,10 @@ const DEFAULT_TIMEOUT = 8000; // 8 seconds
  * Wraps a promise with a timeout. If the promise doesn't resolve within
  * the given time, it rejects with a timeout error.
  */
-export function withTimeout<T>(promise: Promise<T>, ms = DEFAULT_TIMEOUT): Promise<T> {
+export function withTimeout<T>(promise: PromiseLike<T>, ms = DEFAULT_TIMEOUT): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("Request timed out")), ms);
-    promise.then(
+    Promise.resolve(promise).then(
       (val) => { clearTimeout(timer); resolve(val); },
       (err) => { clearTimeout(timer); reject(err); },
     );
