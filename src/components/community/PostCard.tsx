@@ -7,6 +7,7 @@ import EmojiPicker from "@/components/EmojiPicker";
 import CommentCard from "@/components/community/CommentCard";
 import MediaGallery from "@/components/community/MediaGallery";
 import HashtagText from "@/components/community/HashtagText";
+import NewMemberBadge from "@/components/community/NewMemberBadge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,7 +59,7 @@ export type Post = {
   author_id?: string | null;
   is_anonymous?: boolean;
   engagement_score?: number;
-  author_profile?: { display_name: string | null; avatar_url: string } | null;
+  author_profile?: { display_name: string | null; avatar_url: string; created_at?: string } | null;
   original_post_id?: string | null;
   reposted_by_name?: string | null;
   original_post?: Post | null;
@@ -198,6 +199,9 @@ const PostCard = ({
                   ? post.author_profile.display_name
                   : post.anonymous_name}
               </span>
+              {!post.is_anonymous && post.author_profile?.created_at && (
+                <NewMemberBadge createdAt={post.author_profile.created_at} />
+              )}
               {post.is_anonymous && (
                 <span className="ml-1.5 text-[10px] text-muted-foreground/60 bg-white/5 px-1.5 py-0.5 rounded-full">anon</span>
               )}

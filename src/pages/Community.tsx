@@ -22,6 +22,11 @@ import ActivityBanner from "@/components/community/ActivityBanner";
 import AuthModal from "@/components/auth/AuthModal";
 import { Button } from "@/components/ui/button";
 import { withTimeout } from "@/lib/apiHelpers";
+import { usePostViewTracker } from "@/hooks/usePostViewTracker";
+import PostViewObserver from "@/components/community/PostViewObserver";
+import FirstPostCelebration from "@/components/community/FirstPostCelebration";
+import { extractMentions } from "@/components/community/HashtagText";
+import MentionDropdown from "@/components/community/MentionDropdown";
 
 type FeedTab = "foryou" | "following" | "trending";
 
@@ -91,6 +96,9 @@ const Community = () => {
   const [myCommentReactions, setMyCommentReactions] = useState<Set<string>>(new Set());
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
+  const [showFirstPostCelebration, setShowFirstPostCelebration] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -99,6 +107,7 @@ const Community = () => {
   const { saveDraft } = useDrafts(currentUser?.id);
 
   const sessionId = getSessionId();
+  const { trackView } = usePostViewTracker();
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -125,15 +134,15 @@ const Community = () => {
 
   const enrichPosts = useCallback(async (data: any[]): Promise<Post[]> => {
     const authorIds = [...new Set(data.filter((p: any) => p.author_id).map((p: any) => p.author_id))];
-    let profilesMap: Record<string, { display_name: string | null; avatar_url: string }> = {};
+    let profilesMap: Record<string, { display_name: string | null; avatar_url: string; created_at?: string }> = {};
     if (authorIds.length > 0) {
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, display_name, avatar_url")
+        .select("user_id, display_name, avatar_url, created_at")
         .in("user_id", authorIds);
       if (profiles) {
         for (const p of profiles) {
-          profilesMap[p.user_id] = { display_name: p.display_name, avatar_url: p.avatar_url ?? "" };
+          profilesMap[p.user_id] = { display_name: p.display_name, avatar_url: p.avatar_url ?? "", created_at: p.created_at };
         }
       }
     }
@@ -441,20 +450,7 @@ const Community = () => {
 
   const visiblePosts = displayPosts;
 
-  const viewedPostsRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    const newPostIds = visiblePosts
-      .map(p => p.id)
-      .filter(id => !id.startsWith("repost-") && !id.startsWith("optimistic-") && !viewedPostsRef.current.has(id));
-    if (newPostIds.length === 0) return;
-    newPostIds.forEach(id => viewedPostsRef.current.add(id));
-    const timer = setTimeout(() => {
-      newPostIds.forEach(id => {
-        supabase.rpc("increment_views", { post_id_input: id });
-      });
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [visiblePosts]);
+  // View tracking is now handled per-post via PostViewObserver + usePostViewTracker
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -469,6 +465,17 @@ const Community = () => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = textareaRef.current.scrollHeight + "px";
+    }
+    // Check for @mention
+    const cursorPos = e.target.selectionStart;
+    const textBefore = val.slice(0, cursorPos);
+    const atMatch = textBefore.match(/@(\w*)$/);
+    if (atMatch) {
+      setMentionQuery(atMatch[1]);
+      setShowMentionDropdown(true);
+    } else {
+      setShowMentionDropdown(false);
+      setMentionQuery("");
     }
   };
 
@@ -627,9 +634,34 @@ const Community = () => {
       _onRetryUpload: (mediaId: string) => retryPendingUpload(postId, mediaId),
     };
 
+    // Check if this is user's first post for celebration
+    const isFirstPost = !allPosts.some(p => p.author_id === currentUser?.id && p.id !== postId);
+    
     setAllPosts(prev => [newPostObj, ...prev.filter(p => p.id !== postId)]);
     toast({ title: pendingMedia.length > 0 ? "Post published! Video uploading..." : "Post published successfully! 🎉" });
     setPosting(false);
+
+    if (isFirstPost && currentUser) {
+      setShowFirstPostCelebration(true);
+    }
+
+    // Send mention notifications
+    if (currentUser) {
+      const mentions = extractMentions(savedContent);
+      if (mentions.length > 0) {
+        const { data: mentionedProfiles } = await supabase
+          .from("profiles")
+          .select("user_id, display_name")
+          .in("display_name", mentions);
+        if (mentionedProfiles) {
+          for (const mp of mentionedProfiles) {
+            if (mp.user_id !== currentUser.id) {
+              createNotification(mp.user_id, currentUser.id, "mention", "mentioned you in a post", postId);
+            }
+          }
+        }
+      }
+    }
 
     // Start background uploads
     for (const item of filesToUpload) {
@@ -929,6 +961,12 @@ const Community = () => {
         {/* Activity Banner */}
         <ActivityBanner />
 
+        {/* First Post Celebration */}
+        <FirstPostCelebration
+          show={showFirstPostCelebration}
+          onDismiss={() => setShowFirstPostCelebration(false)}
+        />
+
         {/* Welcome / First Post Prompt */}
         <WelcomePrompt
           isLoggedIn={!!currentUser}
@@ -946,16 +984,31 @@ const Community = () => {
         <div className={`p-5 rounded-2xl backdrop-blur-xl border border-white/15 shadow-lg mb-6 ${!communityOpen ? "opacity-50 pointer-events-none" : ""}`} style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)" }}>
           <div className="flex gap-3">
             <UserAvatar displayName={postAnonymously ? sessionId : currentUser?.displayName} size="sm" />
-            <div className="flex-1">
+            <div className="flex-1 relative">
               <textarea
                 ref={textareaRef}
                 value={newPost}
                 onChange={handlePostChange}
-                placeholder={communityOpen ? "What's on your mind?" : "Community posting is currently closed."}
+                placeholder={communityOpen ? "What's on your mind? Use @ to mention someone" : "Community posting is currently closed."}
                 rows={2}
                 disabled={!communityOpen}
                 className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 resize-none overflow-hidden disabled:cursor-not-allowed"
                 style={{ minHeight: "60px" }}
+                onBlur={() => setTimeout(() => setShowMentionDropdown(false), 200)}
+              />
+              <MentionDropdown
+                query={mentionQuery}
+                visible={showMentionDropdown}
+                onSelect={(user) => {
+                  const cursorPos = textareaRef.current?.selectionStart || newPost.length;
+                  const textBefore = newPost.slice(0, cursorPos);
+                  const textAfter = newPost.slice(cursorPos);
+                  const replaced = textBefore.replace(/@\w*$/, `@${user.display_name || "User"} `);
+                  setNewPost(replaced + textAfter);
+                  setShowMentionDropdown(false);
+                  setMentionQuery("");
+                  setTimeout(() => textareaRef.current?.focus(), 50);
+                }}
               />
 
               {/* Media uploader */}
@@ -1082,41 +1135,42 @@ const Community = () => {
           <div className="space-y-3">
             <AnimatePresence mode="popLayout">
               {visiblePosts.map((post) => (
-                <PostCard
-                  key={post.id}
-                  post={post}
-                  isLiked={likedPosts.has(post.id)}
-                  isExpanded={expandedComments.has(post.id)}
-                  postComments={comments[post.id] || []}
-                  reactionCounts={reactionCountsMap[post.id] || {}}
-                  myReactions={myReactions}
-                  commentInput={commentInputs[post.id] || ""}
-                  currentUserId={currentUser?.id}
-                  currentUserName={currentUser?.displayName}
-                  communityOpen={communityOpen}
-                  reportMenuPost={reportMenuPost}
-                  commentReactionCounts={getCommentReactionCounts}
-                  myCommentReactions={myCommentReactions}
-                  onToggleLike={toggleLike}
-                  onToggleReaction={toggleReaction}
-                  onToggleComments={toggleComments}
-                  onShare={sharePost}
-                  onRepost={(p) => setRepostDialogPost(p)}
-                  onReport={reportPost}
-                  onSetReportMenu={setReportMenuPost}
-                  onCommentInputChange={(pid, val) => setCommentInputs(prev => ({ ...prev, [pid]: val }))}
-                  onAddComment={addComment}
-                  onAddReply={addReply}
-                  onCommentDelete={handleCommentDelete}
-                  onCommentUpdate={handleCommentUpdate}
-                  onNavigate={navigate}
-                  onToggleCommentReaction={toggleCommentReaction}
-                  isBookmarked={isBookmarked(post.id)}
-                  onToggleBookmark={toggleBookmark}
-                  isOwnPost={post.author_id === currentUser?.id}
-                  onDeletePost={handleDeletePost}
-                  onEditPost={handleEditPost}
-                />
+                <PostViewObserver key={post.id} postId={post.id} onView={trackView}>
+                  <PostCard
+                    post={post}
+                    isLiked={likedPosts.has(post.id)}
+                    isExpanded={expandedComments.has(post.id)}
+                    postComments={comments[post.id] || []}
+                    reactionCounts={reactionCountsMap[post.id] || {}}
+                    myReactions={myReactions}
+                    commentInput={commentInputs[post.id] || ""}
+                    currentUserId={currentUser?.id}
+                    currentUserName={currentUser?.displayName}
+                    communityOpen={communityOpen}
+                    reportMenuPost={reportMenuPost}
+                    commentReactionCounts={getCommentReactionCounts}
+                    myCommentReactions={myCommentReactions}
+                    onToggleLike={toggleLike}
+                    onToggleReaction={toggleReaction}
+                    onToggleComments={toggleComments}
+                    onShare={sharePost}
+                    onRepost={(p) => setRepostDialogPost(p)}
+                    onReport={reportPost}
+                    onSetReportMenu={setReportMenuPost}
+                    onCommentInputChange={(pid, val) => setCommentInputs(prev => ({ ...prev, [pid]: val }))}
+                    onAddComment={addComment}
+                    onAddReply={addReply}
+                    onCommentDelete={handleCommentDelete}
+                    onCommentUpdate={handleCommentUpdate}
+                    onNavigate={navigate}
+                    onToggleCommentReaction={toggleCommentReaction}
+                    isBookmarked={isBookmarked(post.id)}
+                    onToggleBookmark={toggleBookmark}
+                    isOwnPost={post.author_id === currentUser?.id}
+                    onDeletePost={handleDeletePost}
+                    onEditPost={handleEditPost}
+                  />
+                </PostViewObserver>
               ))}
             </AnimatePresence>
 
