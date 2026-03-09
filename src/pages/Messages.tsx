@@ -575,7 +575,7 @@ const Messages = () => {
                 )}
 
                 <div className="flex gap-2 items-end">
-                  <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.gif,.webp" className="hidden" onChange={handleFileSelect} />
+                  <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.webm,.mov" className="hidden" onChange={handleFileSelect} />
 
                   {!voiceRecorderActive && (
                     <>
