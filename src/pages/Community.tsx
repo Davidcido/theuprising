@@ -227,11 +227,19 @@ const Community = () => {
     }
   }, [sessionId, expandedComments, comments]);
 
+  // Load reactions when posts change
+  useEffect(() => {
+    if (allPosts.length > 0) fetchReactions();
+  }, [allPosts.length]);
+
+  // Load comment reactions when comments are expanded
+  useEffect(() => {
+    if (expandedComments.size > 0) fetchCommentReactions();
+  }, [expandedComments, comments]);
+
   useEffect(() => {
     fetchPosts(false);
     fetchLikedPosts();
-    fetchReactions();
-    fetchCommentReactions();
 
     supabase.from("community_settings").select("value").eq("key", "community_status").single()
       .then(({ data }) => { if (data) setCommunityOpen(data.value === "open"); });
