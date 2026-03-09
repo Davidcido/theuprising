@@ -8,6 +8,7 @@ import HashtagText from "@/components/community/HashtagText";
 import MediaGallery from "@/components/community/MediaGallery";
 import { formatDistanceToNow } from "date-fns";
 import { Input } from "@/components/ui/input";
+import { useAuthReady } from "@/hooks/useAuthReady";
 
 type ExplorePost = {
   id: string;
@@ -40,6 +41,7 @@ const formatCount = (n: number) => {
 };
 
 const Explore = () => {
+  const { user: authUser, isReady } = useAuthReady();
   const [searchParams] = useSearchParams();
   const tagFilter = searchParams.get("tag");
   const navigate = useNavigate();
@@ -177,10 +179,13 @@ const Explore = () => {
     return trendingHashtags.filter(h => h.tag.includes(q));
   }, [trendingHashtags, searchQuery]);
 
-  if (loading) {
+  if (loading || !isReady) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+          <p className="text-muted-foreground text-sm">Loading your space…</p>
+        </div>
       </div>
     );
   }
