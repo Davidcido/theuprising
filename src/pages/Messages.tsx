@@ -49,36 +49,7 @@ const Messages = () => {
 
   const { conversations, loading: convsLoading } = useConversations(userId);
   const { messages, loading: msgsLoading, sendMessage, editMessage, deleteForMe, deleteForEveryone } = useMessages(conversationId, userId);
-  const handleCallEvent = useCallback(async (event: CallEvent) => {
-    if (!userId || !event.conversationId) return;
-    const icon = event.callType === "video" ? "📹" : "📞";
-    const typeLabel = event.callType === "video" ? "video" : "voice";
-    let content = "";
-
-    if (event.type === "started") {
-      content = `${icon} You started a ${typeLabel} call`;
-    } else if (event.type === "missed") {
-      content = `${icon} Missed ${typeLabel} call`;
-    } else if (event.type === "ended" && event.duration) {
-      const mins = Math.floor(event.duration / 60);
-      const secs = event.duration % 60;
-      const dur = mins > 0 ? `${mins}m ${secs.toString().padStart(2, "0")}s` : `${secs}s`;
-      content = `${icon} ${typeLabel.charAt(0).toUpperCase() + typeLabel.slice(1)} call ended — duration ${dur}`;
-    } else if (event.type === "rejected") {
-      content = `${icon} ${typeLabel.charAt(0).toUpperCase() + typeLabel.slice(1)} call declined`;
-    }
-
-    if (content) {
-      await supabase.from("direct_messages").insert({
-        conversation_id: event.conversationId,
-        sender_id: userId,
-        content,
-        attachment_type: "system",
-      } as any);
-    }
-  }, [userId]);
-
-  const { callState, incomingCall, activeCallType, localMediaStream, remoteMediaStream, startCall, acceptCall, rejectCall, endCall } = useCallSignaling(userId, handleCallEvent);
+  const { callState, incomingCall, activeCallType, activeConversationId, localMediaStream, remoteMediaStream, startCall, acceptCall, rejectCall, endCall } = useGlobalCalls();
   const { isBlocked, blockUser, unblockUser } = useBlocks(userId);
   const { isOtherTyping, typingUserName, sendTyping } = useTypingIndicator(conversationId, userId);
   const { toggleReaction, getGroupedReactions } = useMessageReactions(conversationId, userId);
