@@ -25,7 +25,8 @@ import MemorySettings from "@/components/chat/MemorySettings";
 
 const Profile = () => {
   const { userId: paramUserId } = useParams();
-  const [currentUserId, setCurrentUserId] = useState<string | undefined>();
+  const { user: authUser } = useAuthReady();
+  const currentUserId = authUser?.id;
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState({ display_name: "", bio: "", country: "" });
   const [userPosts, setUserPosts] = useState<any[]>([]);
