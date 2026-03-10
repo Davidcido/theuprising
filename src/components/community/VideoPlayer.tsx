@@ -224,6 +224,7 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
         <video
           ref={videoRef}
           src={url}
+          crossOrigin="anonymous"
           className="w-full h-full object-contain"
           playsInline
           muted={muted}
