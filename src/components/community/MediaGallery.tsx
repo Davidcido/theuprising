@@ -72,7 +72,9 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
     setError(false);
   };
 
-  const handleError = () => {
+  const handleError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = e.currentTarget;
+    console.error("[FeedVideo] Video failed to load:", url, "networkState:", video.networkState, "error:", video.error?.code, video.error?.message);
     setError(true);
     setLoaded(true);
   };
