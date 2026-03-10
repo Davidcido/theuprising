@@ -164,26 +164,33 @@ const PostCard = ({
     const contentChanged = editContent.trim() !== post.content;
     const existingUrls = post.media_urls || [];
     const newUrls = editMediaFiles.filter(m => !m.file).map(m => m.url);
-    // Upload any new files (videos with file property)
     setEditSaving(true);
-    const uploadedUrls = [...newUrls];
-    for (const m of editMediaFiles) {
-      if (m.file && m.type === "video") {
-        const url = await new Promise<string | null>((resolve) => {
-          uploadFileWithProgress("community-media", m.file!, (state) => {
-            if (state.status === "done" && state.publicUrl) resolve(state.publicUrl);
-            else if (state.status === "error" || state.status === "cancelled") resolve(null);
-          });
-        });
-        if (url) uploadedUrls.push(url);
+    try {
+      const uploadedUrls = [...newUrls];
+      for (const m of editMediaFiles) {
+        if (m.file && m.type === "video") {
+          const url = await Promise.race([
+            new Promise<string | null>((resolve) => {
+              uploadFileWithProgress("community-media", m.file!, (state) => {
+                if (state.status === "done" && state.publicUrl) resolve(state.publicUrl);
+                else if (state.status === "error" || state.status === "cancelled") resolve(null);
+              });
+            }),
+            new Promise<null>((_, reject) => setTimeout(() => reject(new Error("Upload timed out")), 30000)),
+          ]);
+          if (url) uploadedUrls.push(url);
+        }
       }
+      const mediaChanged = JSON.stringify(uploadedUrls) !== JSON.stringify(existingUrls);
+      if (contentChanged || mediaChanged) {
+        await onEditPost?.(post.id, editContent.trim(), mediaChanged ? uploadedUrls : undefined);
+      }
+      setEditing(false);
+    } catch {
+      // error handled by parent or timeout
+    } finally {
+      setEditSaving(false);
     }
-    setEditSaving(false);
-    const mediaChanged = JSON.stringify(uploadedUrls) !== JSON.stringify(existingUrls);
-    if (contentChanged || mediaChanged) {
-      onEditPost?.(post.id, editContent.trim(), mediaChanged ? uploadedUrls : undefined);
-    }
-    setEditing(false);
   };
 
   return (
