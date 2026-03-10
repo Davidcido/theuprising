@@ -177,9 +177,11 @@ const MediaGallery = ({ mediaUrls, compact, postData }: MediaGalleryProps) => {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [videoPlayerUrl, setVideoPlayerUrl] = useState<string | null>(null);
 
-  if (!mediaUrls || mediaUrls.length === 0) return null;
+  // Filter out invalid URLs (blob:, empty, non-http)
+  const validUrls = mediaUrls.filter(isValidMediaUrl);
+  if (validUrls.length === 0) return null;
 
-  const gridClass = mediaUrls.length === 1
+  const gridClass = validUrls.length === 1
     ? "grid-cols-1"
     : "grid-cols-2";
 
