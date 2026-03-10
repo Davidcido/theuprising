@@ -115,7 +115,7 @@ interface PostCardProps {
   onPinPost?: (postId: string) => void;
   onUnpinPost?: () => void;
   onDeletePost?: (postId: string) => void;
-  onEditPost?: (postId: string, newContent: string) => void;
+  onEditPost?: (postId: string, newContent: string, newMediaUrls?: string[]) => void;
 }
 
 const formatTime = (ts: string) => {
