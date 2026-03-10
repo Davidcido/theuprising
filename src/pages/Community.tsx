@@ -313,7 +313,9 @@ const Community = () => {
     return () => clearTimeout(timer);
   }, [loading]);
 
+  // Gate initial fetch on auth readiness to prevent "No posts yet" on refresh
   useEffect(() => {
+    if (!authReady) return;
     fetchPosts(false);
     fetchLikedPosts();
 
