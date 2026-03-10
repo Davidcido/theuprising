@@ -132,6 +132,7 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
         ref={videoRef}
         key={retryCount} // force remount on retry
         src={url}
+        crossOrigin="anonymous"
         className="w-full rounded-xl"
         style={{
           width: "100%",
