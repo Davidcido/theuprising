@@ -89,7 +89,7 @@ const VideoPreview = ({ media, index, onRemove, onTogglePlay, onRestart, isPlayi
 }) => (
   <div className="relative rounded-xl overflow-hidden border border-white/10">
     <div className="relative">
-      <video ref={videoRef} src={media.url} className="w-full h-40 object-cover" playsInline onEnded={onRestart} />
+      <video ref={videoRef} src={media.url} className="w-full max-h-[400px] object-contain bg-black rounded-lg" playsInline onEnded={onRestart} />
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
         <div className="flex items-center gap-1.5">
           <button onClick={(e) => { e.stopPropagation(); onTogglePlay(); }} className="p-1 rounded-full bg-white/20 hover:bg-white/30 transition-colors">
