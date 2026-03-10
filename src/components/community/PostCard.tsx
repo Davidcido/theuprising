@@ -1,4 +1,6 @@
 import { useState, memo, useCallback } from "react";
+import MediaUploader from "@/components/community/MediaUploader";
+import { uploadFileWithProgress } from "@/lib/chunkedUpload";
 import { motion, AnimatePresence } from "framer-motion";
 import LikesModal from "@/components/community/LikesModal";
 import { Heart, MessageCircle, Repeat2, Send, ChevronDown, ChevronUp, Flag, MoreHorizontal, Eye, Share2, Bookmark, Pin, Trash2, Pencil } from "lucide-react";
@@ -113,7 +115,7 @@ interface PostCardProps {
   onPinPost?: (postId: string) => void;
   onUnpinPost?: () => void;
   onDeletePost?: (postId: string) => void;
-  onEditPost?: (postId: string, newContent: string) => void;
+  onEditPost?: (postId: string, newContent: string, newMediaUrls?: string[]) => void;
 }
 
 const formatTime = (ts: string) => {
@@ -138,16 +140,48 @@ const PostCard = ({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.content);
+  const [editMediaFiles, setEditMediaFiles] = useState<{ url: string; type: "image" | "video"; file?: File }[]>([]);
   const [showLikesModal, setShowLikesModal] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
 
   const handleDelete = () => {
     onDeletePost?.(post.id);
     setShowDeleteDialog(false);
   };
 
-  const handleSaveEdit = () => {
-    if (editContent.trim() && editContent !== post.content) {
-      onEditPost?.(post.id, editContent.trim());
+  const startEditing = () => {
+    setEditing(true);
+    setEditContent(post.content);
+    // Convert existing media_urls to editMediaFiles
+    const existing = (post.media_urls || []).map(url => ({
+      url,
+      type: (/\.(mp4|webm|mov|avi|mkv)(\?|$)/i.test(url) ? "video" : "image") as "image" | "video",
+    }));
+    setEditMediaFiles(existing);
+  };
+
+  const handleSaveEdit = async () => {
+    const contentChanged = editContent.trim() !== post.content;
+    const existingUrls = post.media_urls || [];
+    const newUrls = editMediaFiles.filter(m => !m.file).map(m => m.url);
+    // Upload any new files (videos with file property)
+    setEditSaving(true);
+    const uploadedUrls = [...newUrls];
+    for (const m of editMediaFiles) {
+      if (m.file && m.type === "video") {
+        const url = await new Promise<string | null>((resolve) => {
+          uploadFileWithProgress("community-media", m.file!, (state) => {
+            if (state.status === "done" && state.publicUrl) resolve(state.publicUrl);
+            else if (state.status === "error" || state.status === "cancelled") resolve(null);
+          });
+        });
+        if (url) uploadedUrls.push(url);
+      }
+    }
+    setEditSaving(false);
+    const mediaChanged = JSON.stringify(uploadedUrls) !== JSON.stringify(existingUrls);
+    if (contentChanged || mediaChanged) {
+      onEditPost?.(post.id, editContent.trim(), mediaChanged ? uploadedUrls : undefined);
     }
     setEditing(false);
   };
@@ -237,7 +271,7 @@ const PostCard = ({
                   )}
                   {isOwnPost && onEditPost && (
                     <button
-                      onClick={() => { setEditing(true); setEditContent(post.content); onSetReportMenu(null); }}
+                      onClick={() => { startEditing(); onSetReportMenu(null); }}
                       className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-foreground hover:bg-white/10 transition-colors"
                     >
                       <Pencil className="w-3.5 h-3.5" /> Edit Post
@@ -282,11 +316,19 @@ const PostCard = ({
               className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/40 resize-none"
               rows={3}
             />
+            <div className="mt-2">
+              <MediaUploader
+                mediaFiles={editMediaFiles}
+                onMediaChange={setEditMediaFiles}
+                maxFiles={4}
+                disabled={editSaving}
+              />
+            </div>
             <div className="flex gap-2 mt-2">
-              <button onClick={handleSaveEdit} className="px-3 py-1.5 rounded-full text-xs text-white font-medium" style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}>
-                Save
+              <button onClick={handleSaveEdit} disabled={editSaving} className="px-3 py-1.5 rounded-full text-xs text-white font-medium disabled:opacity-50" style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}>
+                {editSaving ? "Saving..." : "Save"}
               </button>
-              <button onClick={() => setEditing(false)} className="px-3 py-1.5 rounded-full text-xs text-muted-foreground bg-white/5 hover:bg-white/10">
+              <button onClick={() => setEditing(false)} disabled={editSaving} className="px-3 py-1.5 rounded-full text-xs text-muted-foreground bg-white/5 hover:bg-white/10">
                 Cancel
               </button>
             </div>
