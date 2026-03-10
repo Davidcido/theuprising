@@ -695,13 +695,20 @@ const Community = () => {
   const handleEditPost = async (postId: string, newContent: string, newMediaUrls?: string[]) => {
     const updateData: any = { content: newContent };
     if (newMediaUrls !== undefined) updateData.media_urls = newMediaUrls;
+    const previousPost = allPosts.find(p => p.id === postId);
     setAllPosts(prev => prev.map(p => p.id === postId ? { ...p, content: newContent, ...(newMediaUrls !== undefined ? { media_urls: newMediaUrls } : {}) } : p));
-    const { error } = await supabase.from("community_posts").update(updateData).eq("id", postId);
-    if (error) {
-      toast({ title: "Error", description: "Could not edit post.", variant: "destructive" });
-      fetchPosts(false);
-    } else {
+    try {
+      const result = await Promise.race([
+        supabase.from("community_posts").update(updateData).eq("id", postId),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Request timed out")), 3000)),
+      ]);
+      if (result.error) throw new Error(result.error.message);
       toast({ title: "Post updated" });
+    } catch (e: any) {
+      if (previousPost) {
+        setAllPosts(prev => prev.map(p => p.id === postId ? previousPost : p));
+      }
+      toast({ title: "Error", description: e.message || "Could not edit post.", variant: "destructive" });
     }
   };
 
