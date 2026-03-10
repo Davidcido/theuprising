@@ -85,7 +85,7 @@ const Community = () => {
   const [myReactions, setMyReactions] = useState<Set<string>>(new Set());
   const [communityOpen, setCommunityOpen] = useState(true);
   const [postAnonymously, setPostAnonymously] = useState(true);
-  const { user: authUser } = useAuthReady();
+  const { user: authUser, isReady: authReady } = useAuthReady();
   const [currentUser, setCurrentUser] = useState<{ id: string; displayName: string } | null>(null);
   const [reportMenuPost, setReportMenuPost] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<FeedTab>("foryou");
