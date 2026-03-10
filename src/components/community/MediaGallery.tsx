@@ -102,10 +102,10 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
     : "relative cursor-pointer group w-full";
 
   const containerStyle: React.CSSProperties = isSingle
-    ? { maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px`, overflow: "hidden" }
+    ? { maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px`, overflow: "clip" }
     : compact
-    ? { height: "10rem" }
-    : { height: "14rem" };
+    ? { height: "10rem", overflow: "clip" }
+    : { height: "14rem", overflow: "clip" };
 
   if (error) {
     return (
