@@ -1058,11 +1058,13 @@ const Community = () => {
         />
 
         {/* Welcome / First Post Prompt */}
-        <WelcomePrompt
-          isLoggedIn={!!authUser}
-          hasPosted={allPosts.some(p => p.author_id === (currentUser?.id || authUser?.id))}
-          onOpenAuth={() => setAuthOpen(true)}
-        />
+        {!loading && (
+          <WelcomePrompt
+            isLoggedIn={!!authUser}
+            hasPosted={allPosts.some(p => p.author_id && (p.author_id === currentUser?.id || p.author_id === authUser?.id))}
+            onOpenAuth={() => setAuthOpen(true)}
+          />
+        )}
 
         {!communityOpen && (
           <div className="p-4 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 backdrop-blur-xl mb-6 text-center">
