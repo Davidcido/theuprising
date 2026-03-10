@@ -79,6 +79,7 @@ export const uploadFileWithProgress = (
           xhr.open("POST", `${supabaseUrl}/storage/v1/object/${bucket}/${path}`);
           xhr.setRequestHeader("Authorization", `Bearer ${token}`);
           xhr.setRequestHeader("x-upsert", "true");
+          xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
           const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
           xhr.setRequestHeader("apikey", anonKey);
           xhr.send(file);
@@ -102,7 +103,7 @@ export const uploadFileWithProgress = (
     } else {
       // Small file — use SDK directly
       onState({ status: "uploading", progress: 10, message: "Uploading..." });
-      const { error } = await supabase.storage.from(bucket).upload(path, file);
+      const { error } = await supabase.storage.from(bucket).upload(path, file, { contentType: file.type || "application/octet-stream", upsert: true });
       if (aborted) {
         onState({ status: "cancelled", progress: 0, message: "Upload cancelled" });
         return;
@@ -114,6 +115,7 @@ export const uploadFileWithProgress = (
     }
 
     const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
+    console.log("[Upload] Generated public URL:", urlData.publicUrl);
     onState({
       status: "done",
       progress: 100,

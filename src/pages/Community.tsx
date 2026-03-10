@@ -596,6 +596,7 @@ const Community = () => {
       if (m.type === "video" && m.file) {
         toast({ title: "Uploading video...", description: "Please wait while the video uploads." });
         const url = await uploadVideoFile(m.file);
+        console.log("[Community] Video upload result URL:", url);
         if (!url) {
           uploadFailed = true;
           break;

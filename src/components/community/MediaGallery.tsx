@@ -28,6 +28,7 @@ const MAX_FEED_VIDEO_HEIGHT = 700;
 
 /** Feed video — autoplays muted when 60% visible, tapping opens full-screen player */
 const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: boolean; onTap: () => void; isSingle?: boolean }) => {
+  console.log("[FeedVideo] Rendering with URL:", url);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -71,7 +72,9 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
     setError(false);
   };
 
-  const handleError = () => {
+  const handleError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = e.currentTarget;
+    console.error("[FeedVideo] Video failed to load:", url, "networkState:", video.networkState, "error:", video.error?.code, video.error?.message);
     setError(true);
     setLoaded(true);
   };
