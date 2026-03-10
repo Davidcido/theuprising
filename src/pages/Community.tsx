@@ -560,6 +560,21 @@ const Community = () => {
     });
   }, [startBackgroundUpload]);
 
+  const uploadVideoFile = async (file: File): Promise<string | null> => {
+    let uploadFile = file;
+    if (shouldCompress(file)) {
+      try {
+        uploadFile = await compressVideoFile(file, { maxDimension: 1920 });
+      } catch { /* use original */ }
+    }
+    return new Promise((resolve) => {
+      uploadFileWithProgress("community-media", uploadFile, (state) => {
+        if (state.status === "done" && state.publicUrl) resolve(state.publicUrl);
+        else if (state.status === "error" || state.status === "cancelled") resolve(null);
+      });
+    });
+  };
+
   const addPost = async () => {
     if ((!newPost.trim() && mediaFiles.length === 0) || posting) return;
     setPosting(true);
@@ -570,36 +585,38 @@ const Community = () => {
     setMediaFiles([]);
     if (textareaRef.current) textareaRef.current.style.height = "auto";
 
-    // Separate already-uploaded media (images uploaded by MediaUploader) from videos that need background upload
-    const readyUrls: string[] = [];
-    const pendingMedia: PendingMedia[] = [];
-    const filesToUpload: { id: string; file: File; type: "image" | "video"; previewUrl: string }[] = [];
+    // Upload ALL media before saving post (images already uploaded, videos need upload)
+    const allMediaUrls: string[] = [];
+    let uploadFailed = false;
 
     for (const m of savedMedia) {
       if (m.type === "video" && m.file) {
-        const id = `pm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        const previewUrl = URL.createObjectURL(m.file);
-        pendingMedia.push({
-          id,
-          type: "video",
-          previewUrl,
-          progress: 0,
-          status: "compressing",
-          message: "Preparing...",
-        });
-        filesToUpload.push({ id, file: m.file, type: "video", previewUrl });
-        pendingFilesRef.current.set(id, { file: m.file, type: "video" });
+        toast({ title: "Uploading video...", description: "Please wait while the video uploads." });
+        const url = await uploadVideoFile(m.file);
+        if (!url) {
+          uploadFailed = true;
+          break;
+        }
+        allMediaUrls.push(url);
       } else {
-        readyUrls.push(m.url);
+        // Image already uploaded by MediaUploader
+        allMediaUrls.push(m.url);
       }
     }
 
-    // Insert the post into DB immediately (with only ready media URLs)
+    if (uploadFailed) {
+      setNewPost(savedContent);
+      setMediaFiles(savedMedia);
+      toast({ title: "Upload failed", description: "Video upload failed. Please try again.", variant: "destructive" });
+      setPosting(false);
+      return;
+    }
+
     const insertData: any = {
       content: savedContent.trim().slice(0, 10000) || "",
       anonymous_name: postAnonymously ? sessionId : (currentUser?.displayName || sessionId),
       is_anonymous: postAnonymously,
-      media_urls: readyUrls,
+      media_urls: allMediaUrls,
     };
     if (!postAnonymously && currentUser) {
       insertData.author_id = currentUser.id;
@@ -619,7 +636,6 @@ const Community = () => {
       return;
     }
 
-    // Create the post object for the feed with pending media
     const postId = insertedPost.id;
     const newPostObj: Post = {
       id: postId,
@@ -632,18 +648,14 @@ const Community = () => {
       created_at: insertedPost.created_at,
       author_id: insertedPost.author_id,
       is_anonymous: insertedPost.is_anonymous,
-      media_urls: readyUrls,
+      media_urls: allMediaUrls,
       author_profile: currentUser && !postAnonymously ? { display_name: currentUser.displayName, avatar_url: "" } : null,
-      _pendingMedia: pendingMedia.length > 0 ? pendingMedia : undefined,
-      _onCancelUpload: (mediaId: string) => cancelPendingUpload(postId, mediaId),
-      _onRetryUpload: (mediaId: string) => retryPendingUpload(postId, mediaId),
     };
 
-    // Check if this is user's first post for celebration
     const isFirstPost = !allPosts.some(p => p.author_id === currentUser?.id && p.id !== postId);
     
     setAllPosts(prev => [newPostObj, ...prev.filter(p => p.id !== postId)]);
-    toast({ title: pendingMedia.length > 0 ? "Post published! Video uploading..." : "Post published successfully! 🎉" });
+    toast({ title: "Post published successfully! 🎉" });
     setPosting(false);
 
     if (isFirstPost && currentUser) {
@@ -666,11 +678,6 @@ const Community = () => {
           }
         }
       }
-    }
-
-    // Start background uploads
-    for (const item of filesToUpload) {
-      startBackgroundUpload(postId, item.id, item.file, item.type, item.previewUrl);
     }
   };
 
