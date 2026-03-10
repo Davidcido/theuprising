@@ -97,8 +97,13 @@ export const compressVideoFile = (
         // No audio or unsupported — continue without
       }
 
-      // Prefer VP9 for better quality-per-bit, fall back to VP8
-      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+      // Prefer MP4 (H.264) for maximum browser compatibility (esp. Safari/iOS),
+      // fall back to WebM VP9/VP8
+      const mimeType = MediaRecorder.isTypeSupported("video/mp4;codecs=avc1")
+        ? "video/mp4;codecs=avc1"
+        : MediaRecorder.isTypeSupported("video/mp4")
+        ? "video/mp4"
+        : MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
         ? "video/webm;codecs=vp9"
         : MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
         ? "video/webm;codecs=vp8"
@@ -124,14 +129,17 @@ export const compressVideoFile = (
 
       recorder.onstop = () => {
         URL.revokeObjectURL(srcUrl);
-        const blob = new Blob(chunks, { type: "video/webm" });
+        const isMp4 = mimeType.startsWith("video/mp4");
+        const outputType = isMp4 ? "video/mp4" : "video/webm";
+        const outputExt = isMp4 ? ".mp4" : ".webm";
+        const blob = new Blob(chunks, { type: outputType });
         // Only use compressed version if it's actually smaller
         if (blob.size >= file.size || blob.size === 0) {
           cleanup(file);
         } else {
           cleanup(
-            new File([blob], file.name.replace(/\.[^.]+$/, ".webm"), {
-              type: "video/webm",
+            new File([blob], file.name.replace(/\.[^.]+$/, outputExt), {
+              type: outputType,
             })
           );
         }

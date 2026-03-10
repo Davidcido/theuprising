@@ -224,6 +224,7 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
         <video
           ref={videoRef}
           src={url}
+          crossOrigin="anonymous"
           className="w-full h-full object-contain"
           playsInline
           muted={muted}
@@ -236,7 +237,7 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
           onWaiting={() => setBuffering(true)}
           onPlaying={() => { setBuffering(false); setError(false); }}
           onCanPlay={() => setBuffering(false)}
-          onError={() => setError(true)}
+          onError={(e) => { console.error("[VideoPlayer] Playback error:", url, e.currentTarget.error?.code, e.currentTarget.error?.message); setError(true); }}
           onClick={(e) => { e.stopPropagation(); togglePlay(); resetHideTimer(); }}
         />
 
