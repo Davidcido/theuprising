@@ -50,7 +50,7 @@ const generateThumbnail = (url: string): Promise<string> => {
   });
 };
 
-const MAX_FEED_VIDEO_HEIGHT = 650;
+const MAX_FEED_VIDEO_HEIGHT = 700;
 
 /** Feed video — autoplays muted when 60 % visible, tapping opens full-screen player */
 const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: boolean; onTap: () => void; isSingle?: boolean }) => {
@@ -170,7 +170,7 @@ const MediaGallery = ({ mediaUrls, compact, postData }: MediaGalleryProps) => {
 
   return (
     <>
-      <div className={`grid gap-1 mb-3 ${gridClass} -mx-1`}>
+      <div className={`grid gap-1 mb-3 ${gridClass} w-full max-w-full`}>
         {mediaUrls.slice(0, 4).map((url, i) => (
           <div
             key={i}
