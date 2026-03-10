@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { X, Play, ChevronLeft, ChevronRight, VolumeX, AlertCircle, RefreshCw } from "lucide-react";
+import { X, Play, ChevronLeft, ChevronRight, VolumeX, Volume2, AlertCircle, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import VideoPlayer from "./VideoPlayer";
 
@@ -33,6 +33,7 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
@@ -155,7 +156,7 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
     >
       <video
         ref={videoRef}
-        key={retryCount} // force remount on retry
+        key={retryCount}
         src={url}
         crossOrigin="anonymous"
         className="w-full rounded-xl"
@@ -165,19 +166,46 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
           maxHeight: isSingle ? `${MAX_FEED_VIDEO_HEIGHT}px` : undefined,
           objectFit: "cover",
           display: "block",
+          touchAction: "pan-y",
+          pointerEvents: "none",
         }}
         muted
         playsInline
+        // @ts-ignore webkit attribute for iOS
+        webkit-playsinline=""
         loop
         preload="metadata"
         onLoadedMetadata={handleMetadata}
         onError={handleError}
       />
-      {/* Muted indicator */}
+      {/* Mute/unmute button — tappable */}
       {isPlaying && (
-        <div className="absolute bottom-2 right-2 p-1.5 rounded-full bg-black/50 backdrop-blur-sm pointer-events-none">
-          <VolumeX className="w-3 h-3 text-white/70" />
-        </div>
+        <button
+          className="absolute bottom-2 right-2 p-2 rounded-full bg-black/50 backdrop-blur-sm z-10"
+          onClick={(e) => {
+            e.stopPropagation();
+            const v = videoRef.current;
+            if (v) {
+              v.muted = !v.muted;
+              setIsMuted(v.muted);
+            }
+          }}
+          onTouchEnd={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const v = videoRef.current;
+            if (v) {
+              v.muted = !v.muted;
+              setIsMuted(v.muted);
+            }
+          }}
+        >
+          {isMuted ? (
+            <VolumeX className="w-4 h-4 text-white/80" />
+          ) : (
+            <Volume2 className="w-4 h-4 text-white/80" />
+          )}
+        </button>
       )}
       {/* Play icon when paused */}
       {!isPlaying && loaded && (
