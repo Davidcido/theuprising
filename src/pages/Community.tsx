@@ -1181,7 +1181,7 @@ const Community = () => {
               <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Try Again
             </Button>
           </div>
-        ) : loading ? (
+        ) : (loading || !authReady) ? (
           <div className="space-y-3">
             {[1, 2, 3, 4].map((i) => <PostSkeleton key={i} />)}
           </div>
