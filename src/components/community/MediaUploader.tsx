@@ -174,7 +174,11 @@ const MediaUploader = ({ mediaFiles, onMediaChange, maxFiles = 4, disabled }: Me
     const isVideo = file.type.startsWith("video/");
     const isImage = file.type.startsWith("image/");
     if (!isVideo && !isImage) return;
-    if (file.size > 100 * 1024 * 1024) {
+    if (isVideo && file.size > 50 * 1024 * 1024) {
+      updateJob(jobId, { state: { status: "error", progress: 0, message: "Video too large (max 50MB)" } });
+      return;
+    }
+    if (isImage && file.size > 100 * 1024 * 1024) {
       updateJob(jobId, { state: { status: "error", progress: 0, message: "File too large (max 100MB)" } });
       return;
     }
