@@ -76,6 +76,8 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
   const handleError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
     console.error("[FeedVideo] Video failed to load:", url, "networkState:", video.networkState, "error:", video.error?.code, video.error?.message);
+    // Don't show error for blob URLs or empty URLs — these are expected during upload
+    if (!url || url.startsWith("blob:")) return;
     setError(true);
     setLoaded(true);
   };
