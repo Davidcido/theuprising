@@ -106,8 +106,8 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
   const containerStyle: React.CSSProperties = isSingle && aspectRatio
     ? { aspectRatio: `${aspectRatio}`, maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px` }
     : compact
-    ? { height: "8rem" }
-    : { height: "12rem" };
+    ? { height: "10rem" }
+    : { height: "14rem" };
 
   return (
     <div ref={containerRef} className="relative cursor-pointer group" onClick={onTap} style={isSingle ? { maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px` } : undefined}>
