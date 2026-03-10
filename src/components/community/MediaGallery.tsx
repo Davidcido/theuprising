@@ -126,8 +126,36 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
     );
   }
 
+  // Use a ref to distinguish taps from scrolls on mobile
+  const touchStartY = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartY.current === null) return;
+    const delta = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+    // Only trigger tap if finger didn't move (not a scroll gesture)
+    if (delta < 10) {
+      onTap();
+    }
+    touchStartY.current = null;
+  };
+
   return (
-    <div ref={containerRef} className={containerClass} onClick={onTap} style={containerStyle}>
+    <div
+      ref={containerRef}
+      className={containerClass}
+      onClick={(e) => {
+        // Desktop click — mobile handled by touch events
+        if ('ontouchstart' in window) return;
+        onTap();
+      }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      style={{ ...containerStyle, touchAction: "pan-y" }}
+    >
       <video
         ref={videoRef}
         key={retryCount} // force remount on retry
