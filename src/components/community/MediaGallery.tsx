@@ -50,7 +50,7 @@ const generateThumbnail = (url: string): Promise<string> => {
   });
 };
 
-const MAX_FEED_VIDEO_HEIGHT = 700;
+const MAX_FEED_VIDEO_HEIGHT = 650;
 
 /** Feed video — autoplays muted when 60 % visible, tapping opens full-screen player */
 const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: boolean; onTap: () => void; isSingle?: boolean }) => {
