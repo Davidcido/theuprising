@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { X, Play, ChevronLeft, ChevronRight, Volume2, VolumeX } from "lucide-react";
+import { X, Play, ChevronLeft, ChevronRight, VolumeX } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import VideoPlayer from "./VideoPlayer";
 
@@ -20,6 +20,9 @@ interface MediaGalleryProps {
 }
 
 const isVideo = (url: string) => /\.(mp4|webm|mov|avi|mkv)(\?|$)/i.test(url);
+
+// Global tracker: only one video autoplays at a time
+let currentlyPlayingFeedVideo: HTMLVideoElement | null = null;
 
 const generateThumbnail = (url: string): Promise<string> => {
   return new Promise((resolve) => {
@@ -47,34 +50,79 @@ const generateThumbnail = (url: string): Promise<string> => {
   });
 };
 
-/** Feed video thumbnail — shows a static thumbnail with a play icon overlay. No autoplay. */
-const FeedVideoThumbnail = ({ url, compact, onClick }: { url: string; compact?: boolean; onClick: () => void }) => {
+/** Feed video — autoplays muted when 60 % visible, tapping opens full-screen player */
+const FeedVideo = ({ url, compact, onTap }: { url: string; compact?: boolean; onTap: () => void }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [thumbnail, setThumbnail] = useState<string>("");
+  const [loaded, setLoaded] = useState(false);
 
+  useEffect(() => { generateThumbnail(url).then(setThumbnail); }, [url]);
+
+  // IntersectionObserver for autoplay / autopause
   useEffect(() => {
-    generateThumbnail(url).then(setThumbnail);
-  }, [url]);
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const video = videoRef.current;
+        if (!video) return;
+        if (entry.isIntersecting) {
+          // Pause any other feed video
+          if (currentlyPlayingFeedVideo && currentlyPlayingFeedVideo !== video) {
+            currentlyPlayingFeedVideo.pause();
+          }
+          video.play().then(() => {
+            currentlyPlayingFeedVideo = video;
+            setIsPlaying(true);
+          }).catch(() => {});
+        } else {
+          video.pause();
+          setIsPlaying(false);
+          if (currentlyPlayingFeedVideo === video) currentlyPlayingFeedVideo = null;
+        }
+      },
+      { threshold: 0.6 },
+    );
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      if (videoRef.current && currentlyPlayingFeedVideo === videoRef.current) currentlyPlayingFeedVideo = null;
+    };
+  }, []);
 
   return (
-    <div className="relative cursor-pointer group" onClick={onClick}>
-      {thumbnail ? (
-        <img src={thumbnail} alt="" className={`w-full object-cover ${compact ? "h-32" : "h-48"}`} />
-      ) : (
-        <video
-          src={url}
-          className={`w-full object-cover ${compact ? "h-32" : "h-48"}`}
-          muted
-          playsInline
-          preload="metadata"
-        />
+    <div ref={containerRef} className="relative cursor-pointer group" onClick={onTap}>
+      {/* Thumbnail fallback while video loads */}
+      {!loaded && thumbnail && (
+        <img src={thumbnail} alt="" className={`w-full object-cover absolute inset-0 ${compact ? "h-32" : "h-48"}`} />
       )}
-      {/* Play icon overlay */}
-      <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors">
-        <div className="w-12 h-12 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20 group-hover:scale-110 transition-transform">
-          <Play className="w-5 h-5 text-white ml-0.5" fill="white" />
+      <video
+        ref={videoRef}
+        src={url}
+        className={`w-full object-cover ${compact ? "h-32" : "h-48"}`}
+        muted
+        playsInline
+        loop
+        preload="metadata"
+        onLoadedData={() => setLoaded(true)}
+      />
+      {/* Muted indicator */}
+      {isPlaying && (
+        <div className="absolute bottom-2 right-2 p-1.5 rounded-full bg-black/50 backdrop-blur-sm pointer-events-none">
+          <VolumeX className="w-3 h-3 text-white/70" />
         </div>
-      </div>
-      {/* Video badge */}
+      )}
+      {/* Play icon when paused */}
+      {!isPlaying && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+          <div className="w-12 h-12 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20">
+            <Play className="w-5 h-5 text-white ml-0.5" fill="white" />
+          </div>
+        </div>
+      )}
+      {/* Badge */}
       <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-black/50 backdrop-blur-sm">
         <span className="text-[10px] text-white/80 font-medium">VIDEO</span>
       </div>
