@@ -33,8 +33,12 @@ export const uploadFileWithProgress = (
       return;
     }
 
-    const ext = file.name.split(".").pop() || "bin";
-    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    // Preserve original file extension for browser compatibility (especially Safari)
+    const nameParts = file.name.split(".");
+    const ext = nameParts.length > 1 ? nameParts.pop()!.toLowerCase() : "bin";
+    const uniqueId = Math.random().toString(36).slice(2, 8) || "x";
+    const path = `${Date.now()}-${uniqueId}.${ext}`;
+    console.log("[Upload] File:", file.name, "→ Storage path:", path, "Content-Type:", file.type);
 
     // For files larger than chunk size, upload in chunks via XHR for progress
     if (file.size > CHUNK_SIZE) {
