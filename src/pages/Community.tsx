@@ -21,7 +21,7 @@ import WelcomePrompt from "@/components/community/WelcomePrompt";
 import ActivityBanner from "@/components/community/ActivityBanner";
 import AuthModal from "@/components/auth/AuthModal";
 import { Button } from "@/components/ui/button";
-import { withTimeout } from "@/lib/apiHelpers";
+
 import { usePostViewTracker } from "@/hooks/usePostViewTracker";
 import PostViewObserver from "@/components/community/PostViewObserver";
 import FirstPostCelebration from "@/components/community/FirstPostCelebration";
@@ -85,7 +85,7 @@ const Community = () => {
   const [myReactions, setMyReactions] = useState<Set<string>>(new Set());
   const [communityOpen, setCommunityOpen] = useState(true);
   const [postAnonymously, setPostAnonymously] = useState(true);
-  const { user: authUser } = useAuthReady();
+  const { user: authUser, isReady: authReady } = useAuthReady();
   const [currentUser, setCurrentUser] = useState<{ id: string; displayName: string } | null>(null);
   const [reportMenuPost, setReportMenuPost] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<FeedTab>("foryou");
@@ -313,7 +313,9 @@ const Community = () => {
     return () => clearTimeout(timer);
   }, [loading]);
 
+  // Gate initial fetch on auth readiness to prevent "No posts yet" on refresh
   useEffect(() => {
+    if (!authReady) return;
     fetchPosts(false);
     fetchLikedPosts();
 
@@ -405,7 +407,7 @@ const Community = () => {
       supabase.removeChannel(settingsChannel);
       supabase.removeChannel(followsChannel);
     };
-  }, []);
+  }, [authReady]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -563,46 +565,7 @@ const Community = () => {
     });
   }, [startBackgroundUpload]);
 
-  const uploadVideoFile = async (file: File): Promise<string | null> => {
-    // Enforce 50MB limit
-    if (file.size > 50 * 1024 * 1024) {
-      toast({ title: "Video too large", description: "Please upload a file under 50MB.", variant: "destructive" });
-      return null;
-    }
 
-    let uploadFile = file;
-    if (shouldCompress(file)) {
-      try {
-        uploadFile = await compressVideoFile(file, { maxDimension: 1920 });
-      } catch { /* use original */ }
-    }
-
-    // Upload with 90-second timeout
-    return new Promise((resolve) => {
-      let resolved = false;
-      const timeout = setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          resolve(null);
-          toast({ title: "Upload timed out", description: "Video upload took too long. Please try a smaller file.", variant: "destructive" });
-        }
-      }, 90_000);
-
-      uploadFileWithProgress("community-media", uploadFile, (state) => {
-        if (resolved) return;
-        if (state.status === "done" && state.publicUrl) {
-          resolved = true;
-          clearTimeout(timeout);
-          console.log("[Community] Video uploaded successfully:", state.publicUrl);
-          resolve(state.publicUrl);
-        } else if (state.status === "error" || state.status === "cancelled") {
-          resolved = true;
-          clearTimeout(timeout);
-          resolve(null);
-        }
-      });
-    });
-  };
 
   const addPost = async () => {
     if ((!newPost.trim() && mediaFiles.length === 0) || posting) return;
@@ -614,42 +577,32 @@ const Community = () => {
     setMediaFiles([]);
     if (textareaRef.current) textareaRef.current.style.height = "auto";
 
-    // Upload ALL media before saving post (images already uploaded, videos need upload)
-    const allMediaUrls: string[] = [];
-    let uploadFailed = false;
+    // Separate already-uploaded images (have public URLs) from local video files
+    const readyUrls: string[] = [];
+    const videoFilesToUpload: { file: File; previewUrl: string }[] = [];
 
     for (const m of savedMedia) {
       if (m.type === "video" && m.file) {
-        toast({ title: "Uploading video...", description: "Please wait while the video uploads." });
-        const url = await uploadVideoFile(m.file);
-        console.log("[Community] Video upload result URL:", url);
-        if (!url) {
-          uploadFailed = true;
-          break;
+        // Enforce 50MB limit
+        if (m.file.size > 50 * 1024 * 1024) {
+          toast({ title: "Video too large", description: "Please upload a file under 50MB.", variant: "destructive" });
+          setNewPost(savedContent);
+          setMediaFiles(savedMedia);
+          setPosting(false);
+          return;
         }
-        allMediaUrls.push(url);
-      } else {
-        // Image already uploaded by MediaUploader
-        allMediaUrls.push(m.url);
+        videoFilesToUpload.push({ file: m.file, previewUrl: m.url });
+      } else if (m.url && !m.url.startsWith("blob:") && m.url.startsWith("http")) {
+        readyUrls.push(m.url);
       }
     }
 
-    if (uploadFailed) {
-      setNewPost(savedContent);
-      setMediaFiles(savedMedia);
-      toast({ title: "Upload failed", description: "Video upload failed. Please try again.", variant: "destructive" });
-      setPosting(false);
-      return;
-    }
-
-    // Filter out any blob: or invalid URLs — only save valid public URLs
-    const validMediaUrls = allMediaUrls.filter(u => u && !u.startsWith("blob:") && u.startsWith("http"));
-
+    // Insert the post immediately with only the ready image URLs
     const insertData: any = {
       content: savedContent.trim().slice(0, 10000) || "",
       anonymous_name: postAnonymously ? sessionId : (currentUser?.displayName || sessionId),
       is_anonymous: postAnonymously,
-      media_urls: validMediaUrls,
+      media_urls: readyUrls,
     };
     if (!postAnonymously && currentUser) {
       insertData.author_id = currentUser.id;
@@ -673,6 +626,21 @@ const Community = () => {
 
     console.log("[Community] Post created successfully:", insertedPost.id);
     const postId = insertedPost.id;
+
+    // Build pending media entries for videos
+    const pendingMedia: PendingMedia[] = videoFilesToUpload.map((v) => {
+      const mediaId = `media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      pendingFilesRef.current.set(mediaId, { file: v.file, type: "video" });
+      return {
+        id: mediaId,
+        previewUrl: v.previewUrl,
+        type: "video" as const,
+        status: "compressing" as const,
+        progress: 0,
+        message: "Preparing video...",
+      };
+    });
+
     const newPostObj: Post = {
       id: postId,
       content: insertedPost.content,
@@ -684,18 +652,29 @@ const Community = () => {
       created_at: insertedPost.created_at,
       author_id: insertedPost.author_id,
       is_anonymous: insertedPost.is_anonymous,
-      media_urls: validMediaUrls,
+      media_urls: readyUrls,
       author_profile: currentUser && !postAnonymously ? { display_name: currentUser.displayName, avatar_url: "" } : null,
+      _pendingMedia: pendingMedia.length > 0 ? pendingMedia : undefined,
+      _onCancelUpload: pendingMedia.length > 0 ? (mediaId: string) => cancelPendingUpload(postId, mediaId) : undefined,
+      _onRetryUpload: pendingMedia.length > 0 ? (mediaId: string) => retryPendingUpload(postId, mediaId) : undefined,
     };
 
     const isFirstPost = !allPosts.some(p => p.author_id === currentUser?.id && p.id !== postId);
-    
+
     setAllPosts(prev => [newPostObj, ...prev.filter(p => p.id !== postId)]);
-    toast({ title: "Post published successfully! 🎉" });
+    toast({ title: videoFilesToUpload.length > 0 ? "Post published! Video uploading..." : "Post published successfully! 🎉" });
     setPosting(false);
 
     if (isFirstPost && currentUser) {
       setShowFirstPostCelebration(true);
+    }
+
+    // Start background video uploads
+    for (const pm of pendingMedia) {
+      const fileEntry = pendingFilesRef.current.get(pm.id);
+      if (fileEntry) {
+        startBackgroundUpload(postId, pm.id, fileEntry.file, "video", pm.previewUrl);
+      }
     }
 
     // Send mention notifications
@@ -1163,7 +1142,7 @@ const Community = () => {
               <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Try Again
             </Button>
           </div>
-        ) : loading ? (
+        ) : (loading || !authReady) ? (
           <div className="space-y-3">
             {[1, 2, 3, 4].map((i) => <PostSkeleton key={i} />)}
           </div>
