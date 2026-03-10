@@ -508,6 +508,8 @@ const Community = () => {
   const startBackgroundUpload = useCallback(async (postId: string, mediaId: string, file: File, type: "image" | "video", previewUrl: string) => {
     let uploadFile = file;
 
+    console.log("[VideoUpload] Starting pipeline for post:", postId, "file:", file.name, "size:", file.size, "type:", file.type);
+
     // Compress video if needed
     if (type === "video" && shouldCompress(file)) {
       updatePendingMedia(postId, mediaId, { status: "compressing", message: "Optimizing video...", progress: 0 });
@@ -516,34 +518,80 @@ const Community = () => {
           maxDimension: 1920,
           onProgress: (p) => updatePendingMedia(postId, mediaId, { progress: p, message: `Optimizing video... ${p}%` }),
         });
-      } catch {
-        // use original on failure
+        console.log("[VideoUpload] Compression done:", uploadFile.name, "size:", uploadFile.size, "type:", uploadFile.type);
+      } catch (err) {
+        console.warn("[VideoUpload] Compression failed, using original:", err);
       }
     }
 
     updatePendingMedia(postId, mediaId, { status: "uploading", message: "Uploading video...", progress: 0 });
 
-    const controller = uploadFileWithProgress("community-media", uploadFile, (state) => {
+    const controller = uploadFileWithProgress("community-media", uploadFile, async (state) => {
       if (state.status === "uploading") {
         updatePendingMedia(postId, mediaId, { progress: state.progress, message: `Uploading... ${state.progress}%` });
       } else if (state.status === "done" && state.publicUrl) {
+        const publicUrl = state.publicUrl;
+        console.log("[VideoUpload] Upload complete. Public URL:", publicUrl);
+
+        // Verify the URL is a valid public storage URL (not blob:)
+        if (!publicUrl.startsWith("http") || publicUrl.startsWith("blob:")) {
+          console.error("[VideoUpload] Invalid public URL generated:", publicUrl);
+          updatePendingMedia(postId, mediaId, { status: "error", message: "Upload produced invalid URL. Tap to retry.", progress: 0 });
+          bgUploadControllersRef.current.delete(mediaId);
+          return;
+        }
+
+        // Verify file is accessible before persisting
+        try {
+          const headRes = await fetch(publicUrl, { method: "HEAD" });
+          if (!headRes.ok) {
+            console.error("[VideoUpload] URL not accessible:", headRes.status, publicUrl);
+            updatePendingMedia(postId, mediaId, { status: "error", message: "Video not accessible. Tap to retry.", progress: 0 });
+            bgUploadControllersRef.current.delete(mediaId);
+            return;
+          }
+          console.log("[VideoUpload] URL verified accessible:", headRes.status);
+        } catch (headErr) {
+          console.warn("[VideoUpload] HEAD check failed (CORS?), proceeding anyway:", headErr);
+        }
+
+        // Update DB first, then update local state
+        const { data: currentPost } = await supabase
+          .from("community_posts")
+          .select("media_urls")
+          .eq("id", postId)
+          .single();
+
+        const existingUrls: string[] = currentPost?.media_urls || [];
+        const newMediaUrls = [...existingUrls, publicUrl];
+
+        const { error: dbError } = await supabase
+          .from("community_posts")
+          .update({ media_urls: newMediaUrls })
+          .eq("id", postId);
+
+        if (dbError) {
+          console.error("[VideoUpload] DB update failed:", dbError.message, dbError.details);
+          updatePendingMedia(postId, mediaId, { status: "error", message: "Failed to save video. Tap to retry.", progress: 0 });
+          bgUploadControllersRef.current.delete(mediaId);
+          return;
+        }
+
+        console.log("[VideoUpload] DB updated successfully. media_urls:", newMediaUrls);
+
+        // Now update local state
         setAllPosts(prev => prev.map(p => {
           if (p.id !== postId) return p;
-          const newMediaUrls = [...(p.media_urls || []), state.publicUrl!];
           const remaining = (p._pendingMedia || []).filter(pm => pm.id !== mediaId);
-          const updated = {
+          return {
             ...p,
             media_urls: newMediaUrls,
             _pendingMedia: remaining.length > 0 ? remaining : undefined,
           };
-          // Await the DB update to ensure URL persists
-          supabase.from("community_posts").update({ media_urls: newMediaUrls }).eq("id", postId).then(({ error }) => {
-            if (error) console.error("[Community] Failed to persist media URL:", error.message);
-          });
-          return updated;
         }));
         bgUploadControllersRef.current.delete(mediaId);
       } else if (state.status === "error") {
+        console.error("[VideoUpload] Upload error:", state.error, state.message);
         updatePendingMedia(postId, mediaId, { status: "error", message: "Upload failed. Tap to retry.", progress: 0 });
         bgUploadControllersRef.current.delete(mediaId);
       } else if (state.status === "cancelled") {
