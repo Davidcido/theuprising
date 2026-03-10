@@ -114,7 +114,7 @@ const Explore = () => {
     };
 
     fetchData();
-  }, []);
+  }, [isReady]);
 
   // Extract trending hashtags from posts
   const trendingHashtags = useMemo(() => {
