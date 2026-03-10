@@ -14,14 +14,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({ user: null, session: null, isReady: false });
 
   useEffect(() => {
-    // 1. Listen FIRST so we catch INITIAL_SESSION event
+    // 1. Listen FIRST so we catch INITIAL_SESSION + SIGNED_OUT events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
+        console.log("[Auth] state change:", event);
         setState({ user: session?.user ?? null, session, isReady: true });
       }
     );
 
-    // 2. Then explicitly restore from storage (fallback for browsers where listener is slow)
+    // 2. Force-refresh session from server (not just local cache) for PWA reliability
     supabase.auth.getSession().then(({ data: { session } }) => {
       setState(prev => prev.isReady ? prev : { user: session?.user ?? null, session, isReady: true });
     });

@@ -32,26 +32,28 @@ const Navbar = () => {
   const handleLogout = async () => {
     setMobileOpen(false);
     
-    // Clear stored data (preserve session_id for anonymous features)
+    try {
+      // 1. Sign out from Supabase FIRST so auth state change fires
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error("Sign out error:", e);
+    }
+    
+    // 2. Clear all stored data (preserve session_id for anonymous features)
     const sessionIdBackup = localStorage.getItem("uprising_session_id");
     localStorage.clear();
     sessionStorage.clear();
     if (sessionIdBackup) localStorage.setItem("uprising_session_id", sessionIdBackup);
     
-    // Clear cookies
+    // 3. Clear cookies
     document.cookie.split(";").forEach((c) => {
       document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
     });
     
     toast.success("Logged out successfully");
-    navigate("/");
     
-    // Sign out in background (don't block on this)
-    try {
-      await supabase.auth.signOut({ scope: 'local' });
-    } catch {
-      // Already cleared locally, safe to ignore
-    }
+    // 4. Hard redirect to ensure PWA fully resets auth state
+    window.location.href = "/";
   };
 
   return (

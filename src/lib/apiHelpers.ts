@@ -72,10 +72,15 @@ export async function getSessionSafe(timeoutMs = 5000) {
   return _sessionFetchPromise;
 }
 
-// Listen for auth changes to keep cache fresh
-supabase.auth.onAuthStateChange((_event, session) => {
+// Listen for auth changes to keep cache fresh + clear on logout
+supabase.auth.onAuthStateChange((event, session) => {
   _cachedSession = session;
   _sessionFetchedAt = Date.now();
+  if (event === "SIGNED_OUT") {
+    _cachedSession = null;
+    _sessionFetchedAt = 0;
+    _profileCache.clear();
+  }
 });
 
 /**
