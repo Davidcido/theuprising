@@ -20,6 +20,7 @@ interface MediaGalleryProps {
 }
 
 const isVideo = (url: string) => /\.(mp4|webm|mov|avi|mkv)(\?|$)/i.test(url);
+const isValidMediaUrl = (url: string) => url && !url.startsWith("blob:") && (url.startsWith("http://") || url.startsWith("https://"));
 
 // Global tracker: only one video autoplays at a time
 let currentlyPlayingFeedVideo: HTMLVideoElement | null = null;
