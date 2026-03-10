@@ -97,8 +97,13 @@ export const compressVideoFile = (
         // No audio or unsupported — continue without
       }
 
-      // Prefer VP9 for better quality-per-bit, fall back to VP8
-      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+      // Prefer MP4 (H.264) for maximum browser compatibility (esp. Safari/iOS),
+      // fall back to WebM VP9/VP8
+      const mimeType = MediaRecorder.isTypeSupported("video/mp4;codecs=avc1")
+        ? "video/mp4;codecs=avc1"
+        : MediaRecorder.isTypeSupported("video/mp4")
+        ? "video/mp4"
+        : MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
         ? "video/webm;codecs=vp9"
         : MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
         ? "video/webm;codecs=vp8"
