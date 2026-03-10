@@ -652,7 +652,7 @@ const Community = () => {
       is_anonymous: postAnonymously,
       media_urls: readyUrls,
     };
-    if (!postAnonymously && currentUser) {
+    if (currentUser) {
       insertData.author_id = currentUser.id;
     }
 
