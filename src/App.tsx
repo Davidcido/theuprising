@@ -37,8 +37,8 @@ const DailyRise = lazy(() => import("./pages/DailyRise"));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 2, // 2 min stale time to reduce refetches
-      gcTime: 1000 * 60 * 10, // 10 min garbage collection
+      staleTime: 1000 * 60 * 2,
+      gcTime: 1000 * 60 * 10,
       refetchOnWindowFocus: false,
       retry: 1,
     },
@@ -79,18 +79,64 @@ const AppContent = () => {
         <Routes>
           <Route element={<Layout />}>
             <Route path="/" element={<Index />} />
-            <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
-            <Route path="/tools" element={<ProtectedRoute><Tools /></ProtectedRoute>} />
-            <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
-            <Route path="/vision" element={<Vision />} />
-            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-            <Route path="/profile/:userId" element={<Profile />} />
-            <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
-            <Route path="/messages/:conversationId" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
-            <Route path="/bookmarks" element={<ProtectedRoute><Bookmarks /></ProtectedRoute>} />
-            <Route path="/drafts" element={<ProtectedRoute><Drafts /></ProtectedRoute>} />
-            <Route path="/explore" element={<Explore />} />
-            <Route path="/daily-rise" element={<DailyRise />} />
+            <Route path="/chat" element={
+              <ProtectedRoute>
+                <ErrorBoundary inline>
+                  <Chat />
+                </ErrorBoundary>
+              </ProtectedRoute>
+            } />
+            <Route path="/tools" element={
+              <ProtectedRoute>
+                <ErrorBoundary inline>
+                  <Tools />
+                </ErrorBoundary>
+              </ProtectedRoute>
+            } />
+            <Route path="/community" element={
+              <ProtectedRoute>
+                <ErrorBoundary inline>
+                  <Community />
+                </ErrorBoundary>
+              </ProtectedRoute>
+            } />
+            <Route path="/vision" element={
+              <ErrorBoundary inline><Vision /></ErrorBoundary>
+            } />
+            <Route path="/profile" element={
+              <ProtectedRoute>
+                <ErrorBoundary inline><Profile /></ErrorBoundary>
+              </ProtectedRoute>
+            } />
+            <Route path="/profile/:userId" element={
+              <ErrorBoundary inline><Profile /></ErrorBoundary>
+            } />
+            <Route path="/messages" element={
+              <ProtectedRoute>
+                <ErrorBoundary inline><Messages /></ErrorBoundary>
+              </ProtectedRoute>
+            } />
+            <Route path="/messages/:conversationId" element={
+              <ProtectedRoute>
+                <ErrorBoundary inline><Messages /></ErrorBoundary>
+              </ProtectedRoute>
+            } />
+            <Route path="/bookmarks" element={
+              <ProtectedRoute>
+                <ErrorBoundary inline><Bookmarks /></ErrorBoundary>
+              </ProtectedRoute>
+            } />
+            <Route path="/drafts" element={
+              <ProtectedRoute>
+                <ErrorBoundary inline><Drafts /></ErrorBoundary>
+              </ProtectedRoute>
+            } />
+            <Route path="/explore" element={
+              <ErrorBoundary inline><Explore /></ErrorBoundary>
+            } />
+            <Route path="/daily-rise" element={
+              <ErrorBoundary inline><DailyRise /></ErrorBoundary>
+            } />
           </Route>
           <Route path="/admin" element={<Admin />} />
           <Route path="/reset-password" element={<ResetPassword />} />
@@ -108,12 +154,12 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <GlobalCallProvider>
-            <ErrorBoundary>
+          <ErrorBoundary>
+            <GlobalCallProvider>
               <AppContent />
-            </ErrorBoundary>
-            <InstallPrompt />
-          </GlobalCallProvider>
+              <InstallPrompt />
+            </GlobalCallProvider>
+          </ErrorBoundary>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
