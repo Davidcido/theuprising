@@ -50,13 +50,16 @@ const generateThumbnail = (url: string): Promise<string> => {
   });
 };
 
+const MAX_FEED_VIDEO_HEIGHT = 600;
+
 /** Feed video — autoplays muted when 60 % visible, tapping opens full-screen player */
-const FeedVideo = ({ url, compact, onTap }: { url: string; compact?: boolean; onTap: () => void }) => {
+const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: boolean; onTap: () => void; isSingle?: boolean }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [thumbnail, setThumbnail] = useState<string>("");
   const [loaded, setLoaded] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
 
   useEffect(() => { generateThumbnail(url).then(setThumbnail); }, [url]);
 
@@ -69,7 +72,6 @@ const FeedVideo = ({ url, compact, onTap }: { url: string; compact?: boolean; on
         const video = videoRef.current;
         if (!video) return;
         if (entry.isIntersecting) {
-          // Pause any other feed video
           if (currentlyPlayingFeedVideo && currentlyPlayingFeedVideo !== video) {
             currentlyPlayingFeedVideo.pause();
           }
@@ -92,21 +94,37 @@ const FeedVideo = ({ url, compact, onTap }: { url: string; compact?: boolean; on
     };
   }, []);
 
+  const handleMetadata = () => {
+    const v = videoRef.current;
+    if (v && v.videoWidth && v.videoHeight) {
+      setAspectRatio(v.videoWidth / v.videoHeight);
+    }
+    setLoaded(true);
+  };
+
+  // For single videos, use dynamic height based on aspect ratio; for grids, use fixed height
+  const containerStyle: React.CSSProperties = isSingle && aspectRatio
+    ? { aspectRatio: `${aspectRatio}`, maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px` }
+    : compact
+    ? { height: "8rem" }
+    : { height: "12rem" };
+
   return (
-    <div ref={containerRef} className="relative cursor-pointer group" onClick={onTap}>
+    <div ref={containerRef} className="relative cursor-pointer group" onClick={onTap} style={isSingle ? { maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px` } : undefined}>
       {/* Thumbnail fallback while video loads */}
       {!loaded && thumbnail && (
-        <img src={thumbnail} alt="" className={`w-full object-cover absolute inset-0 ${compact ? "h-32" : "h-48"}`} />
+        <img src={thumbnail} alt="" className="w-full h-full object-cover absolute inset-0" style={containerStyle} />
       )}
       <video
         ref={videoRef}
         src={url}
-        className={`w-full object-cover ${compact ? "h-32" : "h-48"}`}
+        className={`w-full ${isSingle ? "object-contain bg-black" : "object-cover"}`}
+        style={containerStyle}
         muted
         playsInline
         loop
         preload="metadata"
-        onLoadedData={() => setLoaded(true)}
+        onLoadedMetadata={handleMetadata}
       />
       {/* Muted indicator */}
       {isPlaying && (
@@ -162,12 +180,12 @@ const MediaGallery = ({ mediaUrls, compact, postData }: MediaGalleryProps) => {
             }`}
           >
             {isVideo(url) ? (
-              <FeedVideo url={url} compact={compact} onTap={() => handleMediaClick(url, i)} />
+              <FeedVideo url={url} compact={compact} isSingle={mediaUrls.length === 1} onTap={() => handleMediaClick(url, i)} />
             ) : (
               <img
                 src={url}
                 alt=""
-                className={`w-full object-cover cursor-pointer ${compact ? "h-32" : "h-48"}`}
+                className={`w-full object-cover cursor-pointer ${mediaUrls.length === 1 ? "max-h-[600px]" : compact ? "h-32" : "h-48"}`}
                 loading="lazy"
                 onClick={() => handleMediaClick(url, i)}
               />
