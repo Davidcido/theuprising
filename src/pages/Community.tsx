@@ -407,7 +407,7 @@ const Community = () => {
       supabase.removeChannel(settingsChannel);
       supabase.removeChannel(followsChannel);
     };
-  }, []);
+  }, [authReady]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
