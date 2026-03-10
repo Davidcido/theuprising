@@ -534,7 +534,10 @@ const Community = () => {
             media_urls: newMediaUrls,
             _pendingMedia: remaining.length > 0 ? remaining : undefined,
           };
-          supabase.from("community_posts").update({ media_urls: newMediaUrls }).eq("id", postId);
+          // Await the DB update to ensure URL persists
+          supabase.from("community_posts").update({ media_urls: newMediaUrls }).eq("id", postId).then(({ error }) => {
+            if (error) console.error("[Community] Failed to persist media URL:", error.message);
+          });
           return updated;
         }));
         bgUploadControllersRef.current.delete(mediaId);
