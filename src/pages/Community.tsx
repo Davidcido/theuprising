@@ -716,6 +716,9 @@ const Community = () => {
     toast({ title: videoFilesToUpload.length > 0 ? "Post published! Video uploading..." : "Post published successfully! 🎉" });
     setPosting(false);
 
+    // Refetch feed to ensure consistency (don't await — optimistic post is already shown)
+    fetchPosts(false).catch(err => console.error("[Community] Post-creation refetch failed:", err));
+
     if (isFirstPost && currentUser) {
       setShowFirstPostCelebration(true);
     }
@@ -1055,11 +1058,13 @@ const Community = () => {
         />
 
         {/* Welcome / First Post Prompt */}
-        <WelcomePrompt
-          isLoggedIn={!!authUser}
-          hasPosted={allPosts.some(p => p.author_id === (currentUser?.id || authUser?.id))}
-          onOpenAuth={() => setAuthOpen(true)}
-        />
+        {!loading && (
+          <WelcomePrompt
+            isLoggedIn={!!authUser}
+            hasPosted={allPosts.some(p => p.author_id && (p.author_id === currentUser?.id || p.author_id === authUser?.id))}
+            onOpenAuth={() => setAuthOpen(true)}
+          />
+        )}
 
         {!communityOpen && (
           <div className="p-4 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 backdrop-blur-xl mb-6 text-center">
@@ -1253,7 +1258,7 @@ const Community = () => {
                     onToggleCommentReaction={toggleCommentReaction}
                     isBookmarked={isBookmarked(post.id)}
                     onToggleBookmark={toggleBookmark}
-                    isOwnPost={post.author_id === currentUser?.id}
+                    isOwnPost={!!(post.author_id && (post.author_id === currentUser?.id || post.author_id === authUser?.id))}
                     onDeletePost={handleDeletePost}
                     onEditPost={handleEditPost}
                   />
