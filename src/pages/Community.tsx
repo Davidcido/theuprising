@@ -1256,7 +1256,7 @@ const Community = () => {
                     onToggleCommentReaction={toggleCommentReaction}
                     isBookmarked={isBookmarked(post.id)}
                     onToggleBookmark={toggleBookmark}
-                    isOwnPost={post.author_id === currentUser?.id}
+                    isOwnPost={!!(post.author_id && (post.author_id === currentUser?.id || post.author_id === authUser?.id))}
                     onDeletePost={handleDeletePost}
                     onEditPost={handleEditPost}
                   />
