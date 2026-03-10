@@ -271,7 +271,7 @@ const PostCard = ({
                   )}
                   {isOwnPost && onEditPost && (
                     <button
-                      onClick={() => { setEditing(true); setEditContent(post.content); onSetReportMenu(null); }}
+                      onClick={() => { startEditing(); onSetReportMenu(null); }}
                       className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-foreground hover:bg-white/10 transition-colors"
                     >
                       <Pencil className="w-3.5 h-3.5" /> Edit Post
