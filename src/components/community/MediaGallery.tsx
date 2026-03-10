@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { X, Play, ChevronLeft, ChevronRight, VolumeX } from "lucide-react";
+import { X, Play, ChevronLeft, ChevronRight, VolumeX, AlertCircle, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import VideoPlayer from "./VideoPlayer";
 
@@ -24,49 +24,21 @@ const isVideo = (url: string) => /\.(mp4|webm|mov|avi|mkv)(\?|$)/i.test(url);
 // Global tracker: only one video autoplays at a time
 let currentlyPlayingFeedVideo: HTMLVideoElement | null = null;
 
-const generateThumbnail = (url: string): Promise<string> => {
-  return new Promise((resolve) => {
-    const video = document.createElement("video");
-    video.crossOrigin = "anonymous";
-    video.preload = "metadata";
-    video.muted = true;
-    video.playsInline = true;
-    video.onloadeddata = () => { video.currentTime = 1; };
-    video.onseeked = () => {
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = video.videoWidth || 320;
-        canvas.height = video.videoHeight || 180;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL("image/jpeg", 0.7));
-        } else resolve("");
-      } catch { resolve(""); }
-    };
-    video.onerror = () => resolve("");
-    setTimeout(() => resolve(""), 5000);
-    video.src = url;
-  });
-};
-
 const MAX_FEED_VIDEO_HEIGHT = 700;
 
-/** Feed video — autoplays muted when 60 % visible, tapping opens full-screen player */
+/** Feed video — autoplays muted when 60% visible, tapping opens full-screen player */
 const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: boolean; onTap: () => void; isSingle?: boolean }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [thumbnail, setThumbnail] = useState<string>("");
   const [loaded, setLoaded] = useState(false);
-  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
-
-  useEffect(() => { generateThumbnail(url).then(setThumbnail); }, [url]);
+  const [error, setError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   // IntersectionObserver for autoplay / autopause
   useEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!el || error) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         const video = videoRef.current;
@@ -92,15 +64,36 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
       observer.disconnect();
       if (videoRef.current && currentlyPlayingFeedVideo === videoRef.current) currentlyPlayingFeedVideo = null;
     };
-  }, []);
+  }, [error, retryCount]);
 
   const handleMetadata = () => {
-    const v = videoRef.current;
-    if (v && v.videoWidth && v.videoHeight) {
-      setAspectRatio(v.videoWidth / v.videoHeight);
-    }
+    setLoaded(true);
+    setError(false);
+  };
+
+  const handleError = () => {
+    setError(true);
     setLoaded(true);
   };
+
+  const handleRetry = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setError(false);
+    setLoaded(false);
+    setRetryCount(c => c + 1);
+    // Force reload by setting src again
+    const v = videoRef.current;
+    if (v) {
+      v.src = url + (url.includes("?") ? "&" : "?") + `_r=${Date.now()}`;
+      v.load();
+    }
+  };
+
+  // Container: for single videos, let height be auto (aspect-ratio driven) with max-height.
+  // For grid items, use fixed heights.
+  const containerClass = isSingle
+    ? "relative cursor-pointer group w-full"
+    : "relative cursor-pointer group w-full";
 
   const containerStyle: React.CSSProperties = isSingle
     ? { maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px`, overflow: "hidden" }
@@ -108,22 +101,45 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
     ? { height: "10rem" }
     : { height: "14rem" };
 
+  if (error) {
+    return (
+      <div
+        ref={containerRef}
+        className="relative w-full flex flex-col items-center justify-center gap-2 bg-black/30 rounded-xl"
+        style={isSingle ? { minHeight: "200px", maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px` } : containerStyle}
+      >
+        <AlertCircle className="w-8 h-8 text-white/50" />
+        <p className="text-xs text-white/60">Video failed to load</p>
+        <button
+          onClick={handleRetry}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white/80 text-xs transition-colors"
+        >
+          <RefreshCw className="w-3 h-3" /> Retry
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div ref={containerRef} className="relative cursor-pointer group w-full" onClick={onTap} style={containerStyle}>
-      {/* Thumbnail fallback while video loads */}
-      {!loaded && thumbnail && (
-        <img src={thumbnail} alt="" className="w-full h-auto object-cover absolute inset-0 rounded-xl" />
-      )}
+    <div ref={containerRef} className={containerClass} onClick={onTap} style={containerStyle}>
       <video
         ref={videoRef}
+        key={retryCount} // force remount on retry
         src={url}
-        className="w-full h-auto rounded-xl"
-        style={isSingle ? { objectFit: "cover", maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px` } : { objectFit: "cover", height: "100%" }}
+        className="w-full rounded-xl"
+        style={{
+          width: "100%",
+          height: isSingle ? "auto" : "100%",
+          maxHeight: isSingle ? `${MAX_FEED_VIDEO_HEIGHT}px` : undefined,
+          objectFit: "cover",
+          display: "block",
+        }}
         muted
         playsInline
         loop
         preload="metadata"
         onLoadedMetadata={handleMetadata}
+        onError={handleError}
       />
       {/* Muted indicator */}
       {isPlaying && (
@@ -132,11 +148,17 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
         </div>
       )}
       {/* Play icon when paused */}
-      {!isPlaying && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+      {!isPlaying && loaded && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl">
           <div className="w-12 h-12 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20">
             <Play className="w-5 h-5 text-white ml-0.5" fill="white" />
           </div>
+        </div>
+      )}
+      {/* Loading state */}
+      {!loaded && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-xl">
+          <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
         </div>
       )}
       {/* Badge */}
@@ -149,15 +171,12 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
 
 const MediaGallery = ({ mediaUrls, compact, postData }: MediaGalleryProps) => {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [lightboxMuted, setLightboxMuted] = useState(true);
   const [videoPlayerUrl, setVideoPlayerUrl] = useState<string | null>(null);
 
   if (!mediaUrls || mediaUrls.length === 0) return null;
 
   const gridClass = mediaUrls.length === 1
     ? "grid-cols-1"
-    : mediaUrls.length === 2
-    ? "grid-cols-2"
     : "grid-cols-2";
 
   const handleMediaClick = (url: string, index: number) => {
@@ -170,13 +189,13 @@ const MediaGallery = ({ mediaUrls, compact, postData }: MediaGalleryProps) => {
 
   return (
     <>
-      <div className={`grid gap-1 mb-3 ${gridClass} w-full max-w-full`}>
+      <div className={`grid gap-1 mb-3 ${gridClass} w-full max-w-full overflow-hidden rounded-2xl`}>
         {mediaUrls.slice(0, 4).map((url, i) => (
           <div
             key={i}
-            className={`relative rounded-xl overflow-hidden border border-white/5 hover:border-white/15 transition-colors ${
+            className={`relative overflow-hidden border border-white/5 hover:border-white/15 transition-colors ${
               mediaUrls.length === 3 && i === 0 ? "col-span-2" : ""
-            }`}
+            } ${mediaUrls.length === 1 ? "rounded-2xl" : ""}`}
           >
             {isVideo(url) ? (
               <FeedVideo url={url} compact={compact} isSingle={mediaUrls.length === 1} onTap={() => handleMediaClick(url, i)} />
@@ -184,13 +203,14 @@ const MediaGallery = ({ mediaUrls, compact, postData }: MediaGalleryProps) => {
               <img
                 src={url}
                 alt=""
-                className={`w-full object-cover cursor-pointer rounded-xl ${mediaUrls.length === 1 ? "max-h-[700px]" : compact ? "h-40" : "h-56"}`}
+                className={`w-full object-cover cursor-pointer ${mediaUrls.length === 1 ? "max-h-[700px]" : compact ? "h-40" : "h-56"}`}
+                style={{ display: "block", width: "100%" }}
                 loading="lazy"
                 onClick={() => handleMediaClick(url, i)}
               />
             )}
             {mediaUrls.length > 4 && i === 3 && (
-              <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none rounded-xl">
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none">
                 <span className="text-white text-lg font-bold">+{mediaUrls.length - 4}</span>
               </div>
             )}

@@ -2,14 +2,13 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Play, Pause, Volume2, VolumeX, Maximize, Minimize,
-  Heart, MessageCircle, Share2, Repeat2, Eye, Loader2,
+  Heart, MessageCircle, Share2, Repeat2, Eye, Loader2, AlertCircle, RefreshCw,
 } from "lucide-react";
 
 interface VideoPlayerProps {
   url: string;
   isOpen: boolean;
   onClose: () => void;
-  // Optional interaction props
   postData?: {
     likesCount: number;
     commentsCount: number;
@@ -24,7 +23,7 @@ interface VideoPlayerProps {
 }
 
 const formatTime = (seconds: number) => {
-  if (!isFinite(seconds) || isNaN(seconds)) return "0:00";
+  if (!isFinite(seconds) || isNaN(seconds) || seconds <= 0) return "0:00";
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
@@ -34,24 +33,67 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout>>();
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [buffering, setBuffering] = useState(true);
   const [showControls, setShowControls] = useState(true);
   const [isNativeFullscreen, setIsNativeFullscreen] = useState(false);
+  const [error, setError] = useState(false);
+  const [loadTimeout, setLoadTimeout] = useState(false);
 
-  // Auto-play on open
+  // Reset state when URL changes or player opens
   useEffect(() => {
-    if (isOpen && videoRef.current) {
-      videoRef.current.play().then(() => {
+    if (isOpen) {
+      setError(false);
+      setLoadTimeout(false);
+      setBuffering(true);
+      setCurrentTime(0);
+      setDuration(0);
+      setPlaying(false);
+    }
+  }, [isOpen, url]);
+
+  // Auto-play on open with timeout protection
+  useEffect(() => {
+    if (!isOpen || !videoRef.current || error) return;
+
+    const v = videoRef.current;
+    // Ensure fresh load
+    v.load();
+
+    const playWhenReady = () => {
+      v.play().then(() => {
         setPlaying(true);
         setBuffering(false);
       }).catch(() => setPlaying(false));
+    };
+
+    // If metadata already loaded
+    if (v.readyState >= 1) {
+      setDuration(v.duration || 0);
+      playWhenReady();
+    } else {
+      v.addEventListener("loadedmetadata", () => {
+        setDuration(v.duration || 0);
+        playWhenReady();
+      }, { once: true });
     }
-    return () => { hideTimer.current && clearTimeout(hideTimer.current); };
-  }, [isOpen]);
+
+    // Timeout: if video doesn't load in 15s, show error
+    const timeout = setTimeout(() => {
+      if (v.readyState < 2) {
+        setLoadTimeout(true);
+        setBuffering(false);
+      }
+    }, 15000);
+
+    return () => {
+      clearTimeout(timeout);
+      hideTimer.current && clearTimeout(hideTimer.current);
+    };
+  }, [isOpen, url, error]);
 
   // Auto-hide controls
   const resetHideTimer = useCallback(() => {
@@ -89,7 +131,7 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
   const togglePlay = () => {
     const v = videoRef.current;
     if (!v) return;
-    if (v.paused) { v.play(); setPlaying(true); }
+    if (v.paused) { v.play().catch(() => {}); setPlaying(true); }
     else { v.pause(); setPlaying(false); }
   };
 
@@ -102,17 +144,45 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
 
   const seek = (delta: number) => {
     const v = videoRef.current;
-    if (!v) return;
+    if (!v || !isFinite(v.duration)) return;
     v.currentTime = Math.max(0, Math.min(v.duration, v.currentTime + delta));
   };
 
   const handleProgressClick = (e: React.MouseEvent) => {
     const bar = progressRef.current;
     const v = videoRef.current;
-    if (!bar || !v || !v.duration) return;
+    if (!bar || !v || !isFinite(v.duration) || v.duration <= 0) return;
     const rect = bar.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     v.currentTime = pct * v.duration;
+  };
+
+  const handleDurationChange = () => {
+    const v = videoRef.current;
+    if (v && isFinite(v.duration) && v.duration > 0) {
+      setDuration(v.duration);
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    setCurrentTime(v.currentTime);
+    // Also try to pick up duration if we missed it
+    if (duration === 0 && isFinite(v.duration) && v.duration > 0) {
+      setDuration(v.duration);
+    }
+  };
+
+  const handleRetry = () => {
+    setError(false);
+    setLoadTimeout(false);
+    setBuffering(true);
+    const v = videoRef.current;
+    if (v) {
+      v.src = url + (url.includes("?") ? "&" : "?") + `_r=${Date.now()}`;
+      v.load();
+    }
   };
 
   const toggleNativeFullscreen = async () => {
@@ -139,6 +209,8 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
 
   if (!isOpen) return null;
 
+  const showError = error || loadTimeout;
+
   return (
     <AnimatePresence>
       <motion.div
@@ -156,23 +228,41 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
           playsInline
           muted={muted}
           loop
-          onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime || 0)}
-          onLoadedMetadata={() => setDuration(videoRef.current?.duration || 0)}
+          preload="auto"
+          onTimeUpdate={handleTimeUpdate}
+          onLoadedMetadata={handleDurationChange}
+          onDurationChange={handleDurationChange}
+          onLoadedData={() => { setBuffering(false); handleDurationChange(); }}
           onWaiting={() => setBuffering(true)}
-          onPlaying={() => setBuffering(false)}
+          onPlaying={() => { setBuffering(false); setError(false); }}
           onCanPlay={() => setBuffering(false)}
+          onError={() => setError(true)}
           onClick={(e) => { e.stopPropagation(); togglePlay(); resetHideTimer(); }}
         />
 
+        {/* Error state */}
+        {showError && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80">
+            <AlertCircle className="w-10 h-10 text-white/50" />
+            <p className="text-sm text-white/70">{loadTimeout ? "Video is taking too long to load" : "Video failed to load"}</p>
+            <button
+              onClick={handleRetry}
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-sm transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" /> Retry
+            </button>
+          </div>
+        )}
+
         {/* Buffering spinner */}
-        {buffering && (
+        {buffering && !showError && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <Loader2 className="w-10 h-10 text-white animate-spin" />
           </div>
         )}
 
         {/* Large play/pause indicator */}
-        {!playing && !buffering && (
+        {!playing && !buffering && !showError && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-16 h-16 rounded-full bg-black/40 flex items-center justify-center">
               <Play className="w-8 h-8 text-white ml-1" fill="white" />
@@ -182,7 +272,7 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
 
         {/* Controls overlay */}
         <AnimatePresence>
-          {showControls && (
+          {showControls && !showError && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -261,6 +351,13 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Close button always visible on error */}
+        {showError && (
+          <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors z-10">
+            <X className="w-5 h-5 text-white" />
+          </button>
+        )}
       </motion.div>
     </AnimatePresence>
   );
