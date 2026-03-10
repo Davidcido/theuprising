@@ -32,13 +32,23 @@ const FALLBACK_ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun4.l.google.com:19302" },
 ];
 
+let cachedIceServers: RTCIceServer[] | null = null;
+let cacheTimestamp = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 const fetchTurnServers = async (): Promise<RTCIceServer[]> => {
+  // Return cached if fresh
+  if (cachedIceServers && Date.now() - cacheTimestamp < CACHE_TTL) {
+    return cachedIceServers;
+  }
   try {
     const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
     const res = await fetch(`https://${projectId}.supabase.co/functions/v1/get-turn-credentials`);
     if (!res.ok) throw new Error("Failed to fetch TURN credentials");
     const data = await res.json();
     if (data.iceServers && data.iceServers.length > 0) {
+      cachedIceServers = data.iceServers;
+      cacheTimestamp = Date.now();
       return data.iceServers;
     }
   } catch (e) {
@@ -55,7 +65,6 @@ export const useCallSignaling = (userId?: string, onCallEvent?: (event: CallEven
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const localStream = useRef<MediaStream | null>(null);
-  const remoteStream = useRef<MediaStream | null>(null);
   const [remoteMediaStream, setRemoteMediaStream] = useState<MediaStream | null>(null);
   const [localMediaStream, setLocalMediaStream] = useState<MediaStream | null>(null);
   const callTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -99,6 +108,10 @@ export const useCallSignaling = (userId?: string, onCallEvent?: (event: CallEven
 
   const cleanupPeerConnection = useCallback(() => {
     if (peerConnection.current) {
+      peerConnection.current.ontrack = null;
+      peerConnection.current.onicecandidate = null;
+      peerConnection.current.onconnectionstatechange = null;
+      peerConnection.current.oniceconnectionstatechange = null;
       peerConnection.current.close();
       peerConnection.current = null;
     }
@@ -145,13 +158,19 @@ export const useCallSignaling = (userId?: string, onCallEvent?: (event: CallEven
   endCallRef.current = endCall;
 
   const setupPeerConnection = useCallback(async (callType: "voice" | "video") => {
+    // Cleanup any existing connection first
+    cleanupPeerConnection();
+    
     const iceServers = await fetchTurnServers();
-    const pc = new RTCPeerConnection({ iceServers });
+    const pc = new RTCPeerConnection({ 
+      iceServers,
+      iceCandidatePoolSize: 10,
+    });
     peerConnection.current = pc;
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         video: callType === "video",
       });
       localStream.current = stream;
@@ -162,31 +181,39 @@ export const useCallSignaling = (userId?: string, onCallEvent?: (event: CallEven
       return null;
     }
 
+    // Create remote stream and handle incoming tracks
     const remote = new MediaStream();
-    remoteStream.current = remote;
     setRemoteMediaStream(remote);
 
     pc.ontrack = (event) => {
-      event.streams[0].getTracks().forEach(track => remote.addTrack(track));
+      console.log("ontrack fired:", event.track.kind);
+      // Add each track to the remote stream
+      remote.addTrack(event.track);
+      // Force React re-render with new stream reference containing all tracks
       setRemoteMediaStream(new MediaStream(remote.getTracks()));
     };
 
     pc.onicecandidate = (event) => {
       if (event.candidate && activeCallUserIdRef.current && activeConversationIdRef.current) {
-        sendSignal(activeCallUserIdRef.current, activeConversationIdRef.current, "ice-candidate", { candidate: event.candidate }, callType);
+        sendSignal(activeCallUserIdRef.current, activeConversationIdRef.current, "ice-candidate", { candidate: event.candidate.toJSON() }, callType);
       }
     };
 
     pc.onconnectionstatechange = () => {
+      console.log("Connection state:", pc.connectionState);
       if (pc.connectionState === "connected") {
         setCallState("connected");
         if (!connectedAtRef.current) connectedAtRef.current = Date.now();
-      } else if (pc.connectionState === "failed") {
-        endCallRef.current();
+      } else if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+        // Give disconnected state a grace period before ending
+        if (pc.connectionState === "failed") {
+          endCallRef.current();
+        }
       }
     };
 
     pc.oniceconnectionstatechange = () => {
+      console.log("ICE connection state:", pc.iceConnectionState);
       if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
         setCallState("connected");
         if (!connectedAtRef.current) connectedAtRef.current = Date.now();
@@ -194,7 +221,7 @@ export const useCallSignaling = (userId?: string, onCallEvent?: (event: CallEven
     };
 
     return pc;
-  }, [sendSignal]);
+  }, [sendSignal, cleanupPeerConnection]);
 
   const addIceCandidate = useCallback(async (candidate: RTCIceCandidateInit) => {
     const pc = peerConnection.current;
@@ -205,7 +232,6 @@ export const useCallSignaling = (userId?: string, onCallEvent?: (event: CallEven
         console.error("Error adding ICE candidate:", e);
       }
     } else {
-      // Queue candidate until remote description is set
       pendingCandidates.current.push(candidate);
     }
   }, []);
@@ -228,11 +254,12 @@ export const useCallSignaling = (userId?: string, onCallEvent?: (event: CallEven
     // Dedup
     if (processedSignals.current.has(signal.id)) return;
     processedSignals.current.add(signal.id);
-    // Limit set size
     if (processedSignals.current.size > 200) {
       const arr = Array.from(processedSignals.current);
       processedSignals.current = new Set(arr.slice(-100));
     }
+
+    console.log("Incoming signal:", signal.signal_type, "from:", signal.caller_id);
 
     switch (signal.signal_type) {
       case "call-request":
@@ -264,8 +291,7 @@ export const useCallSignaling = (userId?: string, onCallEvent?: (event: CallEven
             await flushPendingCandidates();
             const answer = await peerConnection.current.createAnswer();
             await peerConnection.current.setLocalDescription(answer);
-            const targetId = signal.caller_id;
-            await sendSignal(targetId, signal.conversation_id!, "answer", { sdp: answer }, activeCallTypeRef.current);
+            await sendSignal(signal.caller_id, signal.conversation_id!, "answer", { sdp: answer }, activeCallTypeRef.current);
           } catch (e) {
             console.error("Error handling offer:", e);
           }
@@ -347,7 +373,12 @@ export const useCallSignaling = (userId?: string, onCallEvent?: (event: CallEven
       isCaller: true,
     });
 
-    await setupPeerConnection(callType);
+    const pc = await setupPeerConnection(callType);
+    if (!pc) {
+      setCallState("idle");
+      return;
+    }
+    
     await sendSignal(targetId, conversationId, "call-request", null, callType);
 
     clearCallTimeout();
@@ -376,14 +407,16 @@ export const useCallSignaling = (userId?: string, onCallEvent?: (event: CallEven
     setActiveCallUserId(callerId);
     setActiveCallType(cType);
     setActiveConversationId(convId);
-    // Don't set "connected" yet — wait for WebRTC connection
-    setCallState("calling");
+    setCallState("calling"); // Will change to "connected" when WebRTC connects
+    setIncomingCall(null);
 
     const pc = await setupPeerConnection(cType);
-    if (!pc) return;
+    if (!pc) {
+      setCallState("idle");
+      return;
+    }
 
     await sendSignal(callerId, convId, "call-accept", null, cType);
-    setIncomingCall(null);
   }, [incomingCall, userId, clearCallTimeout, setupPeerConnection, sendSignal]);
 
   const rejectCall = useCallback(async () => {
