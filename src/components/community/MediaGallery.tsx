@@ -36,6 +36,7 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const touchStartYRef = useRef<number | null>(null);
 
   // IntersectionObserver for autoplay / autopause
   useEffect(() => {
