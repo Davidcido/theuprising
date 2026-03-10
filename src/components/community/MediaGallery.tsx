@@ -110,15 +110,15 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
     : { height: "14rem" };
 
   return (
-    <div ref={containerRef} className="relative cursor-pointer group" onClick={onTap} style={isSingle ? { maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px` } : undefined}>
+    <div ref={containerRef} className="relative cursor-pointer group w-full" onClick={onTap} style={isSingle ? { maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px` } : undefined}>
       {/* Thumbnail fallback while video loads */}
       {!loaded && thumbnail && (
-        <img src={thumbnail} alt="" className="w-full h-full object-cover absolute inset-0" style={containerStyle} />
+        <img src={thumbnail} alt="" className="w-full h-full object-cover absolute inset-0 rounded-xl" style={containerStyle} />
       )}
       <video
         ref={videoRef}
         src={url}
-        className={`w-full ${isSingle ? "object-contain bg-black" : "object-cover"}`}
+        className="w-full object-cover rounded-xl"
         style={containerStyle}
         muted
         playsInline
