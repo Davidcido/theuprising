@@ -127,21 +127,17 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
     );
   }
 
-  // Use a ref to distinguish taps from scrolls on mobile
-  const touchStartY = useRef<number | null>(null);
-
   const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartY.current = e.touches[0].clientY;
+    touchStartYRef.current = e.touches[0].clientY;
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartY.current === null) return;
-    const delta = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
-    // Only trigger tap if finger didn't move (not a scroll gesture)
+    if (touchStartYRef.current === null) return;
+    const delta = Math.abs(e.changedTouches[0].clientY - touchStartYRef.current);
     if (delta < 10) {
       onTap();
     }
-    touchStartY.current = null;
+    touchStartYRef.current = null;
   };
 
   return (
