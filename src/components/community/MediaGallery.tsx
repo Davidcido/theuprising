@@ -20,6 +20,7 @@ interface MediaGalleryProps {
 }
 
 const isVideo = (url: string) => /\.(mp4|webm|mov|avi|mkv)(\?|$)/i.test(url);
+const isValidMediaUrl = (url: string) => url && !url.startsWith("blob:") && (url.startsWith("http://") || url.startsWith("https://"));
 
 // Global tracker: only one video autoplays at a time
 let currentlyPlayingFeedVideo: HTMLVideoElement | null = null;
@@ -176,9 +177,11 @@ const MediaGallery = ({ mediaUrls, compact, postData }: MediaGalleryProps) => {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [videoPlayerUrl, setVideoPlayerUrl] = useState<string | null>(null);
 
-  if (!mediaUrls || mediaUrls.length === 0) return null;
+  // Filter out invalid URLs (blob:, empty, non-http)
+  const validUrls = mediaUrls.filter(isValidMediaUrl);
+  if (validUrls.length === 0) return null;
 
-  const gridClass = mediaUrls.length === 1
+  const gridClass = validUrls.length === 1
     ? "grid-cols-1"
     : "grid-cols-2";
 
@@ -193,28 +196,28 @@ const MediaGallery = ({ mediaUrls, compact, postData }: MediaGalleryProps) => {
   return (
     <>
       <div className={`grid gap-1 mb-3 ${gridClass} w-full max-w-full overflow-hidden rounded-2xl`}>
-        {mediaUrls.slice(0, 4).map((url, i) => (
+        {validUrls.slice(0, 4).map((url, i) => (
           <div
             key={i}
             className={`relative overflow-hidden border border-white/5 hover:border-white/15 transition-colors ${
-              mediaUrls.length === 3 && i === 0 ? "col-span-2" : ""
-            } ${mediaUrls.length === 1 ? "rounded-2xl" : ""}`}
+              validUrls.length === 3 && i === 0 ? "col-span-2" : ""
+            } ${validUrls.length === 1 ? "rounded-2xl" : ""}`}
           >
             {isVideo(url) ? (
-              <FeedVideo url={url} compact={compact} isSingle={mediaUrls.length === 1} onTap={() => handleMediaClick(url, i)} />
+              <FeedVideo url={url} compact={compact} isSingle={validUrls.length === 1} onTap={() => handleMediaClick(url, i)} />
             ) : (
               <img
                 src={url}
                 alt=""
-                className={`w-full object-cover cursor-pointer ${mediaUrls.length === 1 ? "max-h-[700px]" : compact ? "h-40" : "h-56"}`}
+                className={`w-full object-cover cursor-pointer ${validUrls.length === 1 ? "max-h-[700px]" : compact ? "h-40" : "h-56"}`}
                 style={{ display: "block", width: "100%" }}
                 loading="lazy"
                 onClick={() => handleMediaClick(url, i)}
               />
             )}
-            {mediaUrls.length > 4 && i === 3 && (
+            {validUrls.length > 4 && i === 3 && (
               <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none">
-                <span className="text-white text-lg font-bold">+{mediaUrls.length - 4}</span>
+                <span className="text-white text-lg font-bold">+{validUrls.length - 4}</span>
               </div>
             )}
           </div>

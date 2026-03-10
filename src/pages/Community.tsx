@@ -564,16 +564,42 @@ const Community = () => {
   }, [startBackgroundUpload]);
 
   const uploadVideoFile = async (file: File): Promise<string | null> => {
+    // Enforce 50MB limit
+    if (file.size > 50 * 1024 * 1024) {
+      toast({ title: "Video too large", description: "Please upload a file under 50MB.", variant: "destructive" });
+      return null;
+    }
+
     let uploadFile = file;
     if (shouldCompress(file)) {
       try {
         uploadFile = await compressVideoFile(file, { maxDimension: 1920 });
       } catch { /* use original */ }
     }
+
+    // Upload with 90-second timeout
     return new Promise((resolve) => {
+      let resolved = false;
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          resolve(null);
+          toast({ title: "Upload timed out", description: "Video upload took too long. Please try a smaller file.", variant: "destructive" });
+        }
+      }, 90_000);
+
       uploadFileWithProgress("community-media", uploadFile, (state) => {
-        if (state.status === "done" && state.publicUrl) resolve(state.publicUrl);
-        else if (state.status === "error" || state.status === "cancelled") resolve(null);
+        if (resolved) return;
+        if (state.status === "done" && state.publicUrl) {
+          resolved = true;
+          clearTimeout(timeout);
+          console.log("[Community] Video uploaded successfully:", state.publicUrl);
+          resolve(state.publicUrl);
+        } else if (state.status === "error" || state.status === "cancelled") {
+          resolved = true;
+          clearTimeout(timeout);
+          resolve(null);
+        }
       });
     });
   };
@@ -616,11 +642,14 @@ const Community = () => {
       return;
     }
 
+    // Filter out any blob: or invalid URLs — only save valid public URLs
+    const validMediaUrls = allMediaUrls.filter(u => u && !u.startsWith("blob:") && u.startsWith("http"));
+
     const insertData: any = {
       content: savedContent.trim().slice(0, 10000) || "",
       anonymous_name: postAnonymously ? sessionId : (currentUser?.displayName || sessionId),
       is_anonymous: postAnonymously,
-      media_urls: allMediaUrls,
+      media_urls: validMediaUrls,
     };
     if (!postAnonymously && currentUser) {
       insertData.author_id = currentUser.id;
