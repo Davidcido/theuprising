@@ -652,7 +652,10 @@ const Community = () => {
       is_anonymous: postAnonymously,
       media_urls: readyUrls,
     };
-    if (currentUser) {
+    // Always store author_id from auth (not currentUser which may lag)
+    if (authUser?.id) {
+      insertData.author_id = authUser.id;
+    } else if (currentUser) {
       insertData.author_id = currentUser.id;
     }
 
