@@ -170,7 +170,7 @@ const MediaGallery = ({ mediaUrls, compact, postData }: MediaGalleryProps) => {
 
   return (
     <>
-      <div className={`grid gap-1 mb-3 ${gridClass} -mx-1`}>
+      <div className={`grid gap-1 mb-3 ${gridClass} w-full max-w-full`}>
         {mediaUrls.slice(0, 4).map((url, i) => (
           <div
             key={i}
