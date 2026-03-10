@@ -162,7 +162,7 @@ const MediaGallery = ({ mediaUrls, compact, postData }: MediaGalleryProps) => {
             }`}
           >
             {isVideo(url) ? (
-              <FeedVideoThumbnail url={url} compact={compact} onClick={() => handleMediaClick(url, i)} />
+              <FeedVideo url={url} compact={compact} onTap={() => handleMediaClick(url, i)} />
             ) : (
               <img
                 src={url}
