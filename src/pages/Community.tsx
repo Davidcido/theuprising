@@ -642,11 +642,14 @@ const Community = () => {
       return;
     }
 
+    // Filter out any blob: or invalid URLs — only save valid public URLs
+    const validMediaUrls = allMediaUrls.filter(u => u && !u.startsWith("blob:") && u.startsWith("http"));
+
     const insertData: any = {
       content: savedContent.trim().slice(0, 10000) || "",
       anonymous_name: postAnonymously ? sessionId : (currentUser?.displayName || sessionId),
       is_anonymous: postAnonymously,
-      media_urls: allMediaUrls,
+      media_urls: validMediaUrls,
     };
     if (!postAnonymously && currentUser) {
       insertData.author_id = currentUser.id;
