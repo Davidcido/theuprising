@@ -119,16 +119,22 @@ const Chat = () => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Show memory choice for logged-in users who haven't chosen yet
+  // IMPORTANT: Don't disable input - users can chat while prompt is visible
   const showMemoryChoice = !memLoading && userId && memoryEnabled === null;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  const handleMemoryChoice = async (enabled: boolean) => {
-    await setPreference(enabled);
-    toast.success(enabled ? "Memory enabled! I'll remember helpful details 💚" : "Got it — every chat starts fresh 🤝");
-  };
+  const handleMemoryChoice = useCallback(async (enabled: boolean) => {
+    try {
+      await setPreference(enabled);
+      toast.success(enabled ? "Memory enabled! I'll remember helpful details 💚" : "Got it — every chat starts fresh 🤝");
+    } catch (e) {
+      console.error("[Chat] Memory choice error:", e);
+      toast.error("Could not save preference, but you can still chat!");
+    }
+  }, [setPreference]);
 
   const handleSend = useCallback(async () => {
     if (!input.trim() || isTyping) return;
@@ -172,7 +178,6 @@ const Chat = () => {
         },
         onDone: () => {
           setIsTyping(false);
-          // Refetch memories in case the AI stored new ones
           if (memoryEnabled) setTimeout(() => refetchMemories(), 1500);
         },
       });
@@ -234,7 +239,7 @@ const Chat = () => {
             </motion.div>
           ))}
 
-          {/* Memory choice prompt */}
+          {/* Memory choice prompt - shown inline but does NOT block input */}
           {showMemoryChoice && (
             <MemoryChoicePrompt onChoose={handleMemoryChoice} />
           )}
@@ -260,7 +265,7 @@ const Chat = () => {
         </p>
       </div>
 
-      {/* Input */}
+      {/* Input - NEVER disabled by memory choice */}
       <div className="px-4 py-4 backdrop-blur-xl border-t border-white/10"
         style={{ background: "rgba(15, 81, 50, 0.4)" }}
       >
@@ -280,13 +285,12 @@ const Chat = () => {
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={showMemoryChoice ? "Please choose a memory option above..." : "Share what's on your mind..."}
-              disabled={!!showMemoryChoice}
-              className="flex-1 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-white/30 disabled:opacity-50"
+              placeholder="Share what's on your mind..."
+              className="flex-1 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-white/30"
             />
             <button
               type="submit"
-              disabled={!input.trim() || isTyping || !!showMemoryChoice}
+              disabled={!input.trim() || isTyping}
               className="rounded-2xl px-4 py-3 text-white hover:opacity-90 transition-opacity disabled:opacity-40 shadow-lg"
               style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
             >

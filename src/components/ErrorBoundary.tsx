@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
+  /** If true, shows a compact inline error instead of full-page */
+  inline?: boolean;
 }
 
 interface State {
@@ -23,7 +25,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("ErrorBoundary caught:", error, errorInfo);
+    console.error("[ErrorBoundary] caught:", error.message, errorInfo.componentStack);
   }
 
   handleReset = () => {
@@ -33,6 +35,19 @@ class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;
+
+      if (this.props.inline) {
+        return (
+          <div className="flex flex-col items-center justify-center p-6 gap-3">
+            <AlertCircle className="w-8 h-8 text-destructive" />
+            <p className="text-sm text-muted-foreground">Something went wrong loading this section.</p>
+            <Button onClick={this.handleReset} variant="outline" size="sm" className="gap-2">
+              <RefreshCw className="w-3 h-3" />
+              Retry
+            </Button>
+          </div>
+        );
+      }
 
       return (
         <div className="min-h-screen flex items-center justify-center p-4">
