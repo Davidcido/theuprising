@@ -129,14 +129,17 @@ export const compressVideoFile = (
 
       recorder.onstop = () => {
         URL.revokeObjectURL(srcUrl);
-        const blob = new Blob(chunks, { type: "video/webm" });
+        const isMp4 = mimeType.startsWith("video/mp4");
+        const outputType = isMp4 ? "video/mp4" : "video/webm";
+        const outputExt = isMp4 ? ".mp4" : ".webm";
+        const blob = new Blob(chunks, { type: outputType });
         // Only use compressed version if it's actually smaller
         if (blob.size >= file.size || blob.size === 0) {
           cleanup(file);
         } else {
           cleanup(
-            new File([blob], file.name.replace(/\.[^.]+$/, ".webm"), {
-              type: "video/webm",
+            new File([blob], file.name.replace(/\.[^.]+$/, outputExt), {
+              type: outputType,
             })
           );
         }
