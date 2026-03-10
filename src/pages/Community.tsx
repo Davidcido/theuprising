@@ -692,9 +692,11 @@ const Community = () => {
     }
   };
 
-  const handleEditPost = async (postId: string, newContent: string) => {
-    setAllPosts(prev => prev.map(p => p.id === postId ? { ...p, content: newContent } : p));
-    const { error } = await supabase.from("community_posts").update({ content: newContent }).eq("id", postId);
+  const handleEditPost = async (postId: string, newContent: string, newMediaUrls?: string[]) => {
+    const updateData: any = { content: newContent };
+    if (newMediaUrls !== undefined) updateData.media_urls = newMediaUrls;
+    setAllPosts(prev => prev.map(p => p.id === postId ? { ...p, content: newContent, ...(newMediaUrls !== undefined ? { media_urls: newMediaUrls } : {}) } : p));
+    const { error } = await supabase.from("community_posts").update(updateData).eq("id", postId);
     if (error) {
       toast({ title: "Error", description: "Could not edit post.", variant: "destructive" });
       fetchPosts(false);
