@@ -140,16 +140,48 @@ const PostCard = ({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.content);
+  const [editMediaFiles, setEditMediaFiles] = useState<{ url: string; type: "image" | "video"; file?: File }[]>([]);
   const [showLikesModal, setShowLikesModal] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
 
   const handleDelete = () => {
     onDeletePost?.(post.id);
     setShowDeleteDialog(false);
   };
 
-  const handleSaveEdit = () => {
-    if (editContent.trim() && editContent !== post.content) {
-      onEditPost?.(post.id, editContent.trim());
+  const startEditing = () => {
+    setEditing(true);
+    setEditContent(post.content);
+    // Convert existing media_urls to editMediaFiles
+    const existing = (post.media_urls || []).map(url => ({
+      url,
+      type: (/\.(mp4|webm|mov|avi|mkv)(\?|$)/i.test(url) ? "video" : "image") as "image" | "video",
+    }));
+    setEditMediaFiles(existing);
+  };
+
+  const handleSaveEdit = async () => {
+    const contentChanged = editContent.trim() !== post.content;
+    const existingUrls = post.media_urls || [];
+    const newUrls = editMediaFiles.filter(m => !m.file).map(m => m.url);
+    // Upload any new files (videos with file property)
+    setEditSaving(true);
+    const uploadedUrls = [...newUrls];
+    for (const m of editMediaFiles) {
+      if (m.file && m.type === "video") {
+        const url = await new Promise<string | null>((resolve) => {
+          uploadFileWithProgress("community-media", m.file!, (state) => {
+            if (state.status === "done" && state.publicUrl) resolve(state.publicUrl);
+            else if (state.status === "error" || state.status === "cancelled") resolve(null);
+          });
+        });
+        if (url) uploadedUrls.push(url);
+      }
+    }
+    setEditSaving(false);
+    const mediaChanged = JSON.stringify(uploadedUrls) !== JSON.stringify(existingUrls);
+    if (contentChanged || mediaChanged) {
+      onEditPost?.(post.id, editContent.trim(), mediaChanged ? uploadedUrls : undefined);
     }
     setEditing(false);
   };
