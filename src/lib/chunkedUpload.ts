@@ -79,6 +79,7 @@ export const uploadFileWithProgress = (
           xhr.open("POST", `${supabaseUrl}/storage/v1/object/${bucket}/${path}`);
           xhr.setRequestHeader("Authorization", `Bearer ${token}`);
           xhr.setRequestHeader("x-upsert", "true");
+          xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
           const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
           xhr.setRequestHeader("apikey", anonKey);
           xhr.send(file);
