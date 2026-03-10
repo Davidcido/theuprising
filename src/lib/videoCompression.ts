@@ -34,7 +34,20 @@ export const compressVideoFile = (
     onProgress,
   } = options;
 
+  // Timeout: if compression takes longer than 60s, return original file
+  const TIMEOUT_MS = 60_000;
+
   return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      console.warn("[VideoCompression] Timed out after 60s, using original file");
+      resolve(file);
+    }, TIMEOUT_MS);
+
+    const cleanup = (result: File) => {
+      clearTimeout(timeout);
+      resolve(result);
+    };
+
     const video = document.createElement("video");
     video.muted = true;
     video.playsInline = true;
@@ -57,6 +70,14 @@ export const compressVideoFile = (
       h = h % 2 === 0 ? h : h - 1;
 
       const videoBitrate = options.videoBitrate ?? getOptimalBitrate(w, h);
+
+      // Check if MediaRecorder + captureStream are supported
+      if (typeof MediaRecorder === "undefined" || !HTMLCanvasElement.prototype.captureStream) {
+        console.warn("[VideoCompression] MediaRecorder or captureStream not supported, skipping compression");
+        URL.revokeObjectURL(srcUrl);
+        cleanup(file);
+        return;
+      }
 
       const canvas = document.createElement("canvas");
       canvas.width = w;
@@ -83,10 +104,18 @@ export const compressVideoFile = (
         ? "video/webm;codecs=vp8"
         : "video/webm";
 
-      const recorder = new MediaRecorder(stream, {
-        mimeType,
-        videoBitsPerSecond: videoBitrate,
-      });
+      let recorder: MediaRecorder;
+      try {
+        recorder = new MediaRecorder(stream, {
+          mimeType,
+          videoBitsPerSecond: videoBitrate,
+        });
+      } catch (e) {
+        console.warn("[VideoCompression] MediaRecorder creation failed:", e);
+        URL.revokeObjectURL(srcUrl);
+        cleanup(file);
+        return;
+      }
 
       const chunks: Blob[] = [];
       recorder.ondataavailable = (e) => {
@@ -97,10 +126,10 @@ export const compressVideoFile = (
         URL.revokeObjectURL(srcUrl);
         const blob = new Blob(chunks, { type: "video/webm" });
         // Only use compressed version if it's actually smaller
-        if (blob.size >= file.size) {
-          resolve(file);
+        if (blob.size >= file.size || blob.size === 0) {
+          cleanup(file);
         } else {
-          resolve(
+          cleanup(
             new File([blob], file.name.replace(/\.[^.]+$/, ".webm"), {
               type: "video/webm",
             })
@@ -108,14 +137,25 @@ export const compressVideoFile = (
         }
       };
 
+      recorder.onerror = () => {
+        console.warn("[VideoCompression] MediaRecorder error, using original");
+        URL.revokeObjectURL(srcUrl);
+        cleanup(file);
+      };
+
       const duration = video.duration;
       let lastProg = 0;
       recorder.start(100);
-      video.play();
+      video.play().catch(() => {
+        console.warn("[VideoCompression] video.play() failed, using original");
+        try { recorder.stop(); } catch {}
+        URL.revokeObjectURL(srcUrl);
+        cleanup(file);
+      });
 
       const drawFrame = () => {
         if (video.ended || video.paused) {
-          recorder.stop();
+          try { recorder.stop(); } catch {}
           return;
         }
         ctx.drawImage(video, 0, 0, w, h);
@@ -129,12 +169,12 @@ export const compressVideoFile = (
         requestAnimationFrame(drawFrame);
       };
       drawFrame();
-      video.onended = () => recorder.stop();
+      video.onended = () => { try { recorder.stop(); } catch {} };
     };
 
     video.onerror = () => {
       URL.revokeObjectURL(srcUrl);
-      resolve(file);
+      cleanup(file);
     };
   });
 };

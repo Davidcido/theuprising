@@ -223,7 +223,24 @@ const Community = () => {
           // Reposts failed — still show main posts
         }
         const merged = [...enriched, ...directRepostPosts];
-        setAllPosts(merged);
+        // Preserve posts with active pending media uploads
+        setAllPosts(prev => {
+          const pendingPosts = prev.filter(p => p._pendingMedia && p._pendingMedia.length > 0);
+          const mergedIds = new Set(merged.map(p => p.id));
+          // For posts with pending uploads, merge DB data but keep _pendingMedia state
+          const result = merged.map(p => {
+            const pending = pendingPosts.find(pp => pp.id === p.id);
+            if (pending) {
+              return { ...p, _pendingMedia: pending._pendingMedia, _onCancelUpload: pending._onCancelUpload, _onRetryUpload: pending._onRetryUpload };
+            }
+            return p;
+          });
+          // Add any pending posts not yet in DB results
+          for (const pp of pendingPosts) {
+            if (!mergedIds.has(pp.id)) result.unshift(pp);
+          }
+          return result;
+        });
         setCachedPosts(enriched);
       }
       setHasMore(data.length === POSTS_PER_PAGE);
