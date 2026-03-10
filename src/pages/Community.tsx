@@ -716,6 +716,9 @@ const Community = () => {
     toast({ title: videoFilesToUpload.length > 0 ? "Post published! Video uploading..." : "Post published successfully! 🎉" });
     setPosting(false);
 
+    // Refetch feed to ensure consistency (don't await — optimistic post is already shown)
+    fetchPosts(false).catch(err => console.error("[Community] Post-creation refetch failed:", err));
+
     if (isFirstPost && currentUser) {
       setShowFirstPostCelebration(true);
     }
