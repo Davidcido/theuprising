@@ -171,14 +171,22 @@ const Community = () => {
 
     try {
       // Direct query without aggressive timeout — let Supabase handle it
+      console.log("[Community] Fetching posts, range:", from, "-", to);
       const { data, error } = await supabase
         .from("community_posts")
         .select("*")
         .order("created_at", { ascending: false })
         .range(from, to);
 
-      if (error) throw error;
-      if (!data) throw new Error("No data");
+      if (error) {
+        console.error("[Community] Supabase query error:", error.message, error.code, error.details);
+        throw error;
+      }
+      if (!data) {
+        console.error("[Community] Query returned null data");
+        throw new Error("No data");
+      }
+      console.log("[Community] Fetched", data.length, "posts successfully");
 
       const enriched = await enrichPosts(data);
       if (loadMore) {
