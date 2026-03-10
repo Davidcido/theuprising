@@ -339,7 +339,20 @@ const PostCard = ({
 
         {/* Media Gallery */}
         {post.media_urls && post.media_urls.length > 0 && (
-          <MediaGallery mediaUrls={post.media_urls} />
+          <MediaGallery
+            mediaUrls={post.media_urls}
+            postData={{
+              likesCount: post.likes_count,
+              commentsCount: post.comments_count,
+              sharesCount: post.shares_count,
+              viewsCount: post.views_count || 0,
+              isLiked: isLiked,
+              onToggleLike: () => onToggleLike(post.id),
+              onToggleComments: () => onToggleComments(post.id),
+              onShare: () => onShare(post),
+              onRepost: () => onRepost(post),
+            }}
+          />
         )}
 
         {/* Pending media uploads */}
