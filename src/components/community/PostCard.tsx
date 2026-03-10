@@ -316,11 +316,19 @@ const PostCard = ({
               className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/40 resize-none"
               rows={3}
             />
+            <div className="mt-2">
+              <MediaUploader
+                mediaFiles={editMediaFiles}
+                onMediaChange={setEditMediaFiles}
+                maxFiles={4}
+                disabled={editSaving}
+              />
+            </div>
             <div className="flex gap-2 mt-2">
-              <button onClick={handleSaveEdit} className="px-3 py-1.5 rounded-full text-xs text-white font-medium" style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}>
-                Save
+              <button onClick={handleSaveEdit} disabled={editSaving} className="px-3 py-1.5 rounded-full text-xs text-white font-medium disabled:opacity-50" style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}>
+                {editSaving ? "Saving..." : "Save"}
               </button>
-              <button onClick={() => setEditing(false)} className="px-3 py-1.5 rounded-full text-xs text-muted-foreground bg-white/5 hover:bg-white/10">
+              <button onClick={() => setEditing(false)} disabled={editSaving} className="px-3 py-1.5 rounded-full text-xs text-muted-foreground bg-white/5 hover:bg-white/10">
                 Cancel
               </button>
             </div>
