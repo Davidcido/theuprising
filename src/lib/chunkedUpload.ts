@@ -103,7 +103,7 @@ export const uploadFileWithProgress = (
     } else {
       // Small file — use SDK directly
       onState({ status: "uploading", progress: 10, message: "Uploading..." });
-      const { error } = await supabase.storage.from(bucket).upload(path, file);
+      const { error } = await supabase.storage.from(bucket).upload(path, file, { contentType: file.type || "application/octet-stream", upsert: true });
       if (aborted) {
         onState({ status: "cancelled", progress: 0, message: "Upload cancelled" });
         return;
