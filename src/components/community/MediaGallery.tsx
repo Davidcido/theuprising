@@ -50,7 +50,7 @@ const generateThumbnail = (url: string): Promise<string> => {
   });
 };
 
-const MAX_FEED_VIDEO_HEIGHT = 700;
+const MAX_FEED_VIDEO_HEIGHT = 650;
 
 /** Feed video — autoplays muted when 60 % visible, tapping opens full-screen player */
 const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: boolean; onTap: () => void; isSingle?: boolean }) => {
@@ -102,24 +102,23 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
     setLoaded(true);
   };
 
-  // For single videos, use dynamic height based on aspect ratio; for grids, use fixed height
-  const containerStyle: React.CSSProperties = isSingle && aspectRatio
-    ? { aspectRatio: `${aspectRatio}`, maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px` }
+  const containerStyle: React.CSSProperties = isSingle
+    ? { maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px`, overflow: "hidden" }
     : compact
     ? { height: "10rem" }
     : { height: "14rem" };
 
   return (
-    <div ref={containerRef} className="relative cursor-pointer group w-full" onClick={onTap} style={isSingle ? { maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px` } : undefined}>
+    <div ref={containerRef} className="relative cursor-pointer group w-full" onClick={onTap} style={containerStyle}>
       {/* Thumbnail fallback while video loads */}
       {!loaded && thumbnail && (
-        <img src={thumbnail} alt="" className="w-full h-full object-cover absolute inset-0 rounded-xl" style={containerStyle} />
+        <img src={thumbnail} alt="" className="w-full h-auto object-cover absolute inset-0 rounded-xl" />
       )}
       <video
         ref={videoRef}
         src={url}
-        className="w-full object-cover rounded-xl"
-        style={containerStyle}
+        className="w-full h-auto rounded-xl"
+        style={isSingle ? { objectFit: "cover", maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px` } : { objectFit: "cover", height: "100%" }}
         muted
         playsInline
         loop
