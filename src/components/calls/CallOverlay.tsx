@@ -51,13 +51,24 @@ const CallOverlay = ({
     return () => clearInterval(interval);
   }, [callState, onEndCall]);
 
+  // Always attach remote stream to BOTH audio and video elements
   useEffect(() => {
-    if (remoteStream) {
-      if (callType === "video" && remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteStream;
-      } else if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = remoteStream;
-      }
+    if (!remoteStream) return;
+    
+    // Always attach to audio element for audio tracks
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = remoteStream;
+      remoteAudioRef.current.play().catch(e => {
+        console.warn("Audio autoplay blocked, will retry on user interaction:", e);
+      });
+    }
+    
+    // For video calls, also attach to video element
+    if (callType === "video" && remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current.play().catch(e => {
+        console.warn("Video autoplay blocked:", e);
+      });
     }
   }, [remoteStream, callType]);
 
@@ -66,6 +77,13 @@ const CallOverlay = ({
       localVideoRef.current.srcObject = localStream;
     }
   }, [localStream, callType]);
+
+  // Retry audio playback when call connects (user gesture chain from accept)
+  useEffect(() => {
+    if (callState === "connected" && remoteAudioRef.current && remoteAudioRef.current.srcObject) {
+      remoteAudioRef.current.play().catch(() => {});
+    }
+  }, [callState]);
 
   const toggleMute = () => {
     if (localStream) {
@@ -82,7 +100,6 @@ const CallOverlay = ({
   };
 
   const toggleSpeaker = () => {
-    // Toggle speaker by adjusting remote audio volume
     if (remoteAudioRef.current) {
       remoteAudioRef.current.volume = speakerOn ? 0.15 : 1.0;
     }
@@ -103,7 +120,6 @@ const CallOverlay = ({
       const newVideoTrack = newStream.getVideoTracks()[0];
       const oldVideoTrack = localStream.getVideoTracks()[0];
       if (oldVideoTrack) {
-        // Replace track in peer connection (if available via sender)
         oldVideoTrack.stop();
         localStream.removeTrack(oldVideoTrack);
         localStream.addTrack(newVideoTrack);
@@ -136,6 +152,9 @@ const CallOverlay = ({
         className="fixed inset-0 z-[100] flex flex-col items-center justify-center"
         style={{ background: "linear-gradient(180deg, #0a3d22 0%, #0F5132 50%, #155E3A 100%)" }}
       >
+        {/* ALWAYS render audio element for remote audio (voice AND video calls) */}
+        <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: "none" }} />
+
         {/* Remote video (fullscreen) */}
         {callType === "video" && callState === "connected" && (
           <video
@@ -145,9 +164,6 @@ const CallOverlay = ({
             className="absolute inset-0 w-full h-full object-cover"
           />
         )}
-
-        {/* Audio element for voice calls */}
-        {callType === "voice" && <audio ref={remoteAudioRef} autoPlay />}
 
         {/* Local video pip */}
         {callType === "video" && callState === "connected" && (
