@@ -616,42 +616,32 @@ const Community = () => {
     setMediaFiles([]);
     if (textareaRef.current) textareaRef.current.style.height = "auto";
 
-    // Upload ALL media before saving post (images already uploaded, videos need upload)
-    const allMediaUrls: string[] = [];
-    let uploadFailed = false;
+    // Separate already-uploaded images (have public URLs) from local video files
+    const readyUrls: string[] = [];
+    const videoFilesToUpload: { file: File; previewUrl: string }[] = [];
 
     for (const m of savedMedia) {
       if (m.type === "video" && m.file) {
-        toast({ title: "Uploading video...", description: "Please wait while the video uploads." });
-        const url = await uploadVideoFile(m.file);
-        console.log("[Community] Video upload result URL:", url);
-        if (!url) {
-          uploadFailed = true;
-          break;
+        // Enforce 50MB limit
+        if (m.file.size > 50 * 1024 * 1024) {
+          toast({ title: "Video too large", description: "Please upload a file under 50MB.", variant: "destructive" });
+          setNewPost(savedContent);
+          setMediaFiles(savedMedia);
+          setPosting(false);
+          return;
         }
-        allMediaUrls.push(url);
-      } else {
-        // Image already uploaded by MediaUploader
-        allMediaUrls.push(m.url);
+        videoFilesToUpload.push({ file: m.file, previewUrl: m.url });
+      } else if (m.url && !m.url.startsWith("blob:") && m.url.startsWith("http")) {
+        readyUrls.push(m.url);
       }
     }
 
-    if (uploadFailed) {
-      setNewPost(savedContent);
-      setMediaFiles(savedMedia);
-      toast({ title: "Upload failed", description: "Video upload failed. Please try again.", variant: "destructive" });
-      setPosting(false);
-      return;
-    }
-
-    // Filter out any blob: or invalid URLs — only save valid public URLs
-    const validMediaUrls = allMediaUrls.filter(u => u && !u.startsWith("blob:") && u.startsWith("http"));
-
+    // Insert the post immediately with only the ready image URLs
     const insertData: any = {
       content: savedContent.trim().slice(0, 10000) || "",
       anonymous_name: postAnonymously ? sessionId : (currentUser?.displayName || sessionId),
       is_anonymous: postAnonymously,
-      media_urls: validMediaUrls,
+      media_urls: readyUrls,
     };
     if (!postAnonymously && currentUser) {
       insertData.author_id = currentUser.id;
@@ -675,6 +665,21 @@ const Community = () => {
 
     console.log("[Community] Post created successfully:", insertedPost.id);
     const postId = insertedPost.id;
+
+    // Build pending media entries for videos
+    const pendingMedia: PendingMedia[] = videoFilesToUpload.map((v) => {
+      const mediaId = `media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      pendingFilesRef.current.set(mediaId, { file: v.file, type: "video" });
+      return {
+        id: mediaId,
+        previewUrl: v.previewUrl,
+        type: "video" as const,
+        status: "compressing" as const,
+        progress: 0,
+        message: "Preparing video...",
+      };
+    });
+
     const newPostObj: Post = {
       id: postId,
       content: insertedPost.content,
@@ -686,18 +691,29 @@ const Community = () => {
       created_at: insertedPost.created_at,
       author_id: insertedPost.author_id,
       is_anonymous: insertedPost.is_anonymous,
-      media_urls: validMediaUrls,
+      media_urls: readyUrls,
       author_profile: currentUser && !postAnonymously ? { display_name: currentUser.displayName, avatar_url: "" } : null,
+      _pendingMedia: pendingMedia.length > 0 ? pendingMedia : undefined,
+      _onCancelUpload: pendingMedia.length > 0 ? (mediaId: string) => cancelPendingUpload(postId, mediaId) : undefined,
+      _onRetryUpload: pendingMedia.length > 0 ? (mediaId: string) => retryPendingUpload(postId, mediaId) : undefined,
     };
 
     const isFirstPost = !allPosts.some(p => p.author_id === currentUser?.id && p.id !== postId);
-    
+
     setAllPosts(prev => [newPostObj, ...prev.filter(p => p.id !== postId)]);
-    toast({ title: "Post published successfully! 🎉" });
+    toast({ title: videoFilesToUpload.length > 0 ? "Post published! Video uploading..." : "Post published successfully! 🎉" });
     setPosting(false);
 
     if (isFirstPost && currentUser) {
       setShowFirstPostCelebration(true);
+    }
+
+    // Start background video uploads
+    for (const pm of pendingMedia) {
+      const fileEntry = pendingFilesRef.current.get(pm.id);
+      if (fileEntry) {
+        startBackgroundUpload(postId, pm.id, fileEntry.file, "video", pm.previewUrl);
+      }
     }
 
     // Send mention notifications
