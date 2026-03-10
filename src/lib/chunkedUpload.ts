@@ -115,6 +115,7 @@ export const uploadFileWithProgress = (
     }
 
     const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
+    console.log("[Upload] Generated public URL:", urlData.publicUrl);
     onState({
       status: "done",
       progress: 100,
