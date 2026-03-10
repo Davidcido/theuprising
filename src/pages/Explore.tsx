@@ -56,6 +56,8 @@ const Explore = () => {
   );
 
   useEffect(() => {
+    if (!isReady) return; // Wait for auth session to be restored before querying
+
     const fetchData = async () => {
       setLoading(true);
 
