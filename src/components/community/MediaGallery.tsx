@@ -171,11 +171,11 @@ const MediaGallery = ({ mediaUrls, compact, postData }: MediaGalleryProps) => {
 
   return (
     <>
-      <div className={`grid gap-1.5 mb-3 ${gridClass}`}>
+      <div className={`grid gap-1 mb-3 ${gridClass} -mx-1`}>
         {mediaUrls.slice(0, 4).map((url, i) => (
           <div
             key={i}
-            className={`relative rounded-xl overflow-hidden border border-white/10 hover:border-white/20 transition-colors ${
+            className={`relative rounded-xl overflow-hidden border border-white/5 hover:border-white/15 transition-colors ${
               mediaUrls.length === 3 && i === 0 ? "col-span-2" : ""
             }`}
           >
@@ -185,13 +185,13 @@ const MediaGallery = ({ mediaUrls, compact, postData }: MediaGalleryProps) => {
               <img
                 src={url}
                 alt=""
-                className={`w-full object-cover cursor-pointer ${mediaUrls.length === 1 ? "max-h-[600px]" : compact ? "h-32" : "h-48"}`}
+                className={`w-full object-cover cursor-pointer rounded-xl ${mediaUrls.length === 1 ? "max-h-[700px]" : compact ? "h-40" : "h-56"}`}
                 loading="lazy"
                 onClick={() => handleMediaClick(url, i)}
               />
             )}
             {mediaUrls.length > 4 && i === 3 && (
-              <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none">
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none rounded-xl">
                 <span className="text-white text-lg font-bold">+{mediaUrls.length - 4}</span>
               </div>
             )}
