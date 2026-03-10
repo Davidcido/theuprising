@@ -50,7 +50,7 @@ const generateThumbnail = (url: string): Promise<string> => {
   });
 };
 
-const MAX_FEED_VIDEO_HEIGHT = 600;
+const MAX_FEED_VIDEO_HEIGHT = 700;
 
 /** Feed video — autoplays muted when 60 % visible, tapping opens full-screen player */
 const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: boolean; onTap: () => void; isSingle?: boolean }) => {
@@ -106,19 +106,19 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
   const containerStyle: React.CSSProperties = isSingle && aspectRatio
     ? { aspectRatio: `${aspectRatio}`, maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px` }
     : compact
-    ? { height: "8rem" }
-    : { height: "12rem" };
+    ? { height: "10rem" }
+    : { height: "14rem" };
 
   return (
-    <div ref={containerRef} className="relative cursor-pointer group" onClick={onTap} style={isSingle ? { maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px` } : undefined}>
+    <div ref={containerRef} className="relative cursor-pointer group w-full" onClick={onTap} style={isSingle ? { maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px` } : undefined}>
       {/* Thumbnail fallback while video loads */}
       {!loaded && thumbnail && (
-        <img src={thumbnail} alt="" className="w-full h-full object-cover absolute inset-0" style={containerStyle} />
+        <img src={thumbnail} alt="" className="w-full h-full object-cover absolute inset-0 rounded-xl" style={containerStyle} />
       )}
       <video
         ref={videoRef}
         src={url}
-        className={`w-full ${isSingle ? "object-contain bg-black" : "object-cover"}`}
+        className="w-full object-cover rounded-xl"
         style={containerStyle}
         muted
         playsInline
@@ -171,11 +171,11 @@ const MediaGallery = ({ mediaUrls, compact, postData }: MediaGalleryProps) => {
 
   return (
     <>
-      <div className={`grid gap-1.5 mb-3 ${gridClass}`}>
+      <div className={`grid gap-1 mb-3 ${gridClass} -mx-1`}>
         {mediaUrls.slice(0, 4).map((url, i) => (
           <div
             key={i}
-            className={`relative rounded-xl overflow-hidden border border-white/10 hover:border-white/20 transition-colors ${
+            className={`relative rounded-xl overflow-hidden border border-white/5 hover:border-white/15 transition-colors ${
               mediaUrls.length === 3 && i === 0 ? "col-span-2" : ""
             }`}
           >
@@ -185,13 +185,13 @@ const MediaGallery = ({ mediaUrls, compact, postData }: MediaGalleryProps) => {
               <img
                 src={url}
                 alt=""
-                className={`w-full object-cover cursor-pointer ${mediaUrls.length === 1 ? "max-h-[600px]" : compact ? "h-32" : "h-48"}`}
+                className={`w-full object-cover cursor-pointer rounded-xl ${mediaUrls.length === 1 ? "max-h-[700px]" : compact ? "h-40" : "h-56"}`}
                 loading="lazy"
                 onClick={() => handleMediaClick(url, i)}
               />
             )}
             {mediaUrls.length > 4 && i === 3 && (
-              <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none">
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none rounded-xl">
                 <span className="text-white text-lg font-bold">+{mediaUrls.length - 4}</span>
               </div>
             )}
