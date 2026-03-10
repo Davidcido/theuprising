@@ -180,12 +180,12 @@ const MediaGallery = ({ mediaUrls, compact, postData }: MediaGalleryProps) => {
             }`}
           >
             {isVideo(url) ? (
-              <FeedVideo url={url} compact={compact} onTap={() => handleMediaClick(url, i)} />
+              <FeedVideo url={url} compact={compact} isSingle={mediaUrls.length === 1} onTap={() => handleMediaClick(url, i)} />
             ) : (
               <img
                 src={url}
                 alt=""
-                className={`w-full object-cover cursor-pointer ${compact ? "h-32" : "h-48"}`}
+                className={`w-full object-cover cursor-pointer ${mediaUrls.length === 1 ? "max-h-[600px]" : compact ? "h-32" : "h-48"}`}
                 loading="lazy"
                 onClick={() => handleMediaClick(url, i)}
               />

@@ -318,7 +318,7 @@ const MediaUploader = ({ mediaFiles, onMediaChange, maxFiles = 4, disabled }: Me
               />
             ) : (
               <div key={i} className="relative rounded-xl overflow-hidden border border-white/10">
-                <img src={m.url} alt="" className="w-full h-40 object-cover" />
+                <img src={m.url} alt="" className="w-full max-h-[400px] object-contain bg-black/20 rounded-lg" />
                 <button onClick={() => removeMedia(i)} className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/60 hover:bg-black/80 transition-colors" title="Remove media">
                   <X className="w-3.5 h-3.5 text-white" />
                 </button>
