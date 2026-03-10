@@ -36,6 +36,7 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const touchStartYRef = useRef<number | null>(null);
 
   // IntersectionObserver for autoplay / autopause
   useEffect(() => {
@@ -102,10 +103,10 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
     : "relative cursor-pointer group w-full";
 
   const containerStyle: React.CSSProperties = isSingle
-    ? { maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px`, overflow: "hidden" }
+    ? { maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px`, overflow: "clip" }
     : compact
-    ? { height: "10rem" }
-    : { height: "14rem" };
+    ? { height: "10rem", overflow: "clip" }
+    : { height: "14rem", overflow: "clip" };
 
   if (error) {
     return (
@@ -126,8 +127,32 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
     );
   }
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartYRef.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartYRef.current === null) return;
+    const delta = Math.abs(e.changedTouches[0].clientY - touchStartYRef.current);
+    if (delta < 10) {
+      onTap();
+    }
+    touchStartYRef.current = null;
+  };
+
   return (
-    <div ref={containerRef} className={containerClass} onClick={onTap} style={containerStyle}>
+    <div
+      ref={containerRef}
+      className={containerClass}
+      onClick={(e) => {
+        // Desktop click — mobile handled by touch events
+        if ('ontouchstart' in window) return;
+        onTap();
+      }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      style={{ ...containerStyle, touchAction: "pan-y" }}
+    >
       <video
         ref={videoRef}
         key={retryCount} // force remount on retry
