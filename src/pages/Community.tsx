@@ -655,6 +655,7 @@ const Community = () => {
       insertData.author_id = currentUser.id;
     }
 
+    console.log("[Community] Inserting post:", JSON.stringify(insertData));
     const { data: insertedPost, error } = await supabase
       .from("community_posts")
       .insert(insertData)
@@ -662,13 +663,15 @@ const Community = () => {
       .single();
 
     if (error || !insertedPost) {
+      console.error("[Community] Post creation failed:", error?.message, error?.details, error?.hint);
       setNewPost(savedContent);
       setMediaFiles(savedMedia);
-      toast({ title: "Error", description: "Could not post. Try again.", variant: "destructive" });
+      toast({ title: "Post failed to publish", description: error?.message || "Could not post. Try again.", variant: "destructive" });
       setPosting(false);
       return;
     }
 
+    console.log("[Community] Post created successfully:", insertedPost.id);
     const postId = insertedPost.id;
     const newPostObj: Post = {
       id: postId,
@@ -681,7 +684,7 @@ const Community = () => {
       created_at: insertedPost.created_at,
       author_id: insertedPost.author_id,
       is_anonymous: insertedPost.is_anonymous,
-      media_urls: allMediaUrls,
+      media_urls: validMediaUrls,
       author_profile: currentUser && !postAnonymously ? { display_name: currentUser.displayName, avatar_url: "" } : null,
     };
 
