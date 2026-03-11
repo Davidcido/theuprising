@@ -397,7 +397,12 @@ const Chat = () => {
   }, [input, isTyping, messages, editingIndex, attachments, sendMessage, persistMessages]);
 
   const handleNewChat = useCallback(async () => {
-    await clearHistory();
+    const newConversationId = await startNewConversation();
+    if (userId && !newConversationId) {
+      toast.error("Could not start a new chat");
+      return;
+    }
+
     setMessages([]);
     setInput("");
     setAttachments([]);
@@ -405,7 +410,7 @@ const Chat = () => {
     setIsTyping(false);
     setGreetingSet(false);
     toast.success("Started a new chat");
-  }, [clearHistory]);
+  }, [startNewConversation, userId]);
 
   const handleEditMessage = useCallback((index: number) => {
     const msg = messages[index];
