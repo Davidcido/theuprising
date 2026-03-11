@@ -6,6 +6,8 @@ import ChatInput from "@/components/chat/ChatInput";
 import ChatMessages, { type ChatMessage } from "@/components/chat/ChatMessages";
 import { type ChatMode } from "@/components/chat/FeatureMenu";
 import { type ChatAttachment } from "@/components/chat/FilePreview";
+import PersonaSelector, { type PersonaConfig } from "@/components/chat/PersonaSelector";
+import { BUILTIN_PERSONAS } from "@/lib/builtinPersonas";
 import { useAIMemory } from "@/hooks/useAIMemory";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
