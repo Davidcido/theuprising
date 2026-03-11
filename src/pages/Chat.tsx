@@ -205,10 +205,9 @@ const Chat = () => {
   const [greetingSet, setGreetingSet] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [persona, setPersona] = useState<PersonaConfig>(getInitialPersona);
-  const historyLoadedRef = useRef(false);
 
   // Persistent chat history
-  const { savedMessages, loading: historyLoading, saveMessages, clearHistory } = useChatHistory(userId, persona.id);
+  const { savedMessages, loading: historyLoading, persistMessages, clearHistory } = useChatHistory(userId, persona.id);
 
   // Handle companion selection from explorer page
   useEffect(() => {
