@@ -33,6 +33,7 @@ const Explore = lazy(() => import("./pages/Explore"));
 const Bookmarks = lazy(() => import("./pages/Bookmarks"));
 const Drafts = lazy(() => import("./pages/Drafts"));
 const DailyRise = lazy(() => import("./pages/DailyRise"));
+const CompanionExplorer = lazy(() => import("./pages/CompanionExplorer"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -136,6 +137,11 @@ const AppContent = () => {
             } />
             <Route path="/daily-rise" element={
               <ErrorBoundary inline><DailyRise /></ErrorBoundary>
+            } />
+            <Route path="/companions" element={
+              <ProtectedRoute>
+                <ErrorBoundary inline><CompanionExplorer /></ErrorBoundary>
+              </ProtectedRoute>
             } />
           </Route>
           <Route path="/admin" element={<Admin />} />
