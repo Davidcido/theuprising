@@ -474,7 +474,7 @@ const Chat = () => {
       </div>
 
       {/* Messages */}
-      <div className="relative z-10 flex-1 overflow-hidden">
+      <div className="relative z-10 flex-1 min-h-0 overflow-hidden">
         <ChatMessages
           messages={messages}
           isTyping={isTyping}
