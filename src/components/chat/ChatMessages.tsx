@@ -55,7 +55,7 @@ const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, on
     <>
       <div
         ref={scrollContainerRef}
-        className="h-full min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-3 sm:px-4 py-6"
+        className="h-full overflow-y-auto overscroll-contain touch-pan-y px-3 sm:px-4 py-6"
         style={{ WebkitOverflowScrolling: "touch" }}
       >
         <div className="container mx-auto max-w-2xl space-y-3">

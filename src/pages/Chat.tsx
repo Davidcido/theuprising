@@ -401,8 +401,7 @@ const Chat = () => {
     <div
       className="relative flex flex-col overflow-hidden"
       style={{
-        minHeight: "calc(100vh - 4rem - env(safe-area-inset-top, 0px))",
-        height: "calc(100dvh - 4rem - env(safe-area-inset-top, 0px))",
+        height: "calc(100dvh - 4rem)",
       }}
     >
       {/* Tree of Life Wallpaper */}
@@ -481,7 +480,7 @@ const Chat = () => {
       </div>
 
       {/* Messages - scrollable area */}
-      <div className="relative z-10 flex-1 min-h-0 overflow-hidden">
+      <div className="relative z-10 flex-1 min-h-0">
         <ChatMessages
           messages={messages}
           isTyping={isTyping}
