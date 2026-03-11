@@ -8,6 +8,7 @@ import { toast } from "sonner";
 export type PersonaConfig = {
   id: string;
   name: string;
+  meaning?: string;
   role: string;
   personality: string;
   conversation_style: string;
@@ -17,6 +18,7 @@ export type PersonaConfig = {
   avatar_url?: string | null;
   color: string;
   description: string;
+  greeting?: string;
   is_custom?: boolean;
 };
 
@@ -161,6 +163,9 @@ const PersonaSelector = ({ currentPersona, onSelect, userId }: PersonaSelectorPr
                             )}
                           </div>
                           <p className="text-[11px] text-muted-foreground truncate">{p.description}</p>
+                          {p.meaning && (
+                            <p className="text-[10px] text-muted-foreground/50 truncate italic">{p.meaning}</p>
+                          )}
                         </div>
                         {isActive && <div className="w-2 h-2 rounded-full shrink-0" style={{ background: p.color }} />}
                       </button>
