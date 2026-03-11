@@ -404,8 +404,8 @@ const Chat = () => {
         className="absolute inset-0 z-0 bg-center bg-no-repeat bg-contain pointer-events-none"
         style={{
           backgroundImage: `url(${chatWallpaper})`,
-          opacity: 0.12,
-          filter: "blur(2px)",
+          opacity: 0.10,
+          filter: "blur(15px) brightness(0.85)",
         }}
       />
 
