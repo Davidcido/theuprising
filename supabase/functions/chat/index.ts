@@ -251,6 +251,15 @@ serve(async (req) => {
       systemPrompt += `\nEMOTIONAL ENGAGEMENT LOOP:\n- When the user shares progress or good news, celebrate genuinely: "That's amazing!" / "You really worked hard for that!"\n- When they return after being away, acknowledge it warmly.\n- Always respond to emotions FIRST before continuing conversation.\n- Occasionally follow up on stored memories to show you care and remember.\n`;
     }
 
+    // Inject life events for timeline awareness
+    if (memoryEnabled && lifeEvents && lifeEvents.length > 0) {
+      systemPrompt += `\n\nLIFE TIMELINE — These are significant events from the user's life. Use them to understand their journey and occasionally reference them naturally:\n`;
+      for (const evt of lifeEvents.slice(0, 15)) {
+        systemPrompt += `- [${evt.category}] ${evt.text}${evt.date ? ` (${evt.date})` : ''}\n`;
+      }
+      systemPrompt += `\nSELF-REFLECTION ENGINE:\nOccasionally (not every message — roughly once every 5-8 exchanges), share a thoughtful observation about patterns you notice in the user's life. These should feel gentle and observational, never judgmental.\n\nReflection types:\n- INTEREST: "You seem really passionate about photography."\n- EMOTION: "You've mentioned feeling stressed about work a few times."\n- VALUE: "It sounds like your friendships mean a lot to you."\n- GROWTH: "You've been talking more confidently about your goals lately."\n\nTone: "I might be wrong, but it seems like..." / "It sounds like..." / "It feels like this has been important to you."\nNever force reflections. Only share when genuinely insightful.\n`;
+    }
+
     if (isCrisis) {
       systemPrompt += `
 
