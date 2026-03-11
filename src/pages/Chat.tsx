@@ -264,7 +264,7 @@ const Chat = () => {
       setIsTyping(false);
       toast.error(e.message || "Something went wrong. Please try again.");
     }
-  }, [input, isTyping, messages, memoryEnabled, memories, userId, refetchMemories, mode, attachments]);
+  }, [input, isTyping, messages, memoryEnabled, memories, userId, realName, refetchMemories, mode, attachments]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
