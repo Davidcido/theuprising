@@ -1,10 +1,11 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Brain, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import ChatInput from "@/components/chat/ChatInput";
 import ChatMessages, { type ChatMessage } from "@/components/chat/ChatMessages";
 import { type ChatMode } from "@/components/chat/FeatureMenu";
+import { useChatHistory } from "@/hooks/useChatHistory";
 import chatWallpaper from "@/assets/chat-wallpaper.jpeg";
 
 const PERSONA_MODE_MAP: Record<string, ChatMode> = {
