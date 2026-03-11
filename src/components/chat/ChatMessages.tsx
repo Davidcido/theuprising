@@ -71,11 +71,12 @@ const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, on
                 )}
 
                 <div
-                  className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
+                  className={`max-w-[85%] sm:max-w-[75%] rounded-[18px] text-[15px] font-medium leading-[1.6] ${
                     msg.role === "user"
-                      ? "bg-primary/20 text-foreground border border-primary/25 rounded-br-md"
-                      : "bg-white/8 text-foreground/90 border border-white/10 rounded-bl-md"
+                      ? "bg-[rgba(255,255,255,0.18)] text-white border border-white/15 rounded-br-md px-[18px] py-[14px]"
+                      : "bg-[rgba(255,255,255,0.08)] backdrop-blur-[10px] text-white border border-[rgba(255,255,255,0.15)] rounded-bl-md px-[18px] py-[14px]"
                   }`}
+                  style={{ textShadow: "0px 1px 2px rgba(0,0,0,0.35)" }}
                 >
                   {/* Attachment previews */}
                   {msg.attachments && msg.attachments.length > 0 && (
