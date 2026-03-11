@@ -134,7 +134,8 @@ const PersonaSelector = ({ currentPersona, onSelect, userId }: PersonaSelectorPr
             {!showCreate ? (
               <>
                 <div className="p-3 border-b border-white/10">
-                  <p className="text-xs text-muted-foreground font-medium">Choose a Companion</p>
+                  <p className="text-xs text-muted-foreground font-medium">Choose Your AI Persona</p>
+                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">Persona = Who the AI is</p>
                 </div>
                 <div className="p-1.5 max-h-80 overflow-y-auto space-y-0.5">
                   {allPersonas.map((p) => {

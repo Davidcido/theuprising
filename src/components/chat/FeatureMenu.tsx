@@ -45,7 +45,8 @@ const FeatureMenu = ({ currentMode, onModeChange }: FeatureMenuProps) => {
             className="absolute bottom-12 left-0 w-64 rounded-2xl border border-white/15 bg-background/95 backdrop-blur-xl shadow-2xl overflow-hidden z-50"
           >
             <div className="p-2 border-b border-white/10">
-              <p className="text-xs text-muted-foreground px-2 py-1 font-medium">AI Mode</p>
+              <p className="text-xs text-muted-foreground px-2 py-1 font-medium">Conversation Style</p>
+              <p className="text-[10px] text-muted-foreground/60 px-2">How the AI responds</p>
             </div>
             <div className="p-1.5 space-y-0.5">
               {modes.map((mode) => {
