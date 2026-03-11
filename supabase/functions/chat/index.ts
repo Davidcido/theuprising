@@ -342,15 +342,17 @@ async function extractAndStoreMemories(userMessage: string, userId: string, apiK
     }
 
     const extracted = JSON.parse(jsonStr);
-    if (!Array.isArray(extracted) || extracted.length === 0) return;
-
+    
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const sb = createClient(supabaseUrl, serviceKey);
 
-    for (const item of extracted.slice(0, 5)) {
+    // Handle new format: {memories: [...], life_events: [...]}
+    const memoriesArr = Array.isArray(extracted) ? extracted : (extracted.memories || []);
+    const lifeEventsArr = Array.isArray(extracted) ? [] : (extracted.life_events || []);
+
+    for (const item of memoriesArr.slice(0, 5)) {
       if (item.text && item.text.length > 5) {
-        // Store memory with type and importance
         await sb.from("ai_memories").insert({
           user_id: userId,
           memory_text: item.text,
@@ -359,11 +361,23 @@ async function extractAndStoreMemories(userMessage: string, userId: string, apiK
           importance_score: item.importance || 5,
         });
 
-        // If real name detected, store it on the profile
         if (item.real_name && item.category === "identity") {
           await sb.from("profiles").update({ real_name: item.real_name })
             .eq("user_id", userId);
         }
+      }
+    }
+
+    // Store life events
+    for (const evt of lifeEventsArr.slice(0, 3)) {
+      if (evt.text && evt.text.length > 5) {
+        await sb.from("life_events").insert({
+          user_id: userId,
+          event_text: evt.text,
+          event_category: evt.category || "general",
+          event_date: evt.date || null,
+          importance_score: evt.importance || 5,
+        });
       }
     }
   } catch (e) {
