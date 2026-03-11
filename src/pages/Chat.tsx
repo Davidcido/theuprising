@@ -354,17 +354,25 @@ const Chat = () => {
       {/* Header */}
       <div className="px-4 py-3 backdrop-blur-xl border-b border-white/10" style={{ background: "rgba(15, 81, 50, 0.4)" }}>
         <div className="container mx-auto flex items-center gap-3">
-          <img src={uprisingLogo} alt="Uprising" className="w-10 h-10 rounded-xl object-cover shadow-md" />
-          <div>
-            <h2 className="font-display font-semibold text-foreground">Uprising Companion</h2>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-md" style={{ background: `${persona.color}22`, border: `1px solid ${persona.color}44` }}>
+            {persona.avatar_emoji || "💚"}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 className="font-display font-semibold text-foreground text-sm truncate">{persona.name}</h2>
+              <PersonaSelector currentPersona={persona} onSelect={(p) => {
+                setPersona(p);
+                setMessages([{ role: "assistant", content: `Hey${realName ? ` ${realName}` : ""} ${persona.avatar_emoji || "💚"} I'm ${p.name}. ${p.description} How can I help you today?` }]);
+              }} userId={userId} />
+            </div>
             <p className="text-xs text-muted-foreground">
               {isTyping ? (
                 <span className="text-primary animate-pulse">typing...</span>
-              ) : "Your safe space to talk"}
+              ) : persona.description}
             </p>
           </div>
           {memoryEnabled && (
-            <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/20 border border-primary/30">
+            <div className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/20 border border-primary/30">
               <Brain className="w-3 h-3 text-primary" />
               <span className="text-xs text-primary font-medium">Memory</span>
             </div>
