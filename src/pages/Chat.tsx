@@ -219,19 +219,24 @@ const Chat = () => {
         setPersona(config);
         setMode(PERSONA_MODE_MAP[found.id] || "companion");
         setGreetingSet(false);
-        setMessages([]);
+        saveCompanionId(found.id);
       }
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
 
-  // When companion changes, reset greeting flag but DON'T clear messages yet —
-  // wait for history to load to avoid a flash of empty UI.
+  // Persist selected companion and reset greeting flag without clearing current UI.
   const prevPersonaIdRef = useRef(persona.id);
   useEffect(() => {
+    saveCompanionId(persona.id);
+
     if (prevPersonaIdRef.current !== persona.id) {
       prevPersonaIdRef.current = persona.id;
       setGreetingSet(false);
+      setInput("");
+      setAttachments([]);
+      setEditingIndex(null);
+      setIsTyping(false);
     }
   }, [persona.id]);
 
