@@ -394,6 +394,17 @@ const Chat = () => {
     await sendMessage(newMessages, currentInput, currentAttachments);
   }, [input, isTyping, messages, editingIndex, attachments, sendMessage]);
 
+  const handleNewChat = useCallback(async () => {
+    await clearHistory();
+    setMessages([]);
+    setInput("");
+    setAttachments([]);
+    setEditingIndex(null);
+    setIsTyping(false);
+    setGreetingSet(false);
+    toast.success("Started a new chat");
+  }, [clearHistory]);
+
   const handleEditMessage = useCallback((index: number) => {
     const msg = messages[index];
     if (msg.role !== "user") return;
