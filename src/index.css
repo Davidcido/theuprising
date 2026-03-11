@@ -122,3 +122,9 @@
     box-shadow: var(--shadow-glow);
   }
 }
+
+@keyframes chatParticleDrift {
+  0% { transform: translate(0, 0); opacity: 0.04; }
+  50% { transform: translate(12px, -18px); opacity: 0.09; }
+  100% { transform: translate(-8px, 14px); opacity: 0.03; }
+}
