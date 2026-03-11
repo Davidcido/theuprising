@@ -174,6 +174,13 @@ const Chat = () => {
   const [mode, setMode] = useState<ChatMode>("companion");
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
 
+  // Update greeting when realName becomes available
+  useEffect(() => {
+    if (realName && messages.length === 1 && messages[0].role === "assistant") {
+      setMessages([{ role: "assistant", content: getProactiveGreeting(realName) }]);
+    }
+  }, [realName]);
+
   const showMemoryChoice = !memLoading && !!userId && memoryEnabled === null;
 
   const handleMemoryChoice = useCallback(async (enabled: boolean) => {
