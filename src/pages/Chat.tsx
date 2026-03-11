@@ -147,7 +147,7 @@ function getProactiveGreeting(): string {
 }
 
 const Chat = () => {
-  const { userId, memoryEnabled, memories, loading: memLoading, setPreference, refetchMemories } = useAIMemory();
+  const { userId, memoryEnabled, memories, realName, loading: memLoading, setPreference, refetchMemories } = useAIMemory();
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: "assistant", content: getProactiveGreeting() },
