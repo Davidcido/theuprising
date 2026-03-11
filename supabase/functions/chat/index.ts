@@ -18,9 +18,12 @@ function detectCrisis(text: string): boolean {
 }
 
 function buildMemoryExtractionPrompt(userMessage: string): string {
-  return `Analyze this user message and extract any personally meaningful information worth remembering for future conversations.
+  return `Analyze this user message and extract TWO types of data:
 
-Categories and importance scores (1-10):
+1. MEMORIES — personally meaningful information worth remembering.
+2. LIFE EVENTS — significant happenings, milestones, or changes in the user's life.
+
+MEMORY Categories and importance scores (1-10):
 - identity (10): Real name, age, gender, location, nationality
 - goals (8): Aspirations, career plans, dreams
 - relationships (7): Friends, family, partners, social dynamics
@@ -30,16 +33,23 @@ Categories and importance scores (1-10):
 - personal (6): Daily life details, routines, habits
 - general (3): Other noteworthy info
 
-CRITICAL: If the user reveals their real name (e.g. "my name is Daniel", "I'm called Sarah", "call me Mike"), ALWAYS extract it as:
-{"text": "User's real name is [NAME]", "category": "identity", "importance": 10, "real_name": "[NAME]"}
+LIFE EVENT Categories: career, relationships, personal_growth, achievements, challenges, hobbies, education, major_life_changes
 
-Return ONLY valid JSON array. If nothing worth remembering, return [].
+CRITICAL: If the user reveals their real name, ALWAYS extract it as a memory with importance 10 and include "real_name" field.
+
+Return ONLY valid JSON with this structure:
+{"memories": [...], "life_events": [...]}
+
+Memory format: {"text": "...", "category": "...", "importance": N, "real_name": "..." (optional)}
+Life event format: {"text": "...", "category": "...", "importance": N, "date": "..." (optional, if mentioned)}
+
+If nothing worth extracting, return {"memories": [], "life_events": []}
 
 Examples:
-- "My name is Daniel" → [{"text":"User's real name is Daniel","category":"identity","importance":10,"real_name":"Daniel"}]
-- "I'm serving NYSC in Kaduna" → [{"text":"User is serving NYSC in Kaduna","category":"life_events","importance":7}]
-- "I love coding and want to become a software engineer" → [{"text":"User loves coding and aspires to be a software engineer","category":"goals","importance":8}]
-- "I'm fine" → []
+- "My name is Daniel" → {"memories":[{"text":"User's real name is Daniel","category":"identity","importance":10,"real_name":"Daniel"}],"life_events":[]}
+- "I started a new job last week" → {"memories":[{"text":"User started a new job","category":"life_events","importance":7}],"life_events":[{"text":"Started a new job","category":"career","importance":7}]}
+- "I just moved to Lagos" → {"memories":[{"text":"User moved to Lagos","category":"life_events","importance":8}],"life_events":[{"text":"Moved to Lagos","category":"major_life_changes","importance":8}]}
+- "I'm fine" → {"memories":[],"life_events":[]}
 
 User message: "${userMessage.replace(/"/g, '\\"')}"
 
