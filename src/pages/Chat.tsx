@@ -225,9 +225,14 @@ const Chat = () => {
     }
   }, [location.state]);
 
+  // When companion changes, reset greeting flag but DON'T clear messages yet —
+  // wait for history to load to avoid a flash of empty UI.
+  const prevPersonaIdRef = useRef(persona.id);
   useEffect(() => {
-    setGreetingSet(false);
-    setMessages([]);
+    if (prevPersonaIdRef.current !== persona.id) {
+      prevPersonaIdRef.current = persona.id;
+      setGreetingSet(false);
+    }
   }, [persona.id]);
 
   // Load saved messages or show greeting once auth/history are ready
