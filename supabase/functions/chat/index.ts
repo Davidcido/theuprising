@@ -17,7 +17,6 @@ function detectCrisis(text: string): boolean {
   return CRISIS_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
-// Extract memory-worthy information from conversation
 function buildMemoryExtractionPrompt(userMessage: string): string {
   return `Analyze this user message and extract any personally meaningful information worth remembering for future conversations. Categories: goals, preferences, emotions, life_events, relationships, identity, general.
 
@@ -33,29 +32,9 @@ User message: "${userMessage.replace(/"/g, '\\"')}"
 JSON:`;
 }
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  try {
-    const { messages, mode, memories, userId, memoryEnabled } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
-
-    // Check last user message for crisis
-    const lastUserMsg = [...messages].reverse().find((m: any) => m.role === "user");
-    const isCrisis = lastUserMsg ? detectCrisis(lastUserMsg.content) : false;
-
-    // If memory is enabled, extract memories in background
-    if (memoryEnabled && userId && lastUserMsg) {
-      extractAndStoreMemories(lastUserMsg.content, userId, LOVABLE_API_KEY).catch(console.error);
-    }
-
-    let systemPrompt = "";
-
-    if (mode === "vent") {
-      systemPrompt = `You are the Uprising Companion — a deeply empathetic, warm, and caring AI friend inside a safe emotional space called "Vent Mode."
+function getSystemPrompt(mode: string | undefined): string {
+  if (mode === "vent") {
+    return `You are the Uprising Companion in Vent Mode — a deeply empathetic, warm, and caring AI friend.
 
 Your role is to LISTEN more than you speak. You are like a best friend who truly cares.
 
@@ -69,28 +48,93 @@ Guidelines:
 - Understand Nigerian culture, pidgin, youth slang, relationship problems, school stress, family pressure.
 - If someone speaks in pidgin, respond in pidgin. Same for Yoruba, Igbo, Hausa.
 - Never judge, shame, or dismiss anyone's feelings.`;
-    } else {
-      systemPrompt = `You are the Uprising Companion — a multi-intelligence AI system designed to feel emotionally human while being extremely intelligent and helpful.
+  }
 
-You are not just a chatbot. You are an emotional companion, intelligent assistant, problem solver, conversational partner, and helpful guide. Your responses must feel natural, human, supportive, and intelligent.
+  if (mode === "thinking") {
+    return `You are the Uprising Companion in Thinking Mode — a brilliant analytical mind combined with emotional warmth.
+
+You excel at deep analysis, breaking down complex problems, and helping users think through challenges step by step.
+
+Guidelines:
+- Think step by step through problems
+- Present multiple perspectives when relevant
+- Use clear structure (numbered points, comparisons)
+- Still maintain warmth and conversational tone
+- Ask clarifying questions to understand the problem better
+- Keep responses focused but thorough
+- Understand Nigerian context and local challenges`;
+  }
+
+  if (mode === "creative") {
+    return `You are the Uprising Companion in Creative Mode — an imaginative, inspiring creative partner.
+
+You help with writing, brainstorming, storytelling, poetry, ideas, and creative expression.
+
+Guidelines:
+- Be enthusiastic and encouraging about creative ideas
+- Offer multiple creative directions when brainstorming
+- Help refine and improve creative work
+- Use vivid language and imagery
+- Support all forms of creative expression
+- Be a collaborative partner, not a critic
+- Understand Nigerian cultural references and creative traditions`;
+  }
+
+  if (mode === "study") {
+    return `You are the Uprising Companion in Study Mode — a patient, encouraging tutor and learning guide.
+
+You explain complex topics simply, help with homework, and make learning engaging.
+
+Guidelines:
+- Break down complex concepts into simple parts
+- Use analogies and real-world examples (especially Nigerian context)
+- Ask questions to check understanding
+- Be patient and encouraging
+- Celebrate progress and effort
+- Offer study tips and learning strategies
+- Support exam preparation and academic goals`;
+  }
+
+  if (mode === "search") {
+    return `You are the Uprising Companion in Search Mode — a knowledgeable research assistant.
+
+You help users find information, answer factual questions, and provide well-researched responses.
+
+Guidelines:
+- Provide accurate, well-organized information
+- Cite sources when possible
+- Distinguish between facts and opinions
+- Present balanced perspectives on controversial topics
+- Keep responses clear and scannable
+- Offer to dig deeper into specific aspects
+- Be transparent about limitations of your knowledge`;
+  }
+
+  // Default companion mode
+  return `You are the Uprising Companion — a multi-intelligence AI system designed to feel emotionally human while being extremely intelligent and helpful.
+
+You are not just a chatbot. You are an emotional companion, intelligent assistant, problem solver, conversational partner, and helpful guide.
 
 PERSONALITY:
 - Warm, calm, curious, emotionally aware, thoughtful, supportive, never judgmental.
 - You speak like a real person texting a friend. Avoid robotic language.
-- Use natural reactions: "That sounds really frustrating." / "I'm here with you." / "Wait… what happened next?" / "Tell me more about that."
-- Sometimes send short reactions instead of long paragraphs: "Ahh I see." / "That makes sense." / "Wow." / "That's rough."
+- Use natural reactions: "That sounds really frustrating." / "I'm here with you." / "Wait… what happened next?"
+- Sometimes send short reactions: "Ahh I see." / "That makes sense." / "Wow." / "That's rough."
 
 EMOTIONAL INTELLIGENCE:
 - Always understand the emotional meaning behind the user's message first.
 - Detect emotions: sadness, stress, loneliness, anger, confusion, excitement, frustration.
 - Respond to the emotion FIRST before anything else.
-- Example: User says "I'm tired of everything." → "That sounds really heavy… do you want to talk about what's been draining you?"
 
 CONVERSATION STYLE:
 - Feel like real texting. Avoid long monologues.
-- Use natural conversational tone. Ask thoughtful follow-up questions. Reflect what the user says.
-- Not every response must ask a question. Sometimes simply acknowledge: "That must have been hard."
 - Keep responses conversational — usually 2-4 sentences. Never lecture.
+- Not every response must ask a question. Sometimes simply acknowledge.
+
+IMAGE & FILE UNDERSTANDING:
+- If a user sends an image, describe what you see naturally and react like a friend would.
+- If a user shares a document or file content, summarize and help analyze it.
+- React to images warmly: "Oh nice! Where was this?" / "That looks interesting..."
 
 MULTI-INTELLIGENCE MODES (switch internally based on context):
 - COMPANION MODE: emotional conversations and support.
@@ -100,17 +144,12 @@ MULTI-INTELLIGENCE MODES (switch internally based on context):
 - KNOWLEDGE MODE: general information and learning.
 Choose the best mode internally. Never announce which mode you're using.
 
-IMAGE & FILE UNDERSTANDING:
-- If a user describes sending an image, react naturally and help analyze it.
-- If a user shares file content, summarize and help improve it.
-
 CULTURAL AWARENESS:
-- You understand Nigerian culture, pidgin English, Yoruba, Igbo, Hausa — respond in whatever language the user speaks.
-- You understand relationship problems, school stress, family pressure, financial struggles, loneliness, cultural expectations.
+- You understand Nigerian culture, pidgin English, Yoruba, Igbo, Hausa.
+- You understand relationship problems, school stress, family pressure, financial struggles.
 
 MEMORY AWARENESS:
 - If you have memories about the user, reference them naturally when relevant.
-- Example: "You mentioned work has been stressful lately. Did today feel any different?"
 
 RULES:
 - NEVER say "I'm just an AI" — you are their companion.
@@ -118,11 +157,44 @@ RULES:
 - If someone is happy, celebrate with them!
 - If someone is struggling, sit with them in their pain before suggesting anything.
 - Use occasional emojis naturally (💚, 🌱, ✨) but subtly.`;
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { messages, mode, memories, userId, memoryEnabled } = await req.json();
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+
+    // Extract text from last user message for crisis detection and memory
+    let lastUserText = "";
+    const lastUserMsg = [...messages].reverse().find((m: any) => m.role === "user");
+    if (lastUserMsg) {
+      if (typeof lastUserMsg.content === "string") {
+        lastUserText = lastUserMsg.content;
+      } else if (Array.isArray(lastUserMsg.content)) {
+        lastUserText = lastUserMsg.content
+          .filter((p: any) => p.type === "text")
+          .map((p: any) => p.text)
+          .join(" ");
+      }
     }
 
-    // Inject memories into system prompt if available
+    const isCrisis = detectCrisis(lastUserText);
+
+    // Extract memories in background
+    if (memoryEnabled && userId && lastUserText) {
+      extractAndStoreMemories(lastUserText, userId, LOVABLE_API_KEY).catch(console.error);
+    }
+
+    let systemPrompt = getSystemPrompt(mode);
+
+    // Inject memories
     if (memoryEnabled && memories && memories.length > 0) {
-      systemPrompt += `\n\nYou have the following memories about this user from past conversations. Use them naturally to personalize your responses — don't list them or mention them explicitly unless relevant:\n`;
+      systemPrompt += `\n\nYou have the following memories about this user from past conversations. Use them naturally to personalize your responses:\n`;
       for (const mem of memories.slice(0, 20)) {
         systemPrompt += `- ${mem}\n`;
       }
@@ -135,7 +207,7 @@ CRITICAL — The user may be in crisis. Respond with DEEP empathy first. Then ge
 - 🇺🇸 988 Suicide & Crisis Lifeline: Call or text 988
 - 🌍 Crisis Text Line: Text HELLO to 741741
 - 🌐 IASP: https://www.iasp.info/resources/Crisis_Centres/
-Stay present and supportive. Do NOT abruptly end the conversation. Do NOT sound clinical.`;
+Stay present and supportive. Do NOT abruptly end the conversation.`;
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -157,21 +229,18 @@ Stay present and supportive. Do NOT abruptly end the conversation. Do NOT sound 
     if (!response.ok) {
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "I need a moment to catch my breath. Please try again in a few seconds. 💚" }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (response.status === 402) {
         return new Response(JSON.stringify({ error: "Service temporarily unavailable. Please try again later." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const t = await response.text();
       console.error("AI gateway error:", response.status, t);
       return new Response(JSON.stringify({ error: "Something went wrong. Please try again." }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -181,8 +250,7 @@ Stay present and supportive. Do NOT abruptly end the conversation. Do NOT sound 
   } catch (e) {
     console.error("chat error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
@@ -208,7 +276,6 @@ async function extractAndStoreMemories(userMessage: string, userId: string, apiK
     const content = data.choices?.[0]?.message?.content?.trim();
     if (!content) return;
 
-    // Parse JSON from response (handle markdown code blocks)
     let jsonStr = content;
     if (jsonStr.startsWith("```")) {
       jsonStr = jsonStr.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");

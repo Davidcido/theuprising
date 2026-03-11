@@ -1,19 +1,39 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { motion } from "framer-motion";
-import { Send, Brain } from "lucide-react";
-import EmojiPicker from "@/components/EmojiPicker";
-import ReactMarkdown from "react-markdown";
+import { useState, useCallback, useEffect } from "react";
+import { Brain } from "lucide-react";
 import { toast } from "sonner";
 import uprisingLogo from "@/assets/uprising-logo.jpeg";
-import MemoryChoicePrompt from "@/components/chat/MemoryChoicePrompt";
+import ChatInput from "@/components/chat/ChatInput";
+import ChatMessages, { type ChatMessage } from "@/components/chat/ChatMessages";
+import { type ChatMode } from "@/components/chat/FeatureMenu";
+import { type ChatAttachment } from "@/components/chat/FilePreview";
 import { useAIMemory } from "@/hooks/useAIMemory";
 
-type Message = {
-  role: "user" | "assistant";
-  content: string;
-};
-
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+
+// Convert file to base64
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Read text file content
+function readTextFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsText(file);
+  });
+}
+
+type APIMessage = {
+  role: "user" | "assistant";
+  content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+};
 
 async function streamChat({
   messages,
@@ -24,7 +44,7 @@ async function streamChat({
   onDelta,
   onDone,
 }: {
-  messages: Message[];
+  messages: APIMessage[];
   mode?: string;
   memories?: string[];
   userId?: string | null;
@@ -68,10 +88,7 @@ async function streamChat({
       if (!line.startsWith("data: ")) continue;
 
       const jsonStr = line.slice(6).trim();
-      if (jsonStr === "[DONE]") {
-        streamDone = true;
-        break;
-      }
+      if (jsonStr === "[DONE]") { streamDone = true; break; }
 
       try {
         const parsed = JSON.parse(jsonStr);
@@ -103,28 +120,44 @@ async function streamChat({
   onDone();
 }
 
+// Proactive greetings for returning users
+const PROACTIVE_GREETINGS = [
+  "Hey, welcome back 💚 How have you been?",
+  "Hi again 🙂 I was thinking about you. How are you doing today?",
+  "Hey there 💚 Good to see you! What's been on your mind?",
+  "Welcome back! How's your day going so far?",
+  "Hey! 🌱 I'm here whenever you want to talk. How are you feeling?",
+];
+
+const LAST_VISIT_KEY = "uprising_last_chat_visit";
+
+function getProactiveGreeting(): string {
+  const lastVisit = localStorage.getItem(LAST_VISIT_KEY);
+  const now = Date.now();
+  localStorage.setItem(LAST_VISIT_KEY, String(now));
+
+  if (lastVisit) {
+    const hoursAway = (now - Number(lastVisit)) / (1000 * 60 * 60);
+    if (hoursAway > 4) {
+      return PROACTIVE_GREETINGS[Math.floor(Math.random() * PROACTIVE_GREETINGS.length)];
+    }
+  }
+
+  return "Hey there 💚 I'm your Uprising Companion. This is a safe space — no judgment, just support. How are you feeling right now?";
+}
+
 const Chat = () => {
   const { userId, memoryEnabled, memories, loading: memLoading, setPreference, refetchMemories } = useAIMemory();
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content:
-        "Hey there 💚 I'm your Uprising Companion. This is a safe space — no judgment, just support. How are you feeling right now?",
-    },
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    { role: "assistant", content: getProactiveGreeting() },
   ]);
   const [input, setInput] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
   const [isTyping, setIsTyping] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [mode, setMode] = useState<ChatMode>("companion");
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
 
-  // Show memory choice for logged-in users who haven't chosen yet
-  // IMPORTANT: Don't disable input - users can chat while prompt is visible
-  const showMemoryChoice = !memLoading && userId && memoryEnabled === null;
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
+  const showMemoryChoice = !memLoading && !!userId && memoryEnabled === null;
 
   const handleMemoryChoice = useCallback(async (enabled: boolean) => {
     try {
@@ -137,34 +170,71 @@ const Chat = () => {
   }, [setPreference]);
 
   const handleSend = useCallback(async () => {
-    if (!input.trim() || isTyping) return;
-    const userMsg: Message = { role: "user", content: input.trim() };
+    if ((!input.trim() && attachments.length === 0) || isTyping) return;
+
+    // Build user message for display
+    const userMsg: ChatMessage = {
+      role: "user",
+      content: input.trim(),
+      attachments: attachments.map(a => ({
+        type: a.type,
+        name: a.file.name,
+        preview: a.preview,
+      })),
+    };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
+    const currentInput = input.trim();
+    const currentAttachments = [...attachments];
     setInput("");
+    setAttachments([]);
     setIsTyping(true);
 
     let assistantSoFar = "";
 
-    const upsertAssistant = (nextChunk: string) => {
-      assistantSoFar += nextChunk;
-      setMessages((prev) => {
-        const last = prev[prev.length - 1];
-        if (last?.role === "assistant" && prev.length > messages.length + 1) {
-          return prev.map((m, i) =>
-            i === prev.length - 1 ? { ...m, content: assistantSoFar } : m
-          );
-        }
-        return [...prev.slice(0, -1), { role: "assistant" as const, content: assistantSoFar }];
-      });
-    };
-
     try {
-      const contextMessages = newMessages.slice(-20);
+      // Build API messages with multimodal content
+      const apiMessages: APIMessage[] = [];
+      
+      for (const msg of newMessages.slice(-20)) {
+        if (msg.role === "assistant") {
+          apiMessages.push({ role: "assistant", content: msg.content });
+        } else if (msg === userMsg && currentAttachments.length > 0) {
+          // Build multimodal content for the current message
+          const contentParts: Array<{ type: string; text?: string; image_url?: { url: string } }> = [];
+          
+          for (const att of currentAttachments) {
+            if (att.type === "image") {
+              const base64 = att.preview || await fileToBase64(att.file);
+              contentParts.push({ type: "image_url", image_url: { url: base64 } });
+            } else {
+              // Text/document files - read and include as text
+              try {
+                const textContent = await readTextFile(att.file);
+                contentParts.push({ type: "text", text: `[File: ${att.file.name}]\n${textContent}` });
+              } catch {
+                contentParts.push({ type: "text", text: `[File: ${att.file.name} - could not read]` });
+              }
+            }
+          }
+          
+          if (currentInput) {
+            contentParts.push({ type: "text", text: currentInput });
+          } else if (contentParts.every(p => p.type === "image_url")) {
+            contentParts.push({ type: "text", text: "What do you see in this image?" });
+          }
+          
+          apiMessages.push({ role: "user", content: contentParts });
+        } else {
+          apiMessages.push({ role: "user", content: msg.content });
+        }
+      }
+
       const memoryTexts = memoryEnabled ? memories.map((m) => m.memory_text) : undefined;
 
       await streamChat({
-        messages: contextMessages,
+        messages: apiMessages,
+        mode,
         memories: memoryTexts,
         userId,
         memoryEnabled: memoryEnabled === true,
@@ -173,7 +243,12 @@ const Chat = () => {
             setMessages((prev) => [...prev, { role: "assistant", content: chunk }]);
             assistantSoFar = chunk;
           } else {
-            upsertAssistant(chunk);
+            assistantSoFar += chunk;
+            setMessages((prev) => {
+              return prev.map((m, i) =>
+                i === prev.length - 1 ? { ...m, content: assistantSoFar } : m
+              );
+            });
           }
         },
         onDone: () => {
@@ -186,7 +261,7 @@ const Chat = () => {
       setIsTyping(false);
       toast.error(e.message || "Something went wrong. Please try again.");
     }
-  }, [input, isTyping, messages, memoryEnabled, memories, userId, refetchMemories]);
+  }, [input, isTyping, messages, memoryEnabled, memories, userId, refetchMemories, mode, attachments]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
@@ -205,56 +280,19 @@ const Chat = () => {
           {memoryEnabled && (
             <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/20 border border-primary/30">
               <Brain className="w-3 h-3 text-primary" />
-              <span className="text-xs text-primary font-medium">Memory Enabled</span>
+              <span className="text-xs text-primary font-medium">Memory</span>
             </div>
           )}
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="container mx-auto max-w-2xl space-y-4">
-          {messages.map((msg, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              <div
-                className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed backdrop-blur-md ${
-                  msg.role === "user"
-                    ? "bg-white/15 text-foreground border border-white/20 rounded-br-md"
-                    : "bg-white/10 text-foreground/90 border border-white/10 rounded-bl-md"
-                }`}
-              >
-                {msg.role === "assistant" ? (
-                  <div className="prose prose-sm prose-invert max-w-none">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
-                  </div>
-                ) : (
-                  msg.content
-                )}
-              </div>
-            </motion.div>
-          ))}
-
-          {/* Memory choice prompt - shown inline but does NOT block input */}
-          {showMemoryChoice && (
-            <MemoryChoicePrompt onChoose={handleMemoryChoice} />
-          )}
-
-          {isTyping && messages[messages.length - 1]?.role !== "assistant" && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
-              <div className="bg-white/10 backdrop-blur-md rounded-2xl rounded-bl-md px-4 py-3 text-sm text-muted-foreground border border-white/10">
-                <span className="animate-pulse">typing...</span>
-              </div>
-            </motion.div>
-          )}
-
-          <div ref={bottomRef} />
-        </div>
-      </div>
+      <ChatMessages
+        messages={messages}
+        isTyping={isTyping}
+        showMemoryChoice={showMemoryChoice}
+        onMemoryChoice={handleMemoryChoice}
+      />
 
       {/* Privacy notice */}
       <div className="px-4 py-1">
@@ -265,40 +303,17 @@ const Chat = () => {
         </p>
       </div>
 
-      {/* Input - NEVER disabled by memory choice */}
-      <div className="px-4 py-4 backdrop-blur-xl border-t border-white/10"
-        style={{ background: "rgba(15, 81, 50, 0.4)" }}
-      >
-        <div className="container mx-auto max-w-2xl">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSend();
-            }}
-            className="flex items-center gap-2"
-          >
-            <EmojiPicker onSelect={(emoji) => {
-              setInput((prev) => prev + emoji);
-              inputRef.current?.focus();
-            }} />
-            <input
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Share what's on your mind..."
-              className="flex-1 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-white/30"
-            />
-            <button
-              type="submit"
-              disabled={!input.trim() || isTyping}
-              className="rounded-2xl px-4 py-3 text-white hover:opacity-90 transition-opacity disabled:opacity-40 shadow-lg"
-              style={{ background: "linear-gradient(135deg, #2E8B57, #0F5132)" }}
-            >
-              <Send className="w-5 h-5" />
-            </button>
-          </form>
-        </div>
-      </div>
+      {/* Input */}
+      <ChatInput
+        input={input}
+        setInput={setInput}
+        isTyping={isTyping}
+        onSend={handleSend}
+        mode={mode}
+        onModeChange={setMode}
+        attachments={attachments}
+        onAttachmentsChange={setAttachments}
+      />
     </div>
   );
 };
