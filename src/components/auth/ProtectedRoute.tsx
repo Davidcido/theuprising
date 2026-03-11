@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AuthModal from "@/components/auth/AuthModal";
@@ -11,6 +12,30 @@ interface ProtectedRouteProps {
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const { user, isReady } = useAuthReady();
   const [authOpen, setAuthOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // When auth state becomes ready and user is not logged in, auto-open auth modal
+  useEffect(() => {
+    if (isReady && !user) {
+      setAuthOpen(true);
+    }
+  }, [isReady, user]);
+
+  // After successful login, close modal (user state will update via AuthProvider)
+  useEffect(() => {
+    if (user && authOpen) {
+      setAuthOpen(false);
+    }
+  }, [user, authOpen]);
+
+  // If user closes auth modal without logging in, redirect to home
+  const handleAuthClose = (open: boolean) => {
+    setAuthOpen(open);
+    if (!open && !user) {
+      navigate("/", { replace: true });
+    }
+  };
 
   if (!isReady) {
     return (
@@ -40,7 +65,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
             </Button>
           </div>
         </div>
-        <AuthModal open={authOpen} onOpenChange={setAuthOpen} />
+        <AuthModal open={authOpen} onOpenChange={handleAuthClose} />
       </>
     );
   }
