@@ -10,10 +10,20 @@ export type AIMemory = {
   created_at: string;
 };
 
+export type LifeEvent = {
+  id: string;
+  event_text: string;
+  event_category: string;
+  event_date?: string | null;
+  importance_score?: number | null;
+  created_at: string;
+};
+
 export function useAIMemory() {
   const [userId, setUserId] = useState<string | null>(null);
   const [memoryEnabled, setMemoryEnabled] = useState<boolean | null>(null);
   const [memories, setMemories] = useState<AIMemory[]>([]);
+  const [lifeEvents, setLifeEvents] = useState<LifeEvent[]>([]);
   const [realName, setRealName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -34,7 +44,6 @@ export function useAIMemory() {
     (async () => {
       setLoading(true);
       try {
-        // Fetch preference and real name in parallel
         const [prefResult, profileResult] = await Promise.all([
           supabase
             .from("ai_memory_preferences" as any)
@@ -75,21 +84,31 @@ export function useAIMemory() {
     return () => { cancelled = true; clearTimeout(timer); };
   }, [userId]);
 
-  // Fetch memories when enabled — ordered by importance
+  // Fetch memories and life events when enabled
   useEffect(() => {
-    if (!userId || memoryEnabled !== true) { setMemories([]); return; }
+    if (!userId || memoryEnabled !== true) { setMemories([]); setLifeEvents([]); return; }
     let cancelled = false;
-    supabase
-      .from("ai_memories" as any)
-      .select("*")
-      .eq("user_id", userId)
-      .order("importance_score", { ascending: false })
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) console.error("[AIMemory] Memories fetch error:", error);
-        if (data) setMemories(data as any);
-      });
+    Promise.all([
+      supabase
+        .from("ai_memories" as any)
+        .select("*")
+        .eq("user_id", userId)
+        .order("importance_score", { ascending: false })
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("life_events" as any)
+        .select("*")
+        .eq("user_id", userId)
+        .order("importance_score", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(30),
+    ]).then(([memResult, evtResult]) => {
+      if (cancelled) return;
+      if (memResult.error) console.error("[AIMemory] Memories fetch error:", memResult.error);
+      if (memResult.data) setMemories(memResult.data as any);
+      if (evtResult.error) console.error("[AIMemory] Life events fetch error:", evtResult.error);
+      if (evtResult.data) setLifeEvents(evtResult.data as any);
+    });
     return () => { cancelled = true; };
   }, [userId, memoryEnabled]);
 
@@ -112,11 +131,15 @@ export function useAIMemory() {
   const clearMemories = useCallback(async () => {
     if (!userId) return;
     try {
-      await supabase.from("ai_memories" as any).delete().eq("user_id", userId);
+      await Promise.all([
+        supabase.from("ai_memories" as any).delete().eq("user_id", userId),
+        supabase.from("life_events" as any).delete().eq("user_id", userId),
+      ]);
     } catch (e) {
       console.error("[AIMemory] clearMemories error:", e);
     }
     setMemories([]);
+    setLifeEvents([]);
   }, [userId]);
 
   const deleteMemory = useCallback(async (memoryId: string) => {
@@ -136,7 +159,7 @@ export function useAIMemory() {
   const refetchMemories = useCallback(async () => {
     if (!userId) return;
     try {
-      const [memResult, profileResult] = await Promise.all([
+      const [memResult, profileResult, evtResult] = await Promise.all([
         supabase
           .from("ai_memories" as any)
           .select("*")
@@ -148,9 +171,17 @@ export function useAIMemory() {
           .select("real_name" as any)
           .eq("user_id", userId)
           .maybeSingle(),
+        supabase
+          .from("life_events" as any)
+          .select("*")
+          .eq("user_id", userId)
+          .order("importance_score", { ascending: false })
+          .order("created_at", { ascending: false })
+          .limit(30),
       ]);
       if (memResult.data) setMemories(memResult.data as any);
       if (profileResult.data) setRealName((profileResult.data as any).real_name || null);
+      if (evtResult.data) setLifeEvents(evtResult.data as any);
     } catch (e) {
       console.error("[AIMemory] refetchMemories error:", e);
     }
@@ -160,6 +191,7 @@ export function useAIMemory() {
     userId,
     memoryEnabled,
     memories,
+    lifeEvents,
     realName,
     loading,
     setPreference,
