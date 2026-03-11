@@ -401,7 +401,7 @@ const Chat = () => {
     <div
       className="relative flex flex-col overflow-hidden"
       style={{
-        height: "calc(100dvh - 4rem)",
+        height: "calc(100dvh - 4rem - env(safe-area-inset-top, 0px))",
       }}
     >
       {/* Tree of Life Wallpaper */}
@@ -501,8 +501,8 @@ const Chat = () => {
         </div>
       )}
 
-      {/* Input - fixed at bottom */}
-      <div className="shrink-0 relative z-10">
+      {/* Input - fixed at bottom with safe area */}
+      <div className="shrink-0 relative z-10" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {/* Edit indicator */}
         {editingIndex !== null && (
           <div className="px-4 py-1.5 bg-primary/10 border-t border-primary/20 flex items-center justify-between">
