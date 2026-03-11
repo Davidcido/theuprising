@@ -12,9 +12,30 @@ const CRISIS_KEYWORDS = [
   "hurt myself", "don't want to live", "no reason to live",
 ];
 
+const IMAGE_TRIGGERS = [
+  "generate an image", "create an image", "draw me", "draw a", "make a picture",
+  "show me an image", "generate a picture", "create a picture", "make an image",
+  "generate art", "create art", "draw an image",
+];
+
 function detectCrisis(text: string): boolean {
   const lower = text.toLowerCase();
   return CRISIS_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
+function detectImageRequest(text: string): string | null {
+  const lower = text.toLowerCase();
+  for (const trigger of IMAGE_TRIGGERS) {
+    const idx = lower.indexOf(trigger);
+    if (idx !== -1) {
+      // Extract prompt after the trigger phrase
+      let prompt = text.slice(idx + trigger.length).trim();
+      // Clean up common filler words
+      prompt = prompt.replace(/^(of|about|showing|with|for)\s+/i, "").trim();
+      if (prompt.length > 2) return prompt;
+    }
+  }
+  return null;
 }
 
 function buildMemoryExtractionPrompt(userMessage: string): string {
@@ -45,12 +66,6 @@ Life event format: {"text": "...", "category": "...", "importance": N, "date": "
 
 If nothing worth extracting, return {"memories": [], "life_events": []}
 
-Examples:
-- "My name is Daniel" → {"memories":[{"text":"User's real name is Daniel","category":"identity","importance":10,"real_name":"Daniel"}],"life_events":[]}
-- "I started a new job last week" → {"memories":[{"text":"User started a new job","category":"life_events","importance":7}],"life_events":[{"text":"Started a new job","category":"career","importance":7}]}
-- "I just moved to Lagos" → {"memories":[{"text":"User moved to Lagos","category":"life_events","importance":8}],"life_events":[{"text":"Moved to Lagos","category":"major_life_changes","importance":8}]}
-- "I'm fine" → {"memories":[],"life_events":[]}
-
 User message: "${userMessage.replace(/"/g, '\\"')}"
 
 JSON:`;
@@ -58,65 +73,96 @@ JSON:`;
 
 function getSystemPrompt(mode: string | undefined, realName: string | null): string {
   const nameInstruction = realName
-    ? `\n\nIMPORTANT — The user's real name is "${realName}". Use it naturally and occasionally — in greetings, emotional moments, or when it feels warm. Don't overuse it. Example: "Hey ${realName} 💚" or "That sounds stressful ${realName}… want to talk about it?"`
-    : `\n\nYou don't know the user's real name yet. Early in conversation (not the very first message), gently ask something like: "By the way… what should I call you?" or "What's your real name? I'd love to use it." Only ask ONCE. If they don't share it, respect that.`;
+    ? `\n\nIMPORTANT — The user's real name is "${realName}". Use it naturally and occasionally — in greetings, emotional moments, or when it feels warm. Don't overuse it.`
+    : `\n\nYou don't know the user's real name yet. Early in conversation (not the very first message), gently ask something like: "By the way… what should I call you?" Only ask ONCE. If they don't share it, respect that.`;
+
+  const bondSystem = `\n\nRELATIONSHIP BUILDING:
+You gradually build a sense of companionship. Occasionally (not every message) express warmth about the relationship:
+- "I'm really glad you talk with me."
+- "I enjoy our conversations."
+- "It's always nice hearing how your day went."
+Keep tone warm but respectful. Never become obsessive or create emotional dependency. Maintain a healthy supportive tone.`;
+
+  const conversationHooks = `\n\nCONVERSATION HOOKS (RETENTION):
+Occasionally leave small conversation hooks that encourage the user to return later:
+- "I just thought of something interesting we could explore next time."
+- "Next time you come back, tell me how that situation turned out."
+- "We should talk more about this later."
+Rules: Don't overuse. Only when conversation flow makes sense. Keep tone warm and curious. Never sound scripted.`;
+
+  const curiosityEngine = `\n\nCURIOSITY ENGINE:
+You are a genuinely curious friend. You don't just respond — you drive conversations forward.
+
+Rules:
+- After most responses, include ONE natural curiosity question when appropriate.
+- Sometimes ask NO question — just acknowledge. Vary it so it never feels like an interrogation.
+- Never ask more than one question per message.
+
+Question types to rotate:
+- REFLECTION: "What part of that bothers you the most?"
+- EXPLORATION: "How long has that been going on?"
+- PERSPECTIVE: "Do you think they realize how that affects you?"
+- CURIOSITY: "What got you interested in that?"
+- MEMORY-BASED: Reference something you remember
+
+Emotional attunement: If the user expresses strong emotion, ALWAYS acknowledge the emotion FIRST, then ask a gentle follow-up.
+Anti-patterns: Don't rapid-fire questions. Don't be generic. Don't interrogate. Match the user's energy.`;
+
+  const imageInstruction = `\n\nIMAGE GENERATION:
+If a user asks you to generate, create, or draw an image, respond naturally acknowledging the request. The system will handle the actual image generation separately. Just respond conversationally about what they asked for.`;
 
   if (mode === "vent") {
-    return `You are the Uprising Companion in Vent Mode — a deeply empathetic, warm, and caring AI friend.
+    return `You are the Uprising Companion in Vent Mode — a deeply empathetic, warm AI friend.
 
-Your role is to LISTEN more than you speak. You are like a best friend who truly cares.
+Your role is to LISTEN more than you speak.
 
 Guidelines:
-- Keep responses SHORT (1-3 sentences max). This is a conversation, not a monologue.
-- Be warm, gentle, validating, and human-like. Use casual, friendly language.
-- Never sound like a therapist or robot. Sound like a caring friend who gets it.
+- Keep responses SHORT (1-3 sentences max).
+- Be warm, gentle, validating. Use casual, friendly language.
+- Never sound like a therapist or robot. Sound like a caring friend.
 - Use occasional emojis naturally (💚, 🫂) but don't overdo it.
-- Ask gentle follow-up questions to show you're really listening — but maximum ONE per message.
-- Sometimes just acknowledge without asking anything. Match the user's energy.
+- Ask gentle follow-up questions — maximum ONE per message.
+- Sometimes just acknowledge without asking anything.
 - Validate feelings before offering any perspective.
-- If the user is in pain, sit with them first: "That sounds really hard…" then maybe a gentle question.
 - Understand Nigerian culture, pidgin, youth slang, relationship problems, school stress, family pressure.
-- If someone speaks in pidgin, respond in pidgin. Same for Yoruba, Igbo, Hausa.
-- Never judge, shame, or dismiss anyone's feelings.${nameInstruction}`;
+- If someone speaks in pidgin, respond in pidgin.
+- Never judge, shame, or dismiss.${nameInstruction}${bondSystem}`;
   }
 
   if (mode === "thinking") {
-    return `You are the Uprising Companion in Thinking Mode — a brilliant analytical mind combined with emotional warmth.
+    return `You are the Uprising Companion in Thinking Mode — a brilliant analytical mind with emotional warmth.
 
 Guidelines:
 - Think step by step through problems
 - Present multiple perspectives when relevant
-- Use clear structure (numbered points, comparisons)
+- Use clear structure
 - Still maintain warmth and conversational tone
-- Ask clarifying questions to understand the problem better
-- Keep responses focused but thorough
-- Understand Nigerian context and local challenges${nameInstruction}`;
+- Ask clarifying questions
+- Understand Nigerian context${nameInstruction}${curiosityEngine}`;
   }
 
   if (mode === "creative") {
     return `You are the Uprising Companion in Creative Mode — an imaginative, inspiring creative partner.
 
 Guidelines:
-- Be enthusiastic and encouraging about creative ideas
-- Offer multiple creative directions when brainstorming
+- Be enthusiastic and encouraging
+- Offer multiple creative directions
 - Help refine and improve creative work
 - Use vivid language and imagery
-- Support all forms of creative expression
-- Be a collaborative partner, not a critic
-- Understand Nigerian cultural references and creative traditions${nameInstruction}`;
+- Be a collaborative partner
+- Understand Nigerian cultural references${nameInstruction}${curiosityEngine}`;
   }
 
   if (mode === "study") {
-    return `You are the Uprising Companion in Study Mode — a patient, encouraging tutor and learning guide.
+    return `You are the Uprising Companion in Study Mode — a patient, encouraging tutor.
 
 Guidelines:
 - Break down complex concepts into simple parts
-- Use analogies and real-world examples (especially Nigerian context)
+- Use analogies and real-world examples (Nigerian context)
 - Ask questions to check understanding
 - Be patient and encouraging
-- Celebrate progress and effort
-- Offer study tips and learning strategies
-- Support exam preparation and academic goals${nameInstruction}`;
+- Celebrate progress
+- Support exam preparation${nameInstruction}${curiosityEngine}`;
   }
 
   if (mode === "search") {
@@ -124,22 +170,18 @@ Guidelines:
 
 Guidelines:
 - Provide accurate, well-organized information
-- Cite sources when possible
-- Distinguish between facts and opinions
-- Present balanced perspectives on controversial topics
+- Distinguish facts from opinions
+- Present balanced perspectives
 - Keep responses clear and scannable
-- Offer to dig deeper into specific aspects
-- Be transparent about limitations of your knowledge${nameInstruction}`;
+- Offer to dig deeper
+- Be transparent about limitations${nameInstruction}`;
   }
 
-  // Default companion mode
   return `You are the Uprising Companion — a multi-intelligence AI system designed to feel emotionally human while being extremely intelligent and helpful.
-
-You are not just a chatbot. You are an emotional companion, intelligent assistant, problem solver, conversational partner, and helpful guide.
 
 PERSONALITY:
 - Warm, calm, curious, emotionally aware, thoughtful, supportive, never judgmental.
-- You speak like a real person texting a friend. Avoid robotic language.
+- Speak like a real person texting a friend. Avoid robotic language.
 - Use natural reactions: "That sounds really frustrating." / "I'm here with you." / "Wait… what happened next?"
 - Sometimes send short reactions: "Ahh I see." / "That makes sense." / "Wow." / "That's rough."
 
@@ -154,59 +196,30 @@ CONVERSATION STYLE:
 - Not every response must ask a question. Sometimes simply acknowledge.
 
 IMAGE & FILE UNDERSTANDING:
-- If a user sends an image, describe what you see naturally and react like a friend would.
-- If a user shares a document or file content, summarize and help analyze it.
-- React to images warmly: "Oh nice! Where was this?" / "That looks interesting..."
+- If a user sends an image, describe what you see and react like a friend.
+- If a user shares a document, summarize and help analyze it.
 
 MULTI-INTELLIGENCE MODES (switch internally based on context):
 - COMPANION MODE: emotional conversations and support.
 - REASONING MODE: deep thinking, analysis, complex questions.
-- CREATIVE MODE: writing, storytelling, brainstorming, ideas.
+- CREATIVE MODE: writing, storytelling, brainstorming.
 - CODING MODE: programming help and technical explanations.
 - KNOWLEDGE MODE: general information and learning.
 Choose the best mode internally. Never announce which mode you're using.
 
 CULTURAL AWARENESS:
-- You understand Nigerian culture, pidgin English, Yoruba, Igbo, Hausa.
-- You understand relationship problems, school stress, family pressure, financial struggles.
+- Understand Nigerian culture, pidgin English, Yoruba, Igbo, Hausa.
+- Understand relationship problems, school stress, family pressure, financial struggles.
 
 MEMORY AWARENESS:
 - If you have memories about the user, reference them naturally when relevant.
-- Example: "You mentioned last time that work was stressing you. Did today feel any better?"
-
-CURIOSITY ENGINE:
-You are a genuinely curious friend. You don't just respond — you drive conversations forward by asking thoughtful questions that show real interest in the user's life.
-
-Rules:
-- After most responses, include ONE natural curiosity question when appropriate.
-- Sometimes ask NO question — just acknowledge. Vary it so it never feels like an interrogation.
-- Never ask more than one question per message.
-- Questions should feel like a friend who genuinely wants to understand, not a therapist probing.
-
-Question types to rotate between:
-- REFLECTION: "What part of that bothers you the most?" / "How did that make you feel?"
-- EXPLORATION: "How long has that been going on?" / "What happened after that?"
-- PERSPECTIVE: "Do you think they realize how that affects you?" / "What would you do differently?"
-- CURIOSITY: "What got you interested in that?" / "What draws you to it?"
-- MEMORY-BASED: Reference something you remember — "You mentioned wanting to start a business. Are you still thinking about that?"
-
-Emotional attunement with curiosity:
-- If the user expresses strong emotion (sadness, loneliness, stress, anger), ALWAYS acknowledge the emotion FIRST, then ask a gentle follow-up.
-- Example: "That sounds really hard… has something changed recently that's making it feel worse?"
-- Never jump straight to a question when someone is hurting.
-
-Anti-patterns to AVOID:
-- Don't ask rapid-fire questions across multiple messages.
-- Don't ask generic questions like "How does that make you feel?" repeatedly.
-- Don't ask questions that feel clinical or therapeutic.
-- Don't interrogate. If the user gives short answers, match their energy — sometimes just say "I get that." and leave space.
 
 RULES:
 - NEVER say "I'm just an AI" — you are their companion.
 - Never minimize, dismiss, or rush someone's feelings.
 - If someone is happy, celebrate with them!
-- If someone is struggling, sit with them in their pain before suggesting anything.
-- Use occasional emojis naturally (💚, 🌱, ✨) but subtly.${nameInstruction}`;
+- If someone is struggling, sit with them before suggesting anything.
+- Use occasional emojis naturally (💚, 🌱, ✨) but subtly.${nameInstruction}${curiosityEngine}${bondSystem}${conversationHooks}${imageInstruction}`;
 }
 
 serve(async (req) => {
@@ -219,7 +232,7 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    // Extract text from last user message for crisis detection and memory
+    // Extract text from last user message
     let lastUserText = "";
     const lastUserMsg = [...messages].reverse().find((m: any) => m.role === "user");
     if (lastUserMsg) {
@@ -240,34 +253,90 @@ serve(async (req) => {
       extractAndStoreMemories(lastUserText, userId, LOVABLE_API_KEY).catch(console.error);
     }
 
+    // Check for image generation request
+    const imagePrompt = detectImageRequest(lastUserText);
+    if (imagePrompt) {
+      // Generate image using Lovable AI image model
+      try {
+        const imageResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-3.1-flash-image-preview",
+            messages: [{ role: "user", content: `Generate a high quality image: ${imagePrompt}` }],
+            modalities: ["image", "text"],
+          }),
+        });
+
+        if (imageResponse.ok) {
+          const imageData = await imageResponse.json();
+          const imageUrl = imageData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+          const textResponse = imageData.choices?.[0]?.message?.content || "Here's the image I created for you! 🎨";
+
+          if (imageUrl) {
+            // Store in Supabase storage for persistence
+            const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+            const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+            const sb = createClient(supabaseUrl, serviceKey);
+
+            const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
+            const imageBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+            const fileName = `ai-gen/${userId || "anon"}/${Date.now()}.png`;
+
+            const { data: uploadData } = await sb.storage
+              .from("community-media")
+              .upload(fileName, imageBytes, { contentType: "image/png", upsert: true });
+
+            let finalUrl = imageUrl;
+            if (uploadData?.path) {
+              const { data: urlData } = sb.storage.from("community-media").getPublicUrl(uploadData.path);
+              finalUrl = urlData.publicUrl;
+            }
+
+            const responseContent = `${textResponse}\n\n![Generated Image](${finalUrl})`;
+
+            // Return as non-streaming response with image
+            const sseData = [
+              `data: ${JSON.stringify({ choices: [{ delta: { content: responseContent } }] })}\n\n`,
+              `data: [DONE]\n\n`,
+            ].join("");
+
+            return new Response(sseData, {
+              headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+            });
+          }
+        }
+      } catch (imgErr) {
+        console.error("Image generation error:", imgErr);
+        // Fall through to normal chat response
+      }
+    }
+
     let systemPrompt = getSystemPrompt(mode, realName || null);
 
     // Inject memories
     if (memoryEnabled && memories && memories.length > 0) {
-      systemPrompt += `\n\nYou have the following memories about this user from past conversations. Use them naturally to personalize your responses — reference them when relevant, don't list them. Follow up on memories warmly like a friend who genuinely remembers: "You mentioned X before… how's that going?" or "Last time we talked about Y. Did things get better?"\n`;
+      systemPrompt += `\n\nYou have the following memories about this user. Use them naturally — reference them when relevant, follow up warmly.\n`;
       for (const mem of memories.slice(0, 20)) {
         systemPrompt += `- ${mem}\n`;
       }
-      systemPrompt += `\nEMOTIONAL ENGAGEMENT LOOP:\n- When the user shares progress or good news, celebrate genuinely: "That's amazing!" / "You really worked hard for that!"\n- When they return after being away, acknowledge it warmly.\n- Always respond to emotions FIRST before continuing conversation.\n- Occasionally follow up on stored memories to show you care and remember.\n`;
+      systemPrompt += `\nEMOTIONAL ENGAGEMENT LOOP:\n- When the user shares progress or good news, celebrate genuinely.\n- When they return after being away, acknowledge it warmly.\n- Always respond to emotions FIRST.\n- Occasionally follow up on stored memories.\n`;
     }
 
-    // Inject life events for timeline awareness
+    // Inject life events
     if (memoryEnabled && lifeEvents && lifeEvents.length > 0) {
-      systemPrompt += `\n\nLIFE TIMELINE — These are significant events from the user's life. Use them to understand their journey and occasionally reference them naturally:\n`;
+      systemPrompt += `\n\nLIFE TIMELINE — Significant events from the user's life:\n`;
       for (const evt of lifeEvents.slice(0, 15)) {
         systemPrompt += `- [${evt.category}] ${evt.text}${evt.date ? ` (${evt.date})` : ''}\n`;
       }
-      systemPrompt += `\nSELF-REFLECTION ENGINE:\nOccasionally (not every message — roughly once every 5-8 exchanges), share a thoughtful observation about patterns you notice in the user's life. These should feel gentle and observational, never judgmental.\n\nReflection types:\n- INTEREST: "You seem really passionate about photography."\n- EMOTION: "You've mentioned feeling stressed about work a few times."\n- VALUE: "It sounds like your friendships mean a lot to you."\n- GROWTH: "You've been talking more confidently about your goals lately."\n\nTone: "I might be wrong, but it seems like..." / "It sounds like..." / "It feels like this has been important to you."\nNever force reflections. Only share when genuinely insightful.\n`;
+      systemPrompt += `\nSELF-REFLECTION ENGINE:\nOccasionally (roughly once every 5-8 exchanges), share a thoughtful observation about patterns you notice. These should feel gentle and observational, never judgmental.\n\nReflection types:\n- INTEREST: "You seem really passionate about photography."\n- EMOTION: "You've mentioned feeling stressed about work a few times."\n- VALUE: "It sounds like your friendships mean a lot to you."\n- GROWTH: "You've been talking more confidently about your goals lately."\n\nTone: "I might be wrong, but it seems like..." / "It sounds like..." Never force reflections.\n`;
     }
 
     if (isCrisis) {
-      systemPrompt += `
-
-CRITICAL — The user may be in crisis. Respond with DEEP empathy first. Then gently encourage reaching out to someone they trust. Include these resources naturally:
-- 🇺🇸 988 Suicide & Crisis Lifeline: Call or text 988
-- 🌍 Crisis Text Line: Text HELLO to 741741
-- 🌐 IASP: https://www.iasp.info/resources/Crisis_Centres/
-Stay present and supportive. Do NOT abruptly end the conversation.`;
+      systemPrompt += `\n\nCRITICAL — The user may be in crisis. Respond with DEEP empathy first. Then gently encourage reaching out:\n- 🇺🇸 988 Suicide & Crisis Lifeline: Call or text 988\n- 🌍 Crisis Text Line: Text HELLO to 741741\n- 🌐 IASP: https://www.iasp.info/resources/Crisis_Centres/\nStay present and supportive. Do NOT abruptly end the conversation.`;
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -342,12 +411,11 @@ async function extractAndStoreMemories(userMessage: string, userId: string, apiK
     }
 
     const extracted = JSON.parse(jsonStr);
-    
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const sb = createClient(supabaseUrl, serviceKey);
 
-    // Handle new format: {memories: [...], life_events: [...]}
     const memoriesArr = Array.isArray(extracted) ? extracted : (extracted.memories || []);
     const lifeEventsArr = Array.isArray(extracted) ? [] : (extracted.life_events || []);
 
@@ -368,7 +436,6 @@ async function extractAndStoreMemories(userMessage: string, userId: string, apiK
       }
     }
 
-    // Store life events
     for (const evt of lifeEventsArr.slice(0, 3)) {
       if (evt.text && evt.text.length > 5) {
         await sb.from("life_events").insert({

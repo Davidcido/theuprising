@@ -10,7 +10,6 @@ import { useAIMemory } from "@/hooks/useAIMemory";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
-// Convert file to base64
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -20,7 +19,6 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-// Read text file content
 function readTextFile(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -36,15 +34,7 @@ type APIMessage = {
 };
 
 async function streamChat({
-  messages,
-  mode,
-  memories,
-  lifeEvents,
-  userId,
-  memoryEnabled,
-  realName,
-  onDelta,
-  onDone,
+  messages, mode, memories, lifeEvents, userId, memoryEnabled, realName, onDelta, onDone,
 }: {
   messages: APIMessage[];
   mode?: string;
@@ -86,14 +76,11 @@ async function streamChat({
     while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
       let line = textBuffer.slice(0, newlineIndex);
       textBuffer = textBuffer.slice(newlineIndex + 1);
-
       if (line.endsWith("\r")) line = line.slice(0, -1);
       if (line.startsWith(":") || line.trim() === "") continue;
       if (!line.startsWith("data: ")) continue;
-
       const jsonStr = line.slice(6).trim();
       if (jsonStr === "[DONE]") { streamDone = true; break; }
-
       try {
         const parsed = JSON.parse(jsonStr);
         const content = parsed.choices?.[0]?.delta?.content as string | undefined;
@@ -124,7 +111,6 @@ async function streamChat({
   onDone();
 }
 
-// Proactive greetings for returning users
 const PROACTIVE_GREETINGS_WITH_NAME = [
   "Hey NAME, welcome back 💚 How have you been?",
   "Hi NAME 🙂 I was thinking about you. How are you doing today?",
@@ -146,9 +132,7 @@ const DAILY_CHECKIN_KEY = "uprising_daily_checkin";
 
 function getMemoryFollowUp(memories: { memory_text: string; category: string; importance_score?: number | null }[]): string | null {
   if (!memories || memories.length === 0) return null;
-  const followable = memories.filter(m =>
-    m.category !== "identity" && (m.importance_score ?? 5) >= 6
-  );
+  const followable = memories.filter(m => m.category !== "identity" && (m.importance_score ?? 5) >= 6);
   if (followable.length === 0) return null;
   return followable[Math.floor(Math.random() * Math.min(3, followable.length))].memory_text;
 }
@@ -163,16 +147,11 @@ function getProactiveGreeting(name?: string | null, memories?: { memory_text: st
   if (lastVisit) {
     const hoursAway = (now - Number(lastVisit)) / (1000 * 60 * 60);
     if (hoursAway > 4) {
-      // Memory-based daily check-in (once per day)
       if (lastCheckin !== today && memories && memories.length > 0) {
         localStorage.setItem(DAILY_CHECKIN_KEY, today);
         const memText = getMemoryFollowUp(memories);
-        if (memText && name) {
-          return `Hey ${name} 💚 I was thinking about you. Last time you mentioned: "${memText}" — how's that going?`;
-        }
-        if (memText) {
-          return `Hey 💚 I remembered something from before: "${memText}" — how are things now?`;
-        }
+        if (memText && name) return `Hey ${name} 💚 I was thinking about you. Last time you mentioned: "${memText}" — how's that going?`;
+        if (memText) return `Hey 💚 I remembered something from before: "${memText}" — how are things now?`;
       }
       if (name) {
         const g = PROACTIVE_GREETINGS_WITH_NAME[Math.floor(Math.random() * PROACTIVE_GREETINGS_WITH_NAME.length)];
@@ -182,23 +161,20 @@ function getProactiveGreeting(name?: string | null, memories?: { memory_text: st
     }
   }
 
-  if (name) {
-    return `Hey ${name} 💚 I'm your Uprising Companion. This is a safe space — no judgment, just support. How are you feeling right now?`;
-  }
+  if (name) return `Hey ${name} 💚 I'm your Uprising Companion. This is a safe space — no judgment, just support. How are you feeling right now?`;
   return "Hey there 💚 I'm your Uprising Companion. This is a safe space — no judgment, just support. How are you feeling right now?";
 }
 
 const Chat = () => {
   const { userId, memoryEnabled, memories, lifeEvents, realName, loading: memLoading, setPreference, refetchMemories } = useAIMemory();
-
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [mode, setMode] = useState<ChatMode>("companion");
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [greetingSet, setGreetingSet] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
-  // Set greeting once memory/name data is loaded
   useEffect(() => {
     if (!memLoading && !greetingSet) {
       const greeting = getProactiveGreeting(realName, memoryEnabled ? memories : undefined);
@@ -219,46 +195,24 @@ const Chat = () => {
     }
   }, [setPreference]);
 
-  const handleSend = useCallback(async () => {
-    if ((!input.trim() && attachments.length === 0) || isTyping) return;
-
-    // Build user message for display
-    const userMsg: ChatMessage = {
-      role: "user",
-      content: input.trim(),
-      attachments: attachments.map(a => ({
-        type: a.type,
-        name: a.file.name,
-        preview: a.preview,
-      })),
-    };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
-    const currentInput = input.trim();
-    const currentAttachments = [...attachments];
-    setInput("");
-    setAttachments([]);
+  const sendMessage = useCallback(async (messageList: ChatMessage[], currentInput: string, currentAttachments: ChatAttachment[], editIndex?: number | null) => {
     setIsTyping(true);
-
     let assistantSoFar = "";
 
     try {
-      // Build API messages with multimodal content
       const apiMessages: APIMessage[] = [];
-      
-      for (const msg of newMessages.slice(-20)) {
+      const lastUserMsg = messageList[messageList.length - 1];
+
+      for (const msg of messageList.slice(-20)) {
         if (msg.role === "assistant") {
           apiMessages.push({ role: "assistant", content: msg.content });
-        } else if (msg === userMsg && currentAttachments.length > 0) {
-          // Build multimodal content for the current message
+        } else if (msg === lastUserMsg && currentAttachments.length > 0) {
           const contentParts: Array<{ type: string; text?: string; image_url?: { url: string } }> = [];
-          
           for (const att of currentAttachments) {
             if (att.type === "image") {
               const base64 = att.preview || await fileToBase64(att.file);
               contentParts.push({ type: "image_url", image_url: { url: base64 } });
             } else {
-              // Text/document files - read and include as text
               try {
                 const textContent = await readTextFile(att.file);
                 contentParts.push({ type: "text", text: `[File: ${att.file.name}]\n${textContent}` });
@@ -267,13 +221,8 @@ const Chat = () => {
               }
             }
           }
-          
-          if (currentInput) {
-            contentParts.push({ type: "text", text: currentInput });
-          } else if (contentParts.every(p => p.type === "image_url")) {
-            contentParts.push({ type: "text", text: "What do you see in this image?" });
-          }
-          
+          if (currentInput) contentParts.push({ type: "text", text: currentInput });
+          else if (contentParts.every(p => p.type === "image_url")) contentParts.push({ type: "text", text: "What do you see in this image?" });
           apiMessages.push({ role: "user", content: contentParts });
         } else {
           apiMessages.push({ role: "user", content: msg.content });
@@ -299,11 +248,7 @@ const Chat = () => {
             assistantSoFar = chunk;
           } else {
             assistantSoFar += chunk;
-            setMessages((prev) => {
-              return prev.map((m, i) =>
-                i === prev.length - 1 ? { ...m, content: assistantSoFar } : m
-              );
-            });
+            setMessages((prev) => prev.map((m, i) => i === prev.length - 1 ? { ...m, content: assistantSoFar } : m));
           }
         },
         onDone: () => {
@@ -316,20 +261,76 @@ const Chat = () => {
       setIsTyping(false);
       toast.error(e.message || "Something went wrong. Please try again.");
     }
-  }, [input, isTyping, messages, memoryEnabled, memories, userId, realName, refetchMemories, mode, attachments]);
+  }, [memoryEnabled, memories, lifeEvents, userId, realName, refetchMemories, mode]);
+
+  const handleSend = useCallback(async () => {
+    if ((!input.trim() && attachments.length === 0) || isTyping) return;
+
+    if (editingIndex !== null) {
+      // Edit mode: replace the user message and remove subsequent assistant response
+      const updatedMessages = [...messages];
+      updatedMessages[editingIndex] = {
+        ...updatedMessages[editingIndex],
+        content: input.trim(),
+        edited: true,
+      };
+      // Remove messages after the edited one
+      const trimmed = updatedMessages.slice(0, editingIndex + 1);
+      setMessages(trimmed);
+      const currentInput = input.trim();
+      setInput("");
+      setEditingIndex(null);
+      setAttachments([]);
+      await sendMessage(trimmed, currentInput, []);
+      return;
+    }
+
+    const userMsg: ChatMessage = {
+      role: "user",
+      content: input.trim(),
+      attachments: attachments.map(a => ({ type: a.type, name: a.file.name, preview: a.preview })),
+    };
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
+    const currentInput = input.trim();
+    const currentAttachments = [...attachments];
+    setInput("");
+    setAttachments([]);
+    await sendMessage(newMessages, currentInput, currentAttachments);
+  }, [input, isTyping, messages, editingIndex, attachments, sendMessage]);
+
+  const handleEditMessage = useCallback((index: number) => {
+    const msg = messages[index];
+    if (msg.role !== "user") return;
+    setInput(msg.content);
+    setEditingIndex(index);
+  }, [messages]);
+
+  const handleDeleteMessage = useCallback((index: number) => {
+    setMessages((prev) => {
+      const updated = [...prev];
+      // Delete user message and next assistant response if exists
+      if (index + 1 < updated.length && updated[index + 1]?.role === "assistant") {
+        updated.splice(index, 2);
+      } else {
+        updated.splice(index, 1);
+      }
+      return updated;
+    });
+  }, []);
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Header */}
-      <div className="px-4 py-3 backdrop-blur-xl border-b border-white/10"
-        style={{ background: "rgba(15, 81, 50, 0.4)" }}
-      >
+      <div className="px-4 py-3 backdrop-blur-xl border-b border-white/10" style={{ background: "rgba(15, 81, 50, 0.4)" }}>
         <div className="container mx-auto flex items-center gap-3">
           <img src={uprisingLogo} alt="Uprising" className="w-10 h-10 rounded-xl object-cover shadow-md" />
           <div>
             <h2 className="font-display font-semibold text-foreground">Uprising Companion</h2>
             <p className="text-xs text-muted-foreground">
-              {isTyping ? "typing..." : "Your safe space to talk"}
+              {isTyping ? (
+                <span className="text-primary animate-pulse">typing...</span>
+              ) : "Your safe space to talk"}
             </p>
           </div>
           {memoryEnabled && (
@@ -347,11 +348,23 @@ const Chat = () => {
         isTyping={isTyping}
         showMemoryChoice={showMemoryChoice}
         onMemoryChoice={handleMemoryChoice}
+        onEditMessage={handleEditMessage}
+        onDeleteMessage={handleDeleteMessage}
       />
+
+      {/* Edit indicator */}
+      {editingIndex !== null && (
+        <div className="px-4 py-1.5 bg-primary/10 border-t border-primary/20 flex items-center justify-between">
+          <span className="text-xs text-primary">Editing message...</span>
+          <button onClick={() => { setEditingIndex(null); setInput(""); }} className="text-xs text-muted-foreground hover:text-foreground">
+            Cancel
+          </button>
+        </div>
+      )}
 
       {/* Privacy notice */}
       <div className="px-4 py-1">
-        <p className="text-center text-xs text-muted-foreground/50">
+        <p className="text-center text-[10px] text-muted-foreground/40">
           {memoryEnabled
             ? "💚 Memory is on — I'll remember helpful details to support you better."
             : "🔒 Your conversation is private. No personal data is stored."}
