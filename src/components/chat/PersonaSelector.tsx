@@ -8,6 +8,7 @@ import { toast } from "sonner";
 export type PersonaConfig = {
   id: string;
   name: string;
+  meaning?: string;
   role: string;
   personality: string;
   conversation_style: string;
@@ -17,6 +18,7 @@ export type PersonaConfig = {
   avatar_url?: string | null;
   color: string;
   description: string;
+  greeting?: string;
   is_custom?: boolean;
 };
 
