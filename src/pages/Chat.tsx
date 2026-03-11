@@ -372,6 +372,7 @@ const Chat = () => {
       };
       const trimmed = updatedMessages.slice(0, editingIndex + 1);
       setMessages(trimmed);
+      setTimeout(() => persistMessages(trimmed), 0);
       const currentInput = input.trim();
       setInput("");
       setEditingIndex(null);
