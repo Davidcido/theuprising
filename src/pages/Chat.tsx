@@ -388,6 +388,7 @@ const Chat = () => {
     };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
+    setTimeout(() => persistMessages(newMessages), 0);
     const currentInput = input.trim();
     const currentAttachments = [...attachments];
     setInput("");
