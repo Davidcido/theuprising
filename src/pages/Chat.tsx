@@ -41,6 +41,7 @@ async function streamChat({
   memories,
   userId,
   memoryEnabled,
+  realName,
   onDelta,
   onDone,
 }: {
@@ -49,6 +50,7 @@ async function streamChat({
   memories?: string[];
   userId?: string | null;
   memoryEnabled?: boolean;
+  realName?: string | null;
   onDelta: (deltaText: string) => void;
   onDone: () => void;
 }) {
