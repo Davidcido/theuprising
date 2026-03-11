@@ -440,8 +440,8 @@ const Chat = () => {
         })}
       </div>
 
-      {/* Header */}
-      <div className="px-4 py-3 backdrop-blur-xl border-b border-white/10 relative z-10" style={{ background: "rgba(15, 81, 50, 0.6)" }}>
+      {/* Header - fixed, outside scroll */}
+      <div className="shrink-0 px-4 py-3 backdrop-blur-xl border-b border-white/10 relative z-10" style={{ background: "rgba(15, 81, 50, 0.6)" }}>
         <div className="container mx-auto flex items-center gap-3">
           {/* Avatar */}
           <div className="w-10 h-10 rounded-full overflow-hidden shadow-md ring-2 ring-offset-1 ring-offset-background" style={{ borderColor: `${persona.color}44` }}>
@@ -454,22 +454,23 @@ const Chat = () => {
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <button
-              type="button"
-              onClick={() => navigate("/companions")}
-              className="flex items-center gap-1 hover:opacity-80 transition-opacity"
-            >
-              <h2 className="font-display font-semibold text-foreground text-sm truncate">
-                {persona.avatar_emoji} {persona.name}
-              </h2>
-              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-            </button>
+            <h2 className="font-display font-semibold text-foreground text-sm truncate">
+              {persona.avatar_emoji} {persona.name}
+            </h2>
             <p className="text-xs text-muted-foreground">
               {isTyping ? (
                 <span className="text-primary animate-pulse">typing...</span>
               ) : persona.description}
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => navigate("/companions")}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent/60 border border-white/10 hover:bg-accent/80 transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-primary" />
+            <span className="text-xs text-primary font-medium">Switch</span>
+          </button>
           {memoryEnabled && (
             <div className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/20 border border-primary/30">
               <Brain className="w-3 h-3 text-primary" />
