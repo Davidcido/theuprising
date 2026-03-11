@@ -39,6 +39,7 @@ async function streamChat({
   messages,
   mode,
   memories,
+  lifeEvents,
   userId,
   memoryEnabled,
   realName,
@@ -48,6 +49,7 @@ async function streamChat({
   messages: APIMessage[];
   mode?: string;
   memories?: string[];
+  lifeEvents?: { text: string; category: string; date?: string | null }[];
   userId?: string | null;
   memoryEnabled?: boolean;
   realName?: string | null;
@@ -60,7 +62,7 @@ async function streamChat({
       "Content-Type": "application/json",
       Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
     },
-    body: JSON.stringify({ messages, mode, memories, userId, memoryEnabled, realName }),
+    body: JSON.stringify({ messages, mode, memories, lifeEvents, userId, memoryEnabled, realName }),
   });
 
   if (!resp.ok) {
@@ -187,7 +189,7 @@ function getProactiveGreeting(name?: string | null, memories?: { memory_text: st
 }
 
 const Chat = () => {
-  const { userId, memoryEnabled, memories, realName, loading: memLoading, setPreference, refetchMemories } = useAIMemory();
+  const { userId, memoryEnabled, memories, lifeEvents, realName, loading: memLoading, setPreference, refetchMemories } = useAIMemory();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -279,11 +281,15 @@ const Chat = () => {
       }
 
       const memoryTexts = memoryEnabled ? memories.map((m) => m.memory_text) : undefined;
+      const lifeEventTexts = memoryEnabled && lifeEvents.length > 0
+        ? lifeEvents.map((e) => ({ text: e.event_text, category: e.event_category, date: e.event_date }))
+        : undefined;
 
       await streamChat({
         messages: apiMessages,
         mode,
         memories: memoryTexts,
+        lifeEvents: lifeEventTexts,
         userId,
         memoryEnabled: memoryEnabled === true,
         realName,

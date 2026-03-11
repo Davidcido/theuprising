@@ -18,9 +18,12 @@ function detectCrisis(text: string): boolean {
 }
 
 function buildMemoryExtractionPrompt(userMessage: string): string {
-  return `Analyze this user message and extract any personally meaningful information worth remembering for future conversations.
+  return `Analyze this user message and extract TWO types of data:
 
-Categories and importance scores (1-10):
+1. MEMORIES — personally meaningful information worth remembering.
+2. LIFE EVENTS — significant happenings, milestones, or changes in the user's life.
+
+MEMORY Categories and importance scores (1-10):
 - identity (10): Real name, age, gender, location, nationality
 - goals (8): Aspirations, career plans, dreams
 - relationships (7): Friends, family, partners, social dynamics
@@ -30,16 +33,23 @@ Categories and importance scores (1-10):
 - personal (6): Daily life details, routines, habits
 - general (3): Other noteworthy info
 
-CRITICAL: If the user reveals their real name (e.g. "my name is Daniel", "I'm called Sarah", "call me Mike"), ALWAYS extract it as:
-{"text": "User's real name is [NAME]", "category": "identity", "importance": 10, "real_name": "[NAME]"}
+LIFE EVENT Categories: career, relationships, personal_growth, achievements, challenges, hobbies, education, major_life_changes
 
-Return ONLY valid JSON array. If nothing worth remembering, return [].
+CRITICAL: If the user reveals their real name, ALWAYS extract it as a memory with importance 10 and include "real_name" field.
+
+Return ONLY valid JSON with this structure:
+{"memories": [...], "life_events": [...]}
+
+Memory format: {"text": "...", "category": "...", "importance": N, "real_name": "..." (optional)}
+Life event format: {"text": "...", "category": "...", "importance": N, "date": "..." (optional, if mentioned)}
+
+If nothing worth extracting, return {"memories": [], "life_events": []}
 
 Examples:
-- "My name is Daniel" → [{"text":"User's real name is Daniel","category":"identity","importance":10,"real_name":"Daniel"}]
-- "I'm serving NYSC in Kaduna" → [{"text":"User is serving NYSC in Kaduna","category":"life_events","importance":7}]
-- "I love coding and want to become a software engineer" → [{"text":"User loves coding and aspires to be a software engineer","category":"goals","importance":8}]
-- "I'm fine" → []
+- "My name is Daniel" → {"memories":[{"text":"User's real name is Daniel","category":"identity","importance":10,"real_name":"Daniel"}],"life_events":[]}
+- "I started a new job last week" → {"memories":[{"text":"User started a new job","category":"life_events","importance":7}],"life_events":[{"text":"Started a new job","category":"career","importance":7}]}
+- "I just moved to Lagos" → {"memories":[{"text":"User moved to Lagos","category":"life_events","importance":8}],"life_events":[{"text":"Moved to Lagos","category":"major_life_changes","importance":8}]}
+- "I'm fine" → {"memories":[],"life_events":[]}
 
 User message: "${userMessage.replace(/"/g, '\\"')}"
 
@@ -205,7 +215,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, mode, memories, userId, memoryEnabled, realName } = await req.json();
+    const { messages, mode, memories, lifeEvents, userId, memoryEnabled, realName } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
@@ -239,6 +249,15 @@ serve(async (req) => {
         systemPrompt += `- ${mem}\n`;
       }
       systemPrompt += `\nEMOTIONAL ENGAGEMENT LOOP:\n- When the user shares progress or good news, celebrate genuinely: "That's amazing!" / "You really worked hard for that!"\n- When they return after being away, acknowledge it warmly.\n- Always respond to emotions FIRST before continuing conversation.\n- Occasionally follow up on stored memories to show you care and remember.\n`;
+    }
+
+    // Inject life events for timeline awareness
+    if (memoryEnabled && lifeEvents && lifeEvents.length > 0) {
+      systemPrompt += `\n\nLIFE TIMELINE — These are significant events from the user's life. Use them to understand their journey and occasionally reference them naturally:\n`;
+      for (const evt of lifeEvents.slice(0, 15)) {
+        systemPrompt += `- [${evt.category}] ${evt.text}${evt.date ? ` (${evt.date})` : ''}\n`;
+      }
+      systemPrompt += `\nSELF-REFLECTION ENGINE:\nOccasionally (not every message — roughly once every 5-8 exchanges), share a thoughtful observation about patterns you notice in the user's life. These should feel gentle and observational, never judgmental.\n\nReflection types:\n- INTEREST: "You seem really passionate about photography."\n- EMOTION: "You've mentioned feeling stressed about work a few times."\n- VALUE: "It sounds like your friendships mean a lot to you."\n- GROWTH: "You've been talking more confidently about your goals lately."\n\nTone: "I might be wrong, but it seems like..." / "It sounds like..." / "It feels like this has been important to you."\nNever force reflections. Only share when genuinely insightful.\n`;
     }
 
     if (isCrisis) {
@@ -323,15 +342,17 @@ async function extractAndStoreMemories(userMessage: string, userId: string, apiK
     }
 
     const extracted = JSON.parse(jsonStr);
-    if (!Array.isArray(extracted) || extracted.length === 0) return;
-
+    
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const sb = createClient(supabaseUrl, serviceKey);
 
-    for (const item of extracted.slice(0, 5)) {
+    // Handle new format: {memories: [...], life_events: [...]}
+    const memoriesArr = Array.isArray(extracted) ? extracted : (extracted.memories || []);
+    const lifeEventsArr = Array.isArray(extracted) ? [] : (extracted.life_events || []);
+
+    for (const item of memoriesArr.slice(0, 5)) {
       if (item.text && item.text.length > 5) {
-        // Store memory with type and importance
         await sb.from("ai_memories").insert({
           user_id: userId,
           memory_text: item.text,
@@ -340,11 +361,23 @@ async function extractAndStoreMemories(userMessage: string, userId: string, apiK
           importance_score: item.importance || 5,
         });
 
-        // If real name detected, store it on the profile
         if (item.real_name && item.category === "identity") {
           await sb.from("profiles").update({ real_name: item.real_name })
             .eq("user_id", userId);
         }
+      }
+    }
+
+    // Store life events
+    for (const evt of lifeEventsArr.slice(0, 3)) {
+      if (evt.text && evt.text.length > 5) {
+        await sb.from("life_events").insert({
+          user_id: userId,
+          event_text: evt.text,
+          event_category: evt.category || "general",
+          event_date: evt.date || null,
+          importance_score: evt.importance || 5,
+        });
       }
     }
   } catch (e) {
