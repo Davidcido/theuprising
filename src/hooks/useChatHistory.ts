@@ -2,19 +2,32 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChatMessage } from "@/components/chat/ChatMessages";
 
+function normalizeAttachments(value: unknown): ChatMessage["attachments"] {
+  if (!value) return undefined;
+  if (Array.isArray(value)) return value as ChatMessage["attachments"];
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as ChatMessage["attachments"];
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
 export function useChatHistory(userId: string | null | undefined, companionId: string) {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [savedMessages, setSavedMessages] = useState<ChatMessage[] | null>(null);
   const [loading, setLoading] = useState(true);
   const savingRef = useRef(false);
-  const lastSavedCountRef = useRef(0);
+  const lastSignatureRef = useRef("");
 
-  // Load or create conversation on mount / companion change
   useEffect(() => {
     if (!userId) {
       setLoading(false);
       setSavedMessages(null);
       setConversationId(null);
+      lastSignatureRef.current = "";
       return;
     }
 
@@ -24,115 +37,156 @@ export function useChatHistory(userId: string | null | undefined, companionId: s
       setLoading(true);
       setSavedMessages(null);
       setConversationId(null);
-      lastSavedCountRef.current = 0;
+      lastSignatureRef.current = "";
 
-      // Find existing conversation
-      const { data: existing } = await supabase
+      const { data: existing, error: existingError } = await supabase
         .from("ai_chat_conversations")
         .select("id")
         .eq("user_id", userId)
         .eq("companion_id", companionId)
         .maybeSingle();
 
+      if (existingError) {
+        console.error("[ChatHistory] Failed to load conversation:", existingError);
+        if (!cancelled) setLoading(false);
+        return;
+      }
+
       if (cancelled) return;
 
-      let convId: string;
+      let convId = existing?.id;
 
-      if (existing) {
-        convId = existing.id;
-      } else {
-        // Create new conversation
-        const { data: created, error } = await supabase
+      if (!convId) {
+        const { data: created, error: createError } = await supabase
           .from("ai_chat_conversations")
           .insert({ user_id: userId, companion_id: companionId } as any)
           .select("id")
           .single();
 
-        if (error || !created || cancelled) {
-          console.error("[ChatHistory] Failed to create conversation:", error);
-          setLoading(false);
+        if (createError || !created) {
+          console.error("[ChatHistory] Failed to create conversation:", createError);
+          if (!cancelled) setLoading(false);
           return;
         }
+
         convId = created.id;
       }
 
+      if (cancelled) return;
+
       setConversationId(convId);
 
-      // Fetch messages
-      const { data: msgs } = await supabase
+      const { data: msgs, error: messagesError } = await supabase
         .from("ai_chat_messages")
         .select("role, content, attachments, edited")
         .eq("conversation_id", convId)
         .order("created_at", { ascending: true })
-        .limit(200);
+        .limit(500);
+
+      if (messagesError) {
+        console.error("[ChatHistory] Failed to load messages:", messagesError);
+        if (!cancelled) setLoading(false);
+        return;
+      }
 
       if (cancelled) return;
 
-      if (msgs && msgs.length > 0) {
-        const chatMessages: ChatMessage[] = msgs.map((m: any) => ({
-          role: m.role as "user" | "assistant",
-          content: m.content,
-          attachments: m.attachments || undefined,
-          edited: m.edited || false,
-        }));
-        setSavedMessages(chatMessages);
-        lastSavedCountRef.current = msgs.length;
-      } else {
-        setSavedMessages([]);
-      }
+      const chatMessages: ChatMessage[] = (msgs || []).map((m: any) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        attachments: normalizeAttachments(m.attachments),
+        edited: Boolean(m.edited),
+      }));
 
+      setSavedMessages(chatMessages);
+      lastSignatureRef.current = JSON.stringify(chatMessages);
       setLoading(false);
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [userId, companionId]);
 
-  // Save new messages (only saves messages that haven't been saved yet)
-  const saveMessages = useCallback(async (messages: ChatMessage[]) => {
+  const persistMessages = useCallback(async (messages: ChatMessage[]) => {
     if (!conversationId || !userId || savingRef.current) return;
-    
-    // Only save new messages beyond what we already saved
-    const newMessages = messages.slice(lastSavedCountRef.current);
-    if (newMessages.length === 0) return;
 
-    // Don't save if the last message is still being streamed (assistant with empty content)
-    const lastNew = newMessages[newMessages.length - 1];
-    if (lastNew.role === "assistant" && !lastNew.content.trim()) return;
+    const sanitizedMessages = messages.filter((message) => {
+      if (message.role === "assistant") return message.content.trim().length > 0;
+      return message.content.trim().length > 0 || (message.attachments?.length ?? 0) > 0;
+    });
+
+    const signature = JSON.stringify(sanitizedMessages);
+    if (signature === lastSignatureRef.current) return;
 
     savingRef.current = true;
 
     try {
-      const rows = newMessages.map((m) => ({
-        conversation_id: conversationId,
-        role: m.role,
-        content: m.content,
-        attachments: m.attachments ? JSON.stringify(m.attachments) : null,
-        edited: m.edited || false,
-      }));
+      const { error: deleteError } = await supabase
+        .from("ai_chat_messages")
+        .delete()
+        .eq("conversation_id", conversationId);
 
-      const { error } = await supabase.from("ai_chat_messages").insert(rows as any);
-      if (!error) {
-        lastSavedCountRef.current = messages.length;
-        // Update conversation timestamp
-        await supabase
-          .from("ai_chat_conversations")
-          .update({ updated_at: new Date().toISOString() } as any)
-          .eq("id", conversationId);
-      } else {
-        console.error("[ChatHistory] Save error:", error);
+      if (deleteError) {
+        console.error("[ChatHistory] Clear before save failed:", deleteError);
+        return;
       }
+
+      if (sanitizedMessages.length > 0) {
+        const baseTime = Date.now();
+        const rows = sanitizedMessages.map((message, index) => ({
+          conversation_id: conversationId,
+          role: message.role,
+          content: message.content,
+          attachments: message.attachments ?? null,
+          edited: Boolean(message.edited),
+          created_at: new Date(baseTime + index).toISOString(),
+        }));
+
+        const { error: insertError } = await supabase
+          .from("ai_chat_messages")
+          .insert(rows as any);
+
+        if (insertError) {
+          console.error("[ChatHistory] Save error:", insertError);
+          return;
+        }
+      }
+
+      await supabase
+        .from("ai_chat_conversations")
+        .update({ updated_at: new Date().toISOString() } as any)
+        .eq("id", conversationId);
+
+      lastSignatureRef.current = signature;
+      setSavedMessages(sanitizedMessages);
     } finally {
       savingRef.current = false;
     }
   }, [conversationId, userId]);
 
-  // Clear conversation history (for "new chat" feature)
   const clearHistory = useCallback(async () => {
     if (!conversationId) return;
-    await supabase.from("ai_chat_messages").delete().eq("conversation_id", conversationId);
-    lastSavedCountRef.current = 0;
+
+    const { error } = await supabase
+      .from("ai_chat_messages")
+      .delete()
+      .eq("conversation_id", conversationId);
+
+    if (error) {
+      console.error("[ChatHistory] Failed to clear history:", error);
+      return;
+    }
+
+    await supabase
+      .from("ai_chat_conversations")
+      .update({ updated_at: new Date().toISOString() } as any)
+      .eq("id", conversationId);
+
+    lastSignatureRef.current = "[]";
     setSavedMessages([]);
   }, [conversationId]);
 
-  return { savedMessages, loading, saveMessages, clearHistory, conversationId };
+  return { savedMessages, loading, persistMessages, clearHistory, conversationId };
 }
+
