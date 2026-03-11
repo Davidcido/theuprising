@@ -47,7 +47,7 @@ const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, on
 
   return (
     <>
-      <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-6">
+      <div className="h-full overflow-y-auto px-3 sm:px-4 py-6">
         <div className="container mx-auto max-w-2xl space-y-3">
           {messages.map((msg, i) => {
             const attachmentImages = msg.attachments?.filter(a => a.type === "image" && a.preview).map(a => a.preview!) || [];
