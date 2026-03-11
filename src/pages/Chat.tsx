@@ -244,24 +244,26 @@ const Chat = () => {
   useEffect(() => {
     if (memLoading || historyLoading) return;
 
-    if (savedMessages && savedMessages.length > 0) {
-      setMessages(savedMessages);
-      setGreetingSet(true);
-      return;
-    }
-
-    if (!greetingSet) {
-      const savedId = getSavedCompanionId();
-      if (savedId && persona.greeting) {
-        const greetingText = realName
-          ? persona.greeting.replace(/^Hey /, `Hey ${realName} `)
-          : persona.greeting;
-        setMessages([{ role: "assistant", content: greetingText }]);
-      } else {
-        const greeting = getProactiveGreeting(realName, memoryEnabled ? memories : undefined);
-        setMessages([{ role: "assistant", content: greeting }]);
+    if (savedMessages) {
+      if (savedMessages.length > 0) {
+        setMessages(savedMessages);
+        setGreetingSet(true);
+        return;
       }
-      setGreetingSet(true);
+
+      if (!greetingSet) {
+        const savedId = getSavedCompanionId();
+        if (savedId && persona.greeting) {
+          const greetingText = realName
+            ? persona.greeting.replace(/^Hey /, `Hey ${realName} `)
+            : persona.greeting;
+          setMessages([{ role: "assistant", content: greetingText }]);
+        } else {
+          const greeting = getProactiveGreeting(realName, memoryEnabled ? memories : undefined);
+          setMessages([{ role: "assistant", content: greeting }]);
+        }
+        setGreetingSet(true);
+      }
     }
   }, [memLoading, historyLoading, savedMessages, realName, memories, memoryEnabled, greetingSet, persona]);
 
