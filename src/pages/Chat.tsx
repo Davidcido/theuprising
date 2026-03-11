@@ -401,8 +401,7 @@ const Chat = () => {
     <div
       className="relative flex flex-col overflow-hidden"
       style={{
-        minHeight: "calc(100vh - 4rem - env(safe-area-inset-top, 0px))",
-        height: "calc(100dvh - 4rem - env(safe-area-inset-top, 0px))",
+        height: "calc(100dvh - 4rem)",
       }}
     >
       {/* Tree of Life Wallpaper */}
