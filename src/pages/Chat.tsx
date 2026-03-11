@@ -358,7 +358,7 @@ const Chat = () => {
       setIsTyping(false);
       toast.error(e.message || "Something went wrong. Please try again.");
     }
-  }, [memoryEnabled, memories, lifeEvents, userId, realName, refetchMemories, mode, persona, saveMessages]);
+  }, [memoryEnabled, memories, lifeEvents, userId, realName, refetchMemories, mode, persona, persistMessages]);
 
   const handleSend = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0) || isTyping) return;
