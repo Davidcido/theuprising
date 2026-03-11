@@ -240,6 +240,7 @@ const Chat = () => {
         memories: memoryTexts,
         userId,
         memoryEnabled: memoryEnabled === true,
+        realName,
         onDelta: (chunk) => {
           if (assistantSoFar === "") {
             setMessages((prev) => [...prev, { role: "assistant", content: chunk }]);
