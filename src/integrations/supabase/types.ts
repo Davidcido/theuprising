@@ -573,6 +573,36 @@ export type Database = {
         }
         Relationships: []
       }
+      life_events: {
+        Row: {
+          created_at: string
+          event_category: string
+          event_date: string | null
+          event_text: string
+          id: string
+          importance_score: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_category?: string
+          event_date?: string | null
+          event_text: string
+          id?: string
+          importance_score?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_category?: string
+          event_date?: string | null
+          event_text?: string
+          id?: string
+          importance_score?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       login_sessions: {
         Row: {
           country: string | null
