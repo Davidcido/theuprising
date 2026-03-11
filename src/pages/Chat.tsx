@@ -1,9 +1,11 @@
 import { useState, useCallback, useEffect } from "react";
-import { Brain } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { Brain, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import ChatInput from "@/components/chat/ChatInput";
 import ChatMessages, { type ChatMessage } from "@/components/chat/ChatMessages";
 import { type ChatMode } from "@/components/chat/FeatureMenu";
+import chatWallpaper from "@/assets/chat-wallpaper.jpeg";
 
 const PERSONA_MODE_MAP: Record<string, ChatMode> = {
   seren: "companion",
@@ -16,7 +18,7 @@ const PERSONA_MODE_MAP: Record<string, ChatMode> = {
   sol: "companion",
 };
 import { type ChatAttachment } from "@/components/chat/FilePreview";
-import PersonaSelector, { type PersonaConfig, getSavedCompanionId, saveCompanionId } from "@/components/chat/PersonaSelector";
+import { type PersonaConfig, getSavedCompanionId, saveCompanionId } from "@/components/chat/PersonaSelector";
 import { BUILTIN_PERSONAS } from "@/lib/builtinPersonas";
 import { useAIMemory } from "@/hooks/useAIMemory";
 
@@ -188,6 +190,8 @@ function getInitialPersona(): PersonaConfig {
 }
 
 const Chat = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { userId, memoryEnabled, memories, lifeEvents, realName, loading: memLoading, setPreference, refetchMemories } = useAIMemory();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -201,9 +205,28 @@ const Chat = () => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [persona, setPersona] = useState<PersonaConfig>(getInitialPersona);
 
+  // Handle companion selection from explorer page
+  useEffect(() => {
+    const state = location.state as { newCompanionId?: string } | null;
+    if (state?.newCompanionId) {
+      const found = BUILTIN_PERSONAS.find(p => p.id === state.newCompanionId);
+      if (found) {
+        const config: PersonaConfig = { ...found, is_custom: false };
+        setPersona(config);
+        setMode(PERSONA_MODE_MAP[found.id] || "companion");
+        const greetingText = found.greeting
+          ? (realName ? found.greeting.replace(/^Hey /, `Hey ${realName} `) : found.greeting)
+          : `Hey${realName ? ` ${realName}` : ""} ${found.avatar_emoji} I'm ${found.name}. ${found.description}`;
+        setMessages([{ role: "assistant", content: greetingText }]);
+        setGreetingSet(true);
+      }
+      // Clear the state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, realName]);
+
   useEffect(() => {
     if (!memLoading && !greetingSet) {
-      // Use the persona's greeting for the saved companion
       const savedId = getSavedCompanionId();
       if (savedId && persona.greeting) {
         const greetingText = realName
@@ -372,15 +395,24 @@ const Chat = () => {
     });
   }, []);
 
-  // Get avatar image for current persona
   const builtinData = BUILTIN_PERSONAS.find(bp => bp.id === persona.id);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
+    <div className="flex flex-col h-[calc(100vh-4rem)] relative">
+      {/* Tree of Life Wallpaper */}
+      <div
+        className="absolute inset-0 z-0 bg-center bg-no-repeat bg-contain pointer-events-none"
+        style={{
+          backgroundImage: `url(${chatWallpaper})`,
+          opacity: 0.12,
+          filter: "blur(2px)",
+        }}
+      />
+
       {/* Header */}
-      <div className="px-4 py-3 backdrop-blur-xl border-b border-white/10" style={{ background: "rgba(15, 81, 50, 0.4)" }}>
+      <div className="px-4 py-3 backdrop-blur-xl border-b border-white/10 relative z-10" style={{ background: "rgba(15, 81, 50, 0.6)" }}>
         <div className="container mx-auto flex items-center gap-3">
-          {/* Avatar Image */}
+          {/* Avatar */}
           <div className="w-10 h-10 rounded-full overflow-hidden shadow-md ring-2 ring-offset-1 ring-offset-background" style={{ borderColor: `${persona.color}44` }}>
             {builtinData?.avatar_image ? (
               <img src={builtinData.avatar_image} alt={persona.name} className="w-full h-full object-cover" />
@@ -391,20 +423,16 @@ const Chat = () => {
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => navigate("/companions")}
+              className="flex items-center gap-1 hover:opacity-80 transition-opacity"
+            >
               <h2 className="font-display font-semibold text-foreground text-sm truncate">
                 {persona.avatar_emoji} {persona.name}
               </h2>
-              <PersonaSelector currentPersona={persona} onSelect={(p) => {
-                setPersona(p);
-                const mappedMode = PERSONA_MODE_MAP[p.id] || "companion";
-                setMode(mappedMode);
-                const greetingText = p.greeting
-                  ? (realName ? p.greeting.replace(/^Hey /, `Hey ${realName} `) : p.greeting)
-                  : `Hey${realName ? ` ${realName}` : ""} ${p.avatar_emoji || "💚"} I'm ${p.name}. ${p.description}`;
-                setMessages([{ role: "assistant", content: greetingText }]);
-              }} userId={userId} />
-            </div>
+              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+            </button>
             <p className="text-xs text-muted-foreground">
               {isTyping ? (
                 <span className="text-primary animate-pulse">typing...</span>
@@ -421,18 +449,20 @@ const Chat = () => {
       </div>
 
       {/* Messages */}
-      <ChatMessages
-        messages={messages}
-        isTyping={isTyping}
-        showMemoryChoice={showMemoryChoice}
-        onMemoryChoice={handleMemoryChoice}
-        onEditMessage={handleEditMessage}
-        onDeleteMessage={handleDeleteMessage}
-      />
+      <div className="relative z-10 flex-1 overflow-hidden">
+        <ChatMessages
+          messages={messages}
+          isTyping={isTyping}
+          showMemoryChoice={showMemoryChoice}
+          onMemoryChoice={handleMemoryChoice}
+          onEditMessage={handleEditMessage}
+          onDeleteMessage={handleDeleteMessage}
+        />
+      </div>
 
       {/* Edit indicator */}
       {editingIndex !== null && (
-        <div className="px-4 py-1.5 bg-primary/10 border-t border-primary/20 flex items-center justify-between">
+        <div className="px-4 py-1.5 bg-primary/10 border-t border-primary/20 flex items-center justify-between relative z-10">
           <span className="text-xs text-primary">Editing message...</span>
           <button onClick={() => { setEditingIndex(null); setInput(""); }} className="text-xs text-muted-foreground hover:text-foreground">
             Cancel
@@ -441,7 +471,7 @@ const Chat = () => {
       )}
 
       {/* Privacy notice */}
-      <div className="px-4 py-1">
+      <div className="px-4 py-1 relative z-10">
         <p className="text-center text-[10px] text-muted-foreground/40">
           {memoryEnabled
             ? "💚 Memory is on — I'll remember helpful details to support you better."
@@ -450,16 +480,18 @@ const Chat = () => {
       </div>
 
       {/* Input */}
-      <ChatInput
-        input={input}
-        setInput={setInput}
-        isTyping={isTyping}
-        onSend={handleSend}
-        mode={mode}
-        onModeChange={setMode}
-        attachments={attachments}
-        onAttachmentsChange={setAttachments}
-      />
+      <div className="relative z-10">
+        <ChatInput
+          input={input}
+          setInput={setInput}
+          isTyping={isTyping}
+          onSend={handleSend}
+          mode={mode}
+          onModeChange={setMode}
+          attachments={attachments}
+          onAttachmentsChange={setAttachments}
+        />
+      </div>
     </div>
   );
 };

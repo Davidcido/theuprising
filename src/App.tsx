@@ -33,6 +33,7 @@ const Explore = lazy(() => import("./pages/Explore"));
 const Bookmarks = lazy(() => import("./pages/Bookmarks"));
 const Drafts = lazy(() => import("./pages/Drafts"));
 const DailyRise = lazy(() => import("./pages/DailyRise"));
+const CompanionExplorer = lazy(() => import("./pages/CompanionExplorer"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
