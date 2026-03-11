@@ -23,12 +23,18 @@ type ChatMessagesProps = {
 };
 
 const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, onEditMessage, onDeleteMessage }: ChatMessagesProps) => {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [viewerImages, setViewerImages] = useState<string[] | null>(null);
   const [viewerIndex, setViewerIndex] = useState(0);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: "smooth",
+    });
   }, [messages, isTyping]);
 
   const openImage = useCallback((images: string[], index: number) => {
@@ -47,7 +53,11 @@ const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, on
 
   return (
     <>
-      <div className="h-full overflow-y-auto px-3 sm:px-4 py-6">
+      <div
+        ref={scrollContainerRef}
+        className="h-full min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-3 sm:px-4 py-6"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
         <div className="container mx-auto max-w-2xl space-y-3">
           {messages.map((msg, i) => {
             const attachmentImages = msg.attachments?.filter(a => a.type === "image" && a.preview).map(a => a.preview!) || [];
@@ -155,7 +165,7 @@ const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, on
             </motion.div>
           )}
 
-          <div ref={bottomRef} />
+          <div className="h-px w-full" aria-hidden="true" />
         </div>
       </div>
 
