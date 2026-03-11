@@ -49,13 +49,15 @@ const ChatInput = ({
 
   return (
     <div
-      className="shrink-0 px-4 py-3 backdrop-blur-xl border-t border-white/10"
+      className="shrink-0 py-3 backdrop-blur-xl border-t border-white/10"
       style={{
         background: "rgba(15, 81, 50, 0.4)",
+        paddingLeft: "8px",
+        paddingRight: "12px",
         paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))",
       }}
     >
-      <div className="container mx-auto max-w-2xl">
+      <div className="w-full max-w-2xl mx-auto">
         <FilePreview
           attachments={attachments}
           onRemove={(i) => onAttachmentsChange(attachments.filter((_, idx) => idx !== i))}
