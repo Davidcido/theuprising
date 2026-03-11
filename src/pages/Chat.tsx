@@ -39,6 +39,7 @@ async function streamChat({
   messages,
   mode,
   memories,
+  lifeEvents,
   userId,
   memoryEnabled,
   realName,
@@ -48,6 +49,7 @@ async function streamChat({
   messages: APIMessage[];
   mode?: string;
   memories?: string[];
+  lifeEvents?: { text: string; category: string; date?: string | null }[];
   userId?: string | null;
   memoryEnabled?: boolean;
   realName?: string | null;
