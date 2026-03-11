@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Brain, ChevronDown } from "lucide-react";
+import { Brain, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import ChatInput from "@/components/chat/ChatInput";
 import ChatMessages, { type ChatMessage } from "@/components/chat/ChatMessages";
