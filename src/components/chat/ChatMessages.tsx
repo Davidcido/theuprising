@@ -145,7 +145,7 @@ const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, on
 
           {isTyping && messages[messages.length - 1]?.role !== "assistant" && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
-              <div className="bg-white/8 backdrop-blur-md rounded-2xl rounded-bl-md px-4 py-3 text-sm text-muted-foreground border border-white/10">
+              <div className="bg-[rgba(255,255,255,0.08)] backdrop-blur-[10px] rounded-[18px] rounded-bl-md px-[18px] py-[14px] text-sm text-muted-foreground border border-[rgba(255,255,255,0.15)]">
                 <span className="inline-flex gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:0ms]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:150ms]" />
