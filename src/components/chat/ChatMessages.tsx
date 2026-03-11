@@ -23,12 +23,18 @@ type ChatMessagesProps = {
 };
 
 const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, onEditMessage, onDeleteMessage }: ChatMessagesProps) => {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [viewerImages, setViewerImages] = useState<string[] | null>(null);
   const [viewerIndex, setViewerIndex] = useState(0);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: "smooth",
+    });
   }, [messages, isTyping]);
 
   const openImage = useCallback((images: string[], index: number) => {

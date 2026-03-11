@@ -398,7 +398,13 @@ const Chat = () => {
   const builtinData = BUILTIN_PERSONAS.find(bp => bp.id === persona.id);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] relative">
+    <div
+      className="relative flex flex-col overflow-hidden"
+      style={{
+        minHeight: "calc(100vh - 4rem - env(safe-area-inset-top, 0px))",
+        height: "calc(100dvh - 4rem - env(safe-area-inset-top, 0px))",
+      }}
+    >
       {/* Tree of Life Wallpaper */}
       <div
         className="absolute inset-0 z-0 bg-center bg-no-repeat bg-contain pointer-events-none"
