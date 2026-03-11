@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { Brain } from "lucide-react";
 import { toast } from "sonner";
-import uprisingLogo from "@/assets/uprising-logo.jpeg";
 import ChatInput from "@/components/chat/ChatInput";
 import ChatMessages, { type ChatMessage } from "@/components/chat/ChatMessages";
 import { type ChatMode } from "@/components/chat/FeatureMenu";
@@ -17,7 +16,7 @@ const PERSONA_MODE_MAP: Record<string, ChatMode> = {
   sol: "companion",
 };
 import { type ChatAttachment } from "@/components/chat/FilePreview";
-import PersonaSelector, { type PersonaConfig } from "@/components/chat/PersonaSelector";
+import PersonaSelector, { type PersonaConfig, getSavedCompanionId, saveCompanionId } from "@/components/chat/PersonaSelector";
 import { BUILTIN_PERSONAS } from "@/lib/builtinPersonas";
 import { useAIMemory } from "@/hooks/useAIMemory";
 
@@ -179,29 +178,45 @@ function getProactiveGreeting(name?: string | null, memories?: { memory_text: st
   return "Hey there 💚 I'm your Uprising Companion. This is a safe space — no judgment, just support. How are you feeling right now?";
 }
 
-const defaultPersona: PersonaConfig = {
-  ...BUILTIN_PERSONAS[0],
-  is_custom: false,
-};
+function getInitialPersona(): PersonaConfig {
+  const savedId = getSavedCompanionId();
+  if (savedId) {
+    const found = BUILTIN_PERSONAS.find(p => p.id === savedId);
+    if (found) return { ...found, is_custom: false };
+  }
+  return { ...BUILTIN_PERSONAS[0], is_custom: false };
+}
 
 const Chat = () => {
   const { userId, memoryEnabled, memories, lifeEvents, realName, loading: memLoading, setPreference, refetchMemories } = useAIMemory();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [mode, setMode] = useState<ChatMode>("companion");
+  const [mode, setMode] = useState<ChatMode>(() => {
+    const initial = getInitialPersona();
+    return PERSONA_MODE_MAP[initial.id] || "companion";
+  });
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [greetingSet, setGreetingSet] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [persona, setPersona] = useState<PersonaConfig>(defaultPersona);
+  const [persona, setPersona] = useState<PersonaConfig>(getInitialPersona);
 
   useEffect(() => {
     if (!memLoading && !greetingSet) {
-      const greeting = getProactiveGreeting(realName, memoryEnabled ? memories : undefined);
-      setMessages([{ role: "assistant", content: greeting }]);
+      // Use the persona's greeting for the saved companion
+      const savedId = getSavedCompanionId();
+      if (savedId && persona.greeting) {
+        const greetingText = realName
+          ? persona.greeting.replace(/^Hey /, `Hey ${realName} `)
+          : persona.greeting;
+        setMessages([{ role: "assistant", content: greetingText }]);
+      } else {
+        const greeting = getProactiveGreeting(realName, memoryEnabled ? memories : undefined);
+        setMessages([{ role: "assistant", content: greeting }]);
+      }
       setGreetingSet(true);
     }
-  }, [memLoading, realName, memories, memoryEnabled, greetingSet]);
+  }, [memLoading, realName, memories, memoryEnabled, greetingSet, persona]);
 
   const showMemoryChoice = !memLoading && !!userId && memoryEnabled === null;
 
@@ -308,14 +323,12 @@ const Chat = () => {
     if ((!input.trim() && attachments.length === 0) || isTyping) return;
 
     if (editingIndex !== null) {
-      // Edit mode: replace the user message and remove subsequent assistant response
       const updatedMessages = [...messages];
       updatedMessages[editingIndex] = {
         ...updatedMessages[editingIndex],
         content: input.trim(),
         edited: true,
       };
-      // Remove messages after the edited one
       const trimmed = updatedMessages.slice(0, editingIndex + 1);
       setMessages(trimmed);
       const currentInput = input.trim();
@@ -350,7 +363,6 @@ const Chat = () => {
   const handleDeleteMessage = useCallback((index: number) => {
     setMessages((prev) => {
       const updated = [...prev];
-      // Delete user message and next assistant response if exists
       if (index + 1 < updated.length && updated[index + 1]?.role === "assistant") {
         updated.splice(index, 2);
       } else {
@@ -360,17 +372,29 @@ const Chat = () => {
     });
   }, []);
 
+  // Get avatar image for current persona
+  const builtinData = BUILTIN_PERSONAS.find(bp => bp.id === persona.id);
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Header */}
       <div className="px-4 py-3 backdrop-blur-xl border-b border-white/10" style={{ background: "rgba(15, 81, 50, 0.4)" }}>
         <div className="container mx-auto flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-md" style={{ background: `${persona.color}22`, border: `1px solid ${persona.color}44` }}>
-            {persona.avatar_emoji || "💚"}
+          {/* Avatar Image */}
+          <div className="w-10 h-10 rounded-full overflow-hidden shadow-md ring-2 ring-offset-1 ring-offset-background" style={{ borderColor: `${persona.color}44` }}>
+            {builtinData?.avatar_image ? (
+              <img src={builtinData.avatar_image} alt={persona.name} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full rounded-full flex items-center justify-center text-xl" style={{ background: `${persona.color}22` }}>
+                {persona.avatar_emoji || "💚"}
+              </div>
+            )}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="font-display font-semibold text-foreground text-sm truncate">{persona.name}</h2>
+            <div className="flex items-center gap-1">
+              <h2 className="font-display font-semibold text-foreground text-sm truncate">
+                {persona.avatar_emoji} {persona.name}
+              </h2>
               <PersonaSelector currentPersona={persona} onSelect={(p) => {
                 setPersona(p);
                 const mappedMode = PERSONA_MODE_MAP[p.id] || "companion";
