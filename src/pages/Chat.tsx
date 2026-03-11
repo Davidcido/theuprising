@@ -123,6 +123,14 @@ async function streamChat({
 }
 
 // Proactive greetings for returning users
+const PROACTIVE_GREETINGS_WITH_NAME = [
+  "Hey NAME, welcome back 💚 How have you been?",
+  "Hi NAME 🙂 I was thinking about you. How are you doing today?",
+  "Hey NAME 💚 Good to see you! What's been on your mind?",
+  "Welcome back NAME! How's your day going so far?",
+  "Hey NAME! 🌱 I'm here whenever you want to talk. How are you feeling?",
+];
+
 const PROACTIVE_GREETINGS = [
   "Hey, welcome back 💚 How have you been?",
   "Hi again 🙂 I was thinking about you. How are you doing today?",
@@ -133,7 +141,7 @@ const PROACTIVE_GREETINGS = [
 
 const LAST_VISIT_KEY = "uprising_last_chat_visit";
 
-function getProactiveGreeting(): string {
+function getProactiveGreeting(name?: string | null): string {
   const lastVisit = localStorage.getItem(LAST_VISIT_KEY);
   const now = Date.now();
   localStorage.setItem(LAST_VISIT_KEY, String(now));
@@ -141,10 +149,17 @@ function getProactiveGreeting(): string {
   if (lastVisit) {
     const hoursAway = (now - Number(lastVisit)) / (1000 * 60 * 60);
     if (hoursAway > 4) {
+      if (name) {
+        const g = PROACTIVE_GREETINGS_WITH_NAME[Math.floor(Math.random() * PROACTIVE_GREETINGS_WITH_NAME.length)];
+        return g.replace("NAME", name);
+      }
       return PROACTIVE_GREETINGS[Math.floor(Math.random() * PROACTIVE_GREETINGS.length)];
     }
   }
 
+  if (name) {
+    return `Hey ${name} 💚 I'm your Uprising Companion. This is a safe space — no judgment, just support. How are you feeling right now?`;
+  }
   return "Hey there 💚 I'm your Uprising Companion. This is a safe space — no judgment, just support. How are you feeling right now?";
 }
 
