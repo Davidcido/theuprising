@@ -5,6 +5,15 @@ import uprisingLogo from "@/assets/uprising-logo.jpeg";
 import ChatInput from "@/components/chat/ChatInput";
 import ChatMessages, { type ChatMessage } from "@/components/chat/ChatMessages";
 import { type ChatMode } from "@/components/chat/FeatureMenu";
+
+const PERSONA_MODE_MAP: Record<string, ChatMode> = {
+  companion: "companion",
+  thinker: "thinking",
+  mentor: "thinking",
+  muse: "creative",
+  study: "study",
+  vent: "vent",
+};
 import { type ChatAttachment } from "@/components/chat/FilePreview";
 import PersonaSelector, { type PersonaConfig } from "@/components/chat/PersonaSelector";
 import { BUILTIN_PERSONAS } from "@/lib/builtinPersonas";
