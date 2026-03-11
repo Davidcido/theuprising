@@ -68,6 +68,48 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_personas: {
+        Row: {
+          avatar_url: string | null
+          conversation_style: string | null
+          created_at: string
+          emotional_tone: string | null
+          id: string
+          interests: string | null
+          is_builtin: boolean
+          name: string
+          personality: string
+          role: string
+          user_id: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          conversation_style?: string | null
+          created_at?: string
+          emotional_tone?: string | null
+          id?: string
+          interests?: string | null
+          is_builtin?: boolean
+          name: string
+          personality?: string
+          role?: string
+          user_id?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          conversation_style?: string | null
+          created_at?: string
+          emotional_tone?: string | null
+          id?: string
+          interests?: string | null
+          is_builtin?: boolean
+          name?: string
+          personality?: string
+          role?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       banned_users: {
         Row: {
           banned_at: string

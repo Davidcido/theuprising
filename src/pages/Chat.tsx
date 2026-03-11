@@ -6,6 +6,8 @@ import ChatInput from "@/components/chat/ChatInput";
 import ChatMessages, { type ChatMessage } from "@/components/chat/ChatMessages";
 import { type ChatMode } from "@/components/chat/FeatureMenu";
 import { type ChatAttachment } from "@/components/chat/FilePreview";
+import PersonaSelector, { type PersonaConfig } from "@/components/chat/PersonaSelector";
+import { BUILTIN_PERSONAS } from "@/lib/builtinPersonas";
 import { useAIMemory } from "@/hooks/useAIMemory";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
@@ -34,7 +36,7 @@ type APIMessage = {
 };
 
 async function streamChat({
-  messages, mode, memories, lifeEvents, userId, memoryEnabled, realName, onDelta, onDone,
+  messages, mode, memories, lifeEvents, userId, memoryEnabled, realName, persona, onDelta, onDone,
 }: {
   messages: APIMessage[];
   mode?: string;
@@ -43,6 +45,7 @@ async function streamChat({
   userId?: string | null;
   memoryEnabled?: boolean;
   realName?: string | null;
+  persona?: { name: string; role: string; personality: string; conversation_style: string; emotional_tone: string; interests: string } | null;
   onDelta: (deltaText: string) => void;
   onDone: () => void;
 }) {
@@ -52,7 +55,7 @@ async function streamChat({
       "Content-Type": "application/json",
       Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
     },
-    body: JSON.stringify({ messages, mode, memories, lifeEvents, userId, memoryEnabled, realName }),
+    body: JSON.stringify({ messages, mode, memories, lifeEvents, userId, memoryEnabled, realName, persona }),
   });
 
   if (!resp.ok) {
@@ -165,6 +168,11 @@ function getProactiveGreeting(name?: string | null, memories?: { memory_text: st
   return "Hey there 💚 I'm your Uprising Companion. This is a safe space — no judgment, just support. How are you feeling right now?";
 }
 
+const defaultPersona: PersonaConfig = {
+  ...BUILTIN_PERSONAS[0],
+  is_custom: false,
+};
+
 const Chat = () => {
   const { userId, memoryEnabled, memories, lifeEvents, realName, loading: memLoading, setPreference, refetchMemories } = useAIMemory();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -174,6 +182,7 @@ const Chat = () => {
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [greetingSet, setGreetingSet] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [persona, setPersona] = useState<PersonaConfig>(defaultPersona);
 
   useEffect(() => {
     if (!memLoading && !greetingSet) {
@@ -234,6 +243,15 @@ const Chat = () => {
         ? lifeEvents.map((e) => ({ text: e.event_text, category: e.event_category, date: e.event_date }))
         : undefined;
 
+      const personaPayload = persona.id !== "companion" ? {
+        name: persona.name,
+        role: persona.role,
+        personality: persona.personality,
+        conversation_style: persona.conversation_style,
+        emotional_tone: persona.emotional_tone,
+        interests: persona.interests,
+      } : null;
+
       await streamChat({
         messages: apiMessages,
         mode,
@@ -242,6 +260,7 @@ const Chat = () => {
         userId,
         memoryEnabled: memoryEnabled === true,
         realName,
+        persona: personaPayload,
         onDelta: (chunk) => {
           if (assistantSoFar === "") {
             setMessages((prev) => [...prev, { role: "assistant", content: chunk }]);
@@ -252,7 +271,6 @@ const Chat = () => {
           }
         },
         onDone: () => {
-          // Handle multi-part split responses
           setMessages((prev) => {
             const last = prev[prev.length - 1];
             if (last?.role === "assistant" && last.content.includes("||SPLIT||")) {
@@ -273,7 +291,7 @@ const Chat = () => {
       setIsTyping(false);
       toast.error(e.message || "Something went wrong. Please try again.");
     }
-  }, [memoryEnabled, memories, lifeEvents, userId, realName, refetchMemories, mode]);
+  }, [memoryEnabled, memories, lifeEvents, userId, realName, refetchMemories, mode, persona]);
 
   const handleSend = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0) || isTyping) return;
@@ -336,17 +354,25 @@ const Chat = () => {
       {/* Header */}
       <div className="px-4 py-3 backdrop-blur-xl border-b border-white/10" style={{ background: "rgba(15, 81, 50, 0.4)" }}>
         <div className="container mx-auto flex items-center gap-3">
-          <img src={uprisingLogo} alt="Uprising" className="w-10 h-10 rounded-xl object-cover shadow-md" />
-          <div>
-            <h2 className="font-display font-semibold text-foreground">Uprising Companion</h2>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-md" style={{ background: `${persona.color}22`, border: `1px solid ${persona.color}44` }}>
+            {persona.avatar_emoji || "💚"}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 className="font-display font-semibold text-foreground text-sm truncate">{persona.name}</h2>
+              <PersonaSelector currentPersona={persona} onSelect={(p) => {
+                setPersona(p);
+                setMessages([{ role: "assistant", content: `Hey${realName ? ` ${realName}` : ""} ${persona.avatar_emoji || "💚"} I'm ${p.name}. ${p.description} How can I help you today?` }]);
+              }} userId={userId} />
+            </div>
             <p className="text-xs text-muted-foreground">
               {isTyping ? (
                 <span className="text-primary animate-pulse">typing...</span>
-              ) : "Your safe space to talk"}
+              ) : persona.description}
             </p>
           </div>
           {memoryEnabled && (
-            <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/20 border border-primary/30">
+            <div className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/20 border border-primary/30">
               <Brain className="w-3 h-3 text-primary" />
               <span className="text-xs text-primary font-medium">Memory</span>
             </div>
