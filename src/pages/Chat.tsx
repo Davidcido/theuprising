@@ -254,7 +254,7 @@ const Chat = () => {
         ? lifeEvents.map((e) => ({ text: e.event_text, category: e.event_category, date: e.event_date }))
         : undefined;
 
-      const personaPayload = persona.id !== "companion" ? {
+      const personaPayload = persona.id !== "seren" ? {
         name: persona.name,
         role: persona.role,
         personality: persona.personality,
