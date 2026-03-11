@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Brain, RefreshCw } from "lucide-react";
+import { Brain, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import ChatInput from "@/components/chat/ChatInput";
 import ChatMessages, { type ChatMessage } from "@/components/chat/ChatMessages";
@@ -205,10 +205,9 @@ const Chat = () => {
   const [greetingSet, setGreetingSet] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [persona, setPersona] = useState<PersonaConfig>(getInitialPersona);
-  const historyLoadedRef = useRef(false);
 
   // Persistent chat history
-  const { savedMessages, loading: historyLoading, saveMessages, clearHistory } = useChatHistory(userId, persona.id);
+  const { savedMessages, loading: historyLoading, persistMessages, clearHistory } = useChatHistory(userId, persona.id);
 
   // Handle companion selection from explorer page
   useEffect(() => {
@@ -219,33 +218,28 @@ const Chat = () => {
         const config: PersonaConfig = { ...found, is_custom: false };
         setPersona(config);
         setMode(PERSONA_MODE_MAP[found.id] || "companion");
-        historyLoadedRef.current = false;
         setGreetingSet(false);
+        setMessages([]);
       }
-      // Clear the state
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
 
-  // Reset history loaded flag when companion changes
   useEffect(() => {
-    historyLoadedRef.current = false;
     setGreetingSet(false);
+    setMessages([]);
   }, [persona.id]);
 
-  // Load saved messages or show greeting
+  // Load saved messages or show greeting once auth/history are ready
   useEffect(() => {
-    if (memLoading || historyLoading || historyLoadedRef.current) return;
-    historyLoadedRef.current = true;
+    if (memLoading || historyLoading) return;
 
     if (savedMessages && savedMessages.length > 0) {
-      // Restore previous conversation
       setMessages(savedMessages);
       setGreetingSet(true);
       return;
     }
 
-    // No history — show greeting
     if (!greetingSet) {
       const savedId = getSavedCompanionId();
       if (savedId && persona.greeting) {
@@ -353,10 +347,8 @@ const Chat = () => {
           });
           setIsTyping(false);
           if (memoryEnabled) setTimeout(() => refetchMemories(), 1500);
-          // Save to persistent storage after response completes
           setMessages((prev) => {
-            // Use a timeout so we save the final state
-            setTimeout(() => saveMessages(prev), 500);
+            setTimeout(() => persistMessages(prev), 200);
             return prev;
           });
         },
@@ -366,7 +358,7 @@ const Chat = () => {
       setIsTyping(false);
       toast.error(e.message || "Something went wrong. Please try again.");
     }
-  }, [memoryEnabled, memories, lifeEvents, userId, realName, refetchMemories, mode, persona, saveMessages]);
+  }, [memoryEnabled, memories, lifeEvents, userId, realName, refetchMemories, mode, persona, persistMessages]);
 
   const handleSend = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0) || isTyping) return;
@@ -380,6 +372,7 @@ const Chat = () => {
       };
       const trimmed = updatedMessages.slice(0, editingIndex + 1);
       setMessages(trimmed);
+      setTimeout(() => persistMessages(trimmed), 0);
       const currentInput = input.trim();
       setInput("");
       setEditingIndex(null);
@@ -395,12 +388,24 @@ const Chat = () => {
     };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
+    setTimeout(() => persistMessages(newMessages), 0);
     const currentInput = input.trim();
     const currentAttachments = [...attachments];
     setInput("");
     setAttachments([]);
     await sendMessage(newMessages, currentInput, currentAttachments);
-  }, [input, isTyping, messages, editingIndex, attachments, sendMessage]);
+  }, [input, isTyping, messages, editingIndex, attachments, sendMessage, persistMessages]);
+
+  const handleNewChat = useCallback(async () => {
+    await clearHistory();
+    setMessages([]);
+    setInput("");
+    setAttachments([]);
+    setEditingIndex(null);
+    setIsTyping(false);
+    setGreetingSet(false);
+    toast.success("Started a new chat");
+  }, [clearHistory]);
 
   const handleEditMessage = useCallback((index: number) => {
     const msg = messages[index];
@@ -488,6 +493,14 @@ const Chat = () => {
               ) : persona.description}
             </p>
           </div>
+          <button
+            type="button"
+            onClick={handleNewChat}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent/60 border border-white/10 hover:bg-accent/80 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5 text-primary" />
+            <span className="text-xs text-primary font-medium">New Chat</span>
+          </button>
           <button
             type="button"
             onClick={() => navigate("/companions")}
