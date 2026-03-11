@@ -481,9 +481,9 @@ const Chat = () => {
       </div>
 
       {/* Header - fixed, outside scroll */}
-      <div className="shrink-0 px-3 py-2.5 backdrop-blur-xl border-b border-white/10 relative z-10" style={{ background: "rgba(15, 81, 50, 0.6)" }}>
+      <div className="shrink-0 px-3 py-2 backdrop-blur-xl border-b border-white/10 relative z-10" style={{ background: "rgba(15, 81, 50, 0.6)" }}>
+        {/* Top row: avatar, name, actions */}
         <div className="flex items-center gap-2.5">
-          {/* Avatar */}
           <div className="shrink-0 w-9 h-9 rounded-full overflow-hidden shadow-md ring-2 ring-offset-1 ring-offset-background" style={{ borderColor: `${persona.color}44` }}>
             {builtinData?.avatar_image ? (
               <img src={builtinData.avatar_image} alt={persona.name} className="w-full h-full object-cover" />
@@ -493,18 +493,9 @@ const Chat = () => {
               </div>
             )}
           </div>
-          {/* Name & status */}
-          <div className="flex-1 min-w-0">
-            <h2 className="font-display font-semibold text-foreground text-sm truncate leading-tight">
-              {persona.avatar_emoji} {persona.name}
-            </h2>
-            <p className="text-[11px] text-muted-foreground truncate leading-tight mt-0.5">
-              {isTyping ? (
-                <span className="text-primary animate-pulse">typing...</span>
-              ) : persona.description}
-            </p>
-          </div>
-          {/* Actions */}
+          <h2 className="flex-1 min-w-0 font-display font-semibold text-foreground text-sm truncate leading-tight">
+            {persona.avatar_emoji} {persona.name}
+          </h2>
           <div className="shrink-0 flex items-center gap-1.5">
             <button
               type="button"
@@ -532,6 +523,12 @@ const Chat = () => {
             )}
           </div>
         </div>
+        {/* Description row */}
+        <p className="text-[11px] text-muted-foreground leading-snug mt-1 pl-[46px]">
+          {isTyping ? (
+            <span className="text-primary animate-pulse">typing...</span>
+          ) : persona.description}
+        </p>
       </div>
 
       {/* Messages - scrollable area */}
