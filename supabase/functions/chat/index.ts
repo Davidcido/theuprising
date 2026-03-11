@@ -18,13 +18,27 @@ function detectCrisis(text: string): boolean {
 }
 
 function buildMemoryExtractionPrompt(userMessage: string): string {
-  return `Analyze this user message and extract any personally meaningful information worth remembering for future conversations. Categories: goals, preferences, emotions, life_events, relationships, identity, general.
+  return `Analyze this user message and extract any personally meaningful information worth remembering for future conversations.
 
-Return ONLY valid JSON array of objects with "text" and "category" fields. If nothing worth remembering, return [].
+Categories and importance scores (1-10):
+- identity (10): Real name, age, gender, location, nationality
+- goals (8): Aspirations, career plans, dreams
+- relationships (7): Friends, family, partners, social dynamics
+- emotional (7): Emotional states, mental health patterns
+- life_events (7): Major happenings, milestones, changes
+- preferences (5): Likes, dislikes, hobbies, interests
+- personal (6): Daily life details, routines, habits
+- general (3): Other noteworthy info
 
-Examples of what to remember:
-- "I'm serving NYSC in Kaduna" → [{"text":"User is serving NYSC in Kaduna","category":"life_events"}]
-- "I love coding and want to become a software engineer" → [{"text":"User loves coding and aspires to be a software engineer","category":"goals"}]
+CRITICAL: If the user reveals their real name (e.g. "my name is Daniel", "I'm called Sarah", "call me Mike"), ALWAYS extract it as:
+{"text": "User's real name is [NAME]", "category": "identity", "importance": 10, "real_name": "[NAME]"}
+
+Return ONLY valid JSON array. If nothing worth remembering, return [].
+
+Examples:
+- "My name is Daniel" → [{"text":"User's real name is Daniel","category":"identity","importance":10,"real_name":"Daniel"}]
+- "I'm serving NYSC in Kaduna" → [{"text":"User is serving NYSC in Kaduna","category":"life_events","importance":7}]
+- "I love coding and want to become a software engineer" → [{"text":"User loves coding and aspires to be a software engineer","category":"goals","importance":8}]
 - "I'm fine" → []
 
 User message: "${userMessage.replace(/"/g, '\\"')}"
@@ -32,7 +46,11 @@ User message: "${userMessage.replace(/"/g, '\\"')}"
 JSON:`;
 }
 
-function getSystemPrompt(mode: string | undefined): string {
+function getSystemPrompt(mode: string | undefined, realName: string | null): string {
+  const nameInstruction = realName
+    ? `\n\nIMPORTANT — The user's real name is "${realName}". Use it naturally and occasionally — in greetings, emotional moments, or when it feels warm. Don't overuse it. Example: "Hey ${realName} 💚" or "That sounds stressful ${realName}… want to talk about it?"`
+    : `\n\nYou don't know the user's real name yet. Early in conversation (not the very first message), gently ask something like: "By the way… what should I call you?" or "What's your real name? I'd love to use it." Only ask ONCE. If they don't share it, respect that.`;
+
   if (mode === "vent") {
     return `You are the Uprising Companion in Vent Mode — a deeply empathetic, warm, and caring AI friend.
 
@@ -47,13 +65,11 @@ Guidelines:
 - Validate feelings before offering any perspective.
 - Understand Nigerian culture, pidgin, youth slang, relationship problems, school stress, family pressure.
 - If someone speaks in pidgin, respond in pidgin. Same for Yoruba, Igbo, Hausa.
-- Never judge, shame, or dismiss anyone's feelings.`;
+- Never judge, shame, or dismiss anyone's feelings.${nameInstruction}`;
   }
 
   if (mode === "thinking") {
     return `You are the Uprising Companion in Thinking Mode — a brilliant analytical mind combined with emotional warmth.
-
-You excel at deep analysis, breaking down complex problems, and helping users think through challenges step by step.
 
 Guidelines:
 - Think step by step through problems
@@ -62,13 +78,11 @@ Guidelines:
 - Still maintain warmth and conversational tone
 - Ask clarifying questions to understand the problem better
 - Keep responses focused but thorough
-- Understand Nigerian context and local challenges`;
+- Understand Nigerian context and local challenges${nameInstruction}`;
   }
 
   if (mode === "creative") {
     return `You are the Uprising Companion in Creative Mode — an imaginative, inspiring creative partner.
-
-You help with writing, brainstorming, storytelling, poetry, ideas, and creative expression.
 
 Guidelines:
 - Be enthusiastic and encouraging about creative ideas
@@ -77,13 +91,11 @@ Guidelines:
 - Use vivid language and imagery
 - Support all forms of creative expression
 - Be a collaborative partner, not a critic
-- Understand Nigerian cultural references and creative traditions`;
+- Understand Nigerian cultural references and creative traditions${nameInstruction}`;
   }
 
   if (mode === "study") {
     return `You are the Uprising Companion in Study Mode — a patient, encouraging tutor and learning guide.
-
-You explain complex topics simply, help with homework, and make learning engaging.
 
 Guidelines:
 - Break down complex concepts into simple parts
@@ -92,13 +104,11 @@ Guidelines:
 - Be patient and encouraging
 - Celebrate progress and effort
 - Offer study tips and learning strategies
-- Support exam preparation and academic goals`;
+- Support exam preparation and academic goals${nameInstruction}`;
   }
 
   if (mode === "search") {
     return `You are the Uprising Companion in Search Mode — a knowledgeable research assistant.
-
-You help users find information, answer factual questions, and provide well-researched responses.
 
 Guidelines:
 - Provide accurate, well-organized information
@@ -107,7 +117,7 @@ Guidelines:
 - Present balanced perspectives on controversial topics
 - Keep responses clear and scannable
 - Offer to dig deeper into specific aspects
-- Be transparent about limitations of your knowledge`;
+- Be transparent about limitations of your knowledge${nameInstruction}`;
   }
 
   // Default companion mode
@@ -150,13 +160,14 @@ CULTURAL AWARENESS:
 
 MEMORY AWARENESS:
 - If you have memories about the user, reference them naturally when relevant.
+- Example: "You mentioned last time that work was stressing you. Did today feel any better?"
 
 RULES:
 - NEVER say "I'm just an AI" — you are their companion.
 - Never minimize, dismiss, or rush someone's feelings.
 - If someone is happy, celebrate with them!
 - If someone is struggling, sit with them in their pain before suggesting anything.
-- Use occasional emojis naturally (💚, 🌱, ✨) but subtly.`;
+- Use occasional emojis naturally (💚, 🌱, ✨) but subtly.${nameInstruction}`;
 }
 
 serve(async (req) => {
@@ -165,7 +176,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, mode, memories, userId, memoryEnabled } = await req.json();
+    const { messages, mode, memories, userId, memoryEnabled, realName } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
@@ -190,11 +201,11 @@ serve(async (req) => {
       extractAndStoreMemories(lastUserText, userId, LOVABLE_API_KEY).catch(console.error);
     }
 
-    let systemPrompt = getSystemPrompt(mode);
+    let systemPrompt = getSystemPrompt(mode, realName || null);
 
     // Inject memories
     if (memoryEnabled && memories && memories.length > 0) {
-      systemPrompt += `\n\nYou have the following memories about this user from past conversations. Use them naturally to personalize your responses:\n`;
+      systemPrompt += `\n\nYou have the following memories about this user from past conversations. Use them naturally to personalize your responses — reference them when relevant, don't list them:\n`;
       for (const mem of memories.slice(0, 20)) {
         systemPrompt += `- ${mem}\n`;
       }
@@ -288,13 +299,22 @@ async function extractAndStoreMemories(userMessage: string, userId: string, apiK
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const sb = createClient(supabaseUrl, serviceKey);
 
-    for (const item of extracted.slice(0, 3)) {
+    for (const item of extracted.slice(0, 5)) {
       if (item.text && item.text.length > 5) {
+        // Store memory with type and importance
         await sb.from("ai_memories").insert({
           user_id: userId,
           memory_text: item.text,
           category: item.category || "general",
+          memory_type: item.category || "general",
+          importance_score: item.importance || 5,
         });
+
+        // If real name detected, store it on the profile
+        if (item.real_name && item.category === "identity") {
+          await sb.from("profiles").update({ real_name: item.real_name })
+            .eq("user_id", userId);
+        }
       }
     }
   } catch (e) {

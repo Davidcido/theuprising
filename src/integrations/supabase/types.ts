@@ -19,21 +19,27 @@ export type Database = {
           category: string
           created_at: string
           id: string
+          importance_score: number | null
           memory_text: string
+          memory_type: string | null
           user_id: string
         }
         Insert: {
           category?: string
           created_at?: string
           id?: string
+          importance_score?: number | null
           memory_text: string
+          memory_type?: string | null
           user_id: string
         }
         Update: {
           category?: string
           created_at?: string
           id?: string
+          importance_score?: number | null
           memory_text?: string
+          memory_type?: string | null
           user_id?: string
         }
         Relationships: []
@@ -754,6 +760,7 @@ export type Database = {
           last_seen_at: string | null
           online_status: string
           pinned_post_id: string | null
+          real_name: string | null
           updated_at: string
           user_id: string
         }
@@ -768,6 +775,7 @@ export type Database = {
           last_seen_at?: string | null
           online_status?: string
           pinned_post_id?: string | null
+          real_name?: string | null
           updated_at?: string
           user_id: string
         }
@@ -782,6 +790,7 @@ export type Database = {
           last_seen_at?: string | null
           online_status?: string
           pinned_post_id?: string | null
+          real_name?: string | null
           updated_at?: string
           user_id?: string
         }

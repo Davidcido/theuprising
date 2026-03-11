@@ -5,6 +5,8 @@ export type AIMemory = {
   id: string;
   memory_text: string;
   category: string;
+  importance_score?: number;
+  memory_type?: string;
   created_at: string;
 };
 
@@ -12,6 +14,7 @@ export function useAIMemory() {
   const [userId, setUserId] = useState<string | null>(null);
   const [memoryEnabled, setMemoryEnabled] = useState<boolean | null>(null);
   const [memories, setMemories] = useState<AIMemory[]>([]);
+  const [realName, setRealName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,42 +27,55 @@ export function useAIMemory() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch preference with safety timeout
+  // Fetch preference and real name
   useEffect(() => {
     if (!userId) { setLoading(false); return; }
     let cancelled = false;
     (async () => {
       setLoading(true);
       try {
-        const { data, error } = await supabase
-          .from("ai_memory_preferences" as any)
-          .select("memory_enabled")
-          .eq("user_id", userId)
-          .maybeSingle();
+        // Fetch preference and real name in parallel
+        const [prefResult, profileResult] = await Promise.all([
+          supabase
+            .from("ai_memory_preferences" as any)
+            .select("memory_enabled")
+            .eq("user_id", userId)
+            .maybeSingle(),
+          supabase
+            .from("profiles")
+            .select("real_name" as any)
+            .eq("user_id", userId)
+            .maybeSingle(),
+        ]);
+
         if (cancelled) return;
-        if (error) {
-          console.error("[AIMemory] Preference fetch error:", error);
+
+        if (prefResult.error) {
+          console.error("[AIMemory] Preference fetch error:", prefResult.error);
           setMemoryEnabled(null);
-        } else if (data) {
-          setMemoryEnabled((data as any).memory_enabled);
+        } else if (prefResult.data) {
+          setMemoryEnabled((prefResult.data as any).memory_enabled);
         } else {
           setMemoryEnabled(null);
         }
+
+        if (profileResult.data) {
+          setRealName((profileResult.data as any).real_name || null);
+        }
       } catch (e) {
-        console.error("[AIMemory] Preference fetch exception:", e);
+        console.error("[AIMemory] Fetch exception:", e);
         if (!cancelled) setMemoryEnabled(null);
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    // Safety timeout - never stay loading forever
     const timer = setTimeout(() => {
       if (!cancelled) setLoading(false);
     }, 5000);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [userId]);
 
-  // Fetch memories when enabled
+  // Fetch memories when enabled — ordered by importance
   useEffect(() => {
     if (!userId || memoryEnabled !== true) { setMemories([]); return; }
     let cancelled = false;
@@ -67,6 +83,7 @@ export function useAIMemory() {
       .from("ai_memories" as any)
       .select("*")
       .eq("user_id", userId)
+      .order("importance_score", { ascending: false })
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
         if (cancelled) return;
@@ -82,15 +99,11 @@ export function useAIMemory() {
       const { error } = await supabase
         .from("ai_memory_preferences" as any)
         .upsert({ user_id: userId, memory_enabled: enabled, updated_at: new Date().toISOString() } as any, { onConflict: "user_id" });
-      // Always update local state even if DB fails - prevents UI lock
       setMemoryEnabled(enabled);
-      if (error) {
-        console.error("[AIMemory] setPreference error:", error);
-      }
+      if (error) console.error("[AIMemory] setPreference error:", error);
       return error;
     } catch (e) {
       console.error("[AIMemory] setPreference exception:", e);
-      // Still update local state to unblock UI
       setMemoryEnabled(enabled);
       return e;
     }
@@ -123,12 +136,21 @@ export function useAIMemory() {
   const refetchMemories = useCallback(async () => {
     if (!userId) return;
     try {
-      const { data } = await supabase
-        .from("ai_memories" as any)
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false });
-      if (data) setMemories(data as any);
+      const [memResult, profileResult] = await Promise.all([
+        supabase
+          .from("ai_memories" as any)
+          .select("*")
+          .eq("user_id", userId)
+          .order("importance_score", { ascending: false })
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("profiles")
+          .select("real_name" as any)
+          .eq("user_id", userId)
+          .maybeSingle(),
+      ]);
+      if (memResult.data) setMemories(memResult.data as any);
+      if (profileResult.data) setRealName((profileResult.data as any).real_name || null);
     } catch (e) {
       console.error("[AIMemory] refetchMemories error:", e);
     }
@@ -138,6 +160,7 @@ export function useAIMemory() {
     userId,
     memoryEnabled,
     memories,
+    realName,
     loading,
     setPreference,
     clearMemories,

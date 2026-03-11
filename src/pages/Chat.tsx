@@ -41,6 +41,7 @@ async function streamChat({
   memories,
   userId,
   memoryEnabled,
+  realName,
   onDelta,
   onDone,
 }: {
@@ -49,6 +50,7 @@ async function streamChat({
   memories?: string[];
   userId?: string | null;
   memoryEnabled?: boolean;
+  realName?: string | null;
   onDelta: (deltaText: string) => void;
   onDone: () => void;
 }) {
@@ -58,7 +60,7 @@ async function streamChat({
       "Content-Type": "application/json",
       Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
     },
-    body: JSON.stringify({ messages, mode, memories, userId, memoryEnabled }),
+    body: JSON.stringify({ messages, mode, memories, userId, memoryEnabled, realName }),
   });
 
   if (!resp.ok) {
@@ -121,6 +123,14 @@ async function streamChat({
 }
 
 // Proactive greetings for returning users
+const PROACTIVE_GREETINGS_WITH_NAME = [
+  "Hey NAME, welcome back 💚 How have you been?",
+  "Hi NAME 🙂 I was thinking about you. How are you doing today?",
+  "Hey NAME 💚 Good to see you! What's been on your mind?",
+  "Welcome back NAME! How's your day going so far?",
+  "Hey NAME! 🌱 I'm here whenever you want to talk. How are you feeling?",
+];
+
 const PROACTIVE_GREETINGS = [
   "Hey, welcome back 💚 How have you been?",
   "Hi again 🙂 I was thinking about you. How are you doing today?",
@@ -131,7 +141,7 @@ const PROACTIVE_GREETINGS = [
 
 const LAST_VISIT_KEY = "uprising_last_chat_visit";
 
-function getProactiveGreeting(): string {
+function getProactiveGreeting(name?: string | null): string {
   const lastVisit = localStorage.getItem(LAST_VISIT_KEY);
   const now = Date.now();
   localStorage.setItem(LAST_VISIT_KEY, String(now));
@@ -139,15 +149,22 @@ function getProactiveGreeting(): string {
   if (lastVisit) {
     const hoursAway = (now - Number(lastVisit)) / (1000 * 60 * 60);
     if (hoursAway > 4) {
+      if (name) {
+        const g = PROACTIVE_GREETINGS_WITH_NAME[Math.floor(Math.random() * PROACTIVE_GREETINGS_WITH_NAME.length)];
+        return g.replace("NAME", name);
+      }
       return PROACTIVE_GREETINGS[Math.floor(Math.random() * PROACTIVE_GREETINGS.length)];
     }
   }
 
+  if (name) {
+    return `Hey ${name} 💚 I'm your Uprising Companion. This is a safe space — no judgment, just support. How are you feeling right now?`;
+  }
   return "Hey there 💚 I'm your Uprising Companion. This is a safe space — no judgment, just support. How are you feeling right now?";
 }
 
 const Chat = () => {
-  const { userId, memoryEnabled, memories, loading: memLoading, setPreference, refetchMemories } = useAIMemory();
+  const { userId, memoryEnabled, memories, realName, loading: memLoading, setPreference, refetchMemories } = useAIMemory();
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: "assistant", content: getProactiveGreeting() },
@@ -156,6 +173,13 @@ const Chat = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [mode, setMode] = useState<ChatMode>("companion");
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+
+  // Update greeting when realName becomes available
+  useEffect(() => {
+    if (realName && messages.length === 1 && messages[0].role === "assistant") {
+      setMessages([{ role: "assistant", content: getProactiveGreeting(realName) }]);
+    }
+  }, [realName]);
 
   const showMemoryChoice = !memLoading && !!userId && memoryEnabled === null;
 
@@ -238,6 +262,7 @@ const Chat = () => {
         memories: memoryTexts,
         userId,
         memoryEnabled: memoryEnabled === true,
+        realName,
         onDelta: (chunk) => {
           if (assistantSoFar === "") {
             setMessages((prev) => [...prev, { role: "assistant", content: chunk }]);
@@ -261,7 +286,7 @@ const Chat = () => {
       setIsTyping(false);
       toast.error(e.message || "Something went wrong. Please try again.");
     }
-  }, [input, isTyping, messages, memoryEnabled, memories, userId, refetchMemories, mode, attachments]);
+  }, [input, isTyping, messages, memoryEnabled, memories, userId, realName, refetchMemories, mode, attachments]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
