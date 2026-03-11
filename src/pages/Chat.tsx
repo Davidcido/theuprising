@@ -480,8 +480,8 @@ const Chat = () => {
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="relative z-10 flex-1 min-h-0 overflow-hidden touch-pan-y">
+      {/* Messages - scrollable area */}
+      <div className="relative z-10 flex-1 min-h-0 overflow-hidden">
         <ChatMessages
           messages={messages}
           isTyping={isTyping}
