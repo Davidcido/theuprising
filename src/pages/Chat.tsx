@@ -252,6 +252,18 @@ const Chat = () => {
           }
         },
         onDone: () => {
+          // Handle multi-part split responses
+          setMessages((prev) => {
+            const last = prev[prev.length - 1];
+            if (last?.role === "assistant" && last.content.includes("||SPLIT||")) {
+              const parts = last.content.split("||SPLIT||").map(p => p.trim()).filter(Boolean);
+              if (parts.length > 1) {
+                const withoutLast = prev.slice(0, -1);
+                return [...withoutLast, ...parts.map(p => ({ role: "assistant" as const, content: p }))];
+              }
+            }
+            return prev;
+          });
           setIsTyping(false);
           if (memoryEnabled) setTimeout(() => refetchMemories(), 1500);
         },
