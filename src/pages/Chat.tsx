@@ -36,7 +36,7 @@ type APIMessage = {
 };
 
 async function streamChat({
-  messages, mode, memories, lifeEvents, userId, memoryEnabled, realName, onDelta, onDone,
+  messages, mode, memories, lifeEvents, userId, memoryEnabled, realName, persona, onDelta, onDone,
 }: {
   messages: APIMessage[];
   mode?: string;
@@ -45,6 +45,7 @@ async function streamChat({
   userId?: string | null;
   memoryEnabled?: boolean;
   realName?: string | null;
+  persona?: { name: string; role: string; personality: string; conversation_style: string; emotional_tone: string; interests: string } | null;
   onDelta: (deltaText: string) => void;
   onDone: () => void;
 }) {
@@ -54,7 +55,7 @@ async function streamChat({
       "Content-Type": "application/json",
       Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
     },
-    body: JSON.stringify({ messages, mode, memories, lifeEvents, userId, memoryEnabled, realName }),
+    body: JSON.stringify({ messages, mode, memories, lifeEvents, userId, memoryEnabled, realName, persona }),
   });
 
   if (!resp.ok) {
