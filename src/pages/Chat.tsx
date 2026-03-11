@@ -207,7 +207,7 @@ const Chat = () => {
   const [persona, setPersona] = useState<PersonaConfig>(getInitialPersona);
 
   // Persistent chat history
-  const { savedMessages, loading: historyLoading, persistMessages, clearHistory } = useChatHistory(userId, persona.id);
+  const { savedMessages, loading: historyLoading, persistMessages, startNewConversation } = useChatHistory(userId, persona.id);
 
   // Handle companion selection from explorer page
   useEffect(() => {
