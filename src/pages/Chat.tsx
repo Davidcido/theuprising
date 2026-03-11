@@ -7,12 +7,14 @@ import ChatMessages, { type ChatMessage } from "@/components/chat/ChatMessages";
 import { type ChatMode } from "@/components/chat/FeatureMenu";
 
 const PERSONA_MODE_MAP: Record<string, ChatMode> = {
-  companion: "companion",
-  thinker: "thinking",
-  mentor: "thinking",
-  muse: "creative",
-  study: "study",
-  vent: "vent",
+  seren: "companion",
+  atlas: "thinking",
+  orion: "thinking",
+  nova: "creative",
+  elias: "study",
+  kai: "companion",
+  leo: "thinking",
+  sol: "companion",
 };
 import { type ChatAttachment } from "@/components/chat/FilePreview";
 import PersonaSelector, { type PersonaConfig } from "@/components/chat/PersonaSelector";
