@@ -218,33 +218,28 @@ const Chat = () => {
         const config: PersonaConfig = { ...found, is_custom: false };
         setPersona(config);
         setMode(PERSONA_MODE_MAP[found.id] || "companion");
-        historyLoadedRef.current = false;
         setGreetingSet(false);
+        setMessages([]);
       }
-      // Clear the state
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
 
-  // Reset history loaded flag when companion changes
   useEffect(() => {
-    historyLoadedRef.current = false;
     setGreetingSet(false);
+    setMessages([]);
   }, [persona.id]);
 
-  // Load saved messages or show greeting
+  // Load saved messages or show greeting once auth/history are ready
   useEffect(() => {
-    if (memLoading || historyLoading || historyLoadedRef.current) return;
-    historyLoadedRef.current = true;
+    if (memLoading || historyLoading) return;
 
     if (savedMessages && savedMessages.length > 0) {
-      // Restore previous conversation
       setMessages(savedMessages);
       setGreetingSet(true);
       return;
     }
 
-    // No history — show greeting
     if (!greetingSet) {
       const savedId = getSavedCompanionId();
       if (savedId && persona.greeting) {
