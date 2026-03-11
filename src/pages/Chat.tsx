@@ -1,10 +1,11 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Brain, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import ChatInput from "@/components/chat/ChatInput";
 import ChatMessages, { type ChatMessage } from "@/components/chat/ChatMessages";
 import { type ChatMode } from "@/components/chat/FeatureMenu";
+import { useChatHistory } from "@/hooks/useChatHistory";
 import chatWallpaper from "@/assets/chat-wallpaper.jpeg";
 
 const PERSONA_MODE_MAP: Record<string, ChatMode> = {
@@ -204,6 +205,10 @@ const Chat = () => {
   const [greetingSet, setGreetingSet] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [persona, setPersona] = useState<PersonaConfig>(getInitialPersona);
+  const historyLoadedRef = useRef(false);
+
+  // Persistent chat history
+  const { savedMessages, loading: historyLoading, saveMessages, clearHistory } = useChatHistory(userId, persona.id);
 
   // Handle companion selection from explorer page
   useEffect(() => {
@@ -214,19 +219,34 @@ const Chat = () => {
         const config: PersonaConfig = { ...found, is_custom: false };
         setPersona(config);
         setMode(PERSONA_MODE_MAP[found.id] || "companion");
-        const greetingText = found.greeting
-          ? (realName ? found.greeting.replace(/^Hey /, `Hey ${realName} `) : found.greeting)
-          : `Hey${realName ? ` ${realName}` : ""} ${found.avatar_emoji} I'm ${found.name}. ${found.description}`;
-        setMessages([{ role: "assistant", content: greetingText }]);
-        setGreetingSet(true);
+        historyLoadedRef.current = false;
+        setGreetingSet(false);
       }
       // Clear the state
       window.history.replaceState({}, document.title);
     }
-  }, [location.state, realName]);
+  }, [location.state]);
 
+  // Reset history loaded flag when companion changes
   useEffect(() => {
-    if (!memLoading && !greetingSet) {
+    historyLoadedRef.current = false;
+    setGreetingSet(false);
+  }, [persona.id]);
+
+  // Load saved messages or show greeting
+  useEffect(() => {
+    if (memLoading || historyLoading || historyLoadedRef.current) return;
+    historyLoadedRef.current = true;
+
+    if (savedMessages && savedMessages.length > 0) {
+      // Restore previous conversation
+      setMessages(savedMessages);
+      setGreetingSet(true);
+      return;
+    }
+
+    // No history — show greeting
+    if (!greetingSet) {
       const savedId = getSavedCompanionId();
       if (savedId && persona.greeting) {
         const greetingText = realName
@@ -239,7 +259,7 @@ const Chat = () => {
       }
       setGreetingSet(true);
     }
-  }, [memLoading, realName, memories, memoryEnabled, greetingSet, persona]);
+  }, [memLoading, historyLoading, savedMessages, realName, memories, memoryEnabled, greetingSet, persona]);
 
   const showMemoryChoice = !memLoading && !!userId && memoryEnabled === null;
 
@@ -333,6 +353,12 @@ const Chat = () => {
           });
           setIsTyping(false);
           if (memoryEnabled) setTimeout(() => refetchMemories(), 1500);
+          // Save to persistent storage after response completes
+          setMessages((prev) => {
+            // Use a timeout so we save the final state
+            setTimeout(() => saveMessages(prev), 500);
+            return prev;
+          });
         },
       });
     } catch (e: any) {
@@ -340,7 +366,7 @@ const Chat = () => {
       setIsTyping(false);
       toast.error(e.message || "Something went wrong. Please try again.");
     }
-  }, [memoryEnabled, memories, lifeEvents, userId, realName, refetchMemories, mode, persona]);
+  }, [memoryEnabled, memories, lifeEvents, userId, realName, refetchMemories, mode, persona, saveMessages]);
 
   const handleSend = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0) || isTyping) return;
