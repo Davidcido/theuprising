@@ -481,52 +481,56 @@ const Chat = () => {
       </div>
 
       {/* Header - fixed, outside scroll */}
-      <div className="shrink-0 px-4 py-3 backdrop-blur-xl border-b border-white/10 relative z-10" style={{ background: "rgba(15, 81, 50, 0.6)" }}>
-        <div className="container mx-auto flex items-center gap-3">
+      <div className="shrink-0 px-3 py-2.5 backdrop-blur-xl border-b border-white/10 relative z-10" style={{ background: "rgba(15, 81, 50, 0.6)" }}>
+        <div className="flex items-center gap-2.5">
           {/* Avatar */}
-          <div className="w-10 h-10 rounded-full overflow-hidden shadow-md ring-2 ring-offset-1 ring-offset-background" style={{ borderColor: `${persona.color}44` }}>
+          <div className="shrink-0 w-9 h-9 rounded-full overflow-hidden shadow-md ring-2 ring-offset-1 ring-offset-background" style={{ borderColor: `${persona.color}44` }}>
             {builtinData?.avatar_image ? (
               <img src={builtinData.avatar_image} alt={persona.name} className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full rounded-full flex items-center justify-center text-xl" style={{ background: `${persona.color}22` }}>
+              <div className="w-full h-full rounded-full flex items-center justify-center text-lg" style={{ background: `${persona.color}22` }}>
                 {persona.avatar_emoji || "💚"}
               </div>
             )}
           </div>
+          {/* Name & status */}
           <div className="flex-1 min-w-0">
-            <h2 className="font-display font-semibold text-foreground text-sm truncate">
+            <h2 className="font-display font-semibold text-foreground text-sm truncate leading-tight">
               {persona.avatar_emoji} {persona.name}
             </h2>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground truncate leading-tight mt-0.5">
               {isTyping ? (
                 <span className="text-primary animate-pulse">typing...</span>
               ) : persona.description}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleNewChat}
-            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 hover:opacity-90 transition-colors"
-            style={{ backgroundColor: "#0F2E1F" }}
-          >
-            <Plus className="w-3.5 h-3.5 text-white" />
-            <span className="text-xs text-white font-medium">New Chat</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate("/companions")}
-            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 hover:opacity-90 transition-colors"
-            style={{ backgroundColor: "#0F2E1F" }}
-          >
-            <RefreshCw className="w-3.5 h-3.5 text-white" />
-            <span className="text-xs text-white font-medium">Switch</span>
-          </button>
-          {memoryEnabled && (
-            <div className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/20 border border-primary/30">
-              <Brain className="w-3 h-3 text-primary" />
-              <span className="text-xs text-primary font-medium">Memory</span>
-            </div>
-          )}
+          {/* Actions */}
+          <div className="shrink-0 flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleNewChat}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-white/10 hover:opacity-90 transition-colors"
+              style={{ backgroundColor: "#0F2E1F" }}
+            >
+              <Plus className="w-3.5 h-3.5 text-white" />
+              <span className="text-[11px] text-white font-medium">New</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/companions")}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-white/10 hover:opacity-90 transition-colors"
+              style={{ backgroundColor: "#0F2E1F" }}
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-white" />
+              <span className="text-[11px] text-white font-medium">Switch</span>
+            </button>
+            {memoryEnabled && (
+              <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-primary/20 border border-primary/30">
+                <Brain className="w-3 h-3 text-primary" />
+                <span className="text-[11px] text-primary font-medium">Memory</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
