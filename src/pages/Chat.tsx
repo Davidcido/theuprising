@@ -189,20 +189,21 @@ function getProactiveGreeting(name?: string | null, memories?: { memory_text: st
 const Chat = () => {
   const { userId, memoryEnabled, memories, realName, loading: memLoading, setPreference, refetchMemories } = useAIMemory();
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: "assistant", content: getProactiveGreeting() },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [mode, setMode] = useState<ChatMode>("companion");
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+  const [greetingSet, setGreetingSet] = useState(false);
 
-  // Update greeting when realName becomes available
+  // Set greeting once memory/name data is loaded
   useEffect(() => {
-    if (realName && messages.length === 1 && messages[0].role === "assistant") {
-      setMessages([{ role: "assistant", content: getProactiveGreeting(realName) }]);
+    if (!memLoading && !greetingSet) {
+      const greeting = getProactiveGreeting(realName, memoryEnabled ? memories : undefined);
+      setMessages([{ role: "assistant", content: greeting }]);
+      setGreetingSet(true);
     }
-  }, [realName]);
+  }, [memLoading, realName, memories, memoryEnabled, greetingSet]);
 
   const showMemoryChoice = !memLoading && !!userId && memoryEnabled === null;
 

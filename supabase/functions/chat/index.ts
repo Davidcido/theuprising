@@ -234,10 +234,11 @@ serve(async (req) => {
 
     // Inject memories
     if (memoryEnabled && memories && memories.length > 0) {
-      systemPrompt += `\n\nYou have the following memories about this user from past conversations. Use them naturally to personalize your responses — reference them when relevant, don't list them:\n`;
+      systemPrompt += `\n\nYou have the following memories about this user from past conversations. Use them naturally to personalize your responses — reference them when relevant, don't list them. Follow up on memories warmly like a friend who genuinely remembers: "You mentioned X before… how's that going?" or "Last time we talked about Y. Did things get better?"\n`;
       for (const mem of memories.slice(0, 20)) {
         systemPrompt += `- ${mem}\n`;
       }
+      systemPrompt += `\nEMOTIONAL ENGAGEMENT LOOP:\n- When the user shares progress or good news, celebrate genuinely: "That's amazing!" / "You really worked hard for that!"\n- When they return after being away, acknowledge it warmly.\n- Always respond to emotions FIRST before continuing conversation.\n- Occasionally follow up on stored memories to show you care and remember.\n`;
     }
 
     if (isCrisis) {
