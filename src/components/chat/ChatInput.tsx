@@ -53,7 +53,7 @@ const ChatInput = ({
       style={{
         background: "rgba(15, 81, 50, 0.4)",
         paddingLeft: "8px",
-        paddingRight: "12px",
+        paddingRight: "20px",
         paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))",
       }}
     >
