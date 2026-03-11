@@ -140,15 +140,38 @@ const PROACTIVE_GREETINGS = [
 ];
 
 const LAST_VISIT_KEY = "uprising_last_chat_visit";
+const DAILY_CHECKIN_KEY = "uprising_daily_checkin";
 
-function getProactiveGreeting(name?: string | null): string {
+function getMemoryFollowUp(memories: { memory_text: string; category: string; importance_score?: number | null }[]): string | null {
+  if (!memories || memories.length === 0) return null;
+  const followable = memories.filter(m =>
+    m.category !== "identity" && (m.importance_score ?? 5) >= 6
+  );
+  if (followable.length === 0) return null;
+  return followable[Math.floor(Math.random() * Math.min(3, followable.length))].memory_text;
+}
+
+function getProactiveGreeting(name?: string | null, memories?: { memory_text: string; category: string; importance_score?: number | null }[]): string {
   const lastVisit = localStorage.getItem(LAST_VISIT_KEY);
+  const lastCheckin = localStorage.getItem(DAILY_CHECKIN_KEY);
   const now = Date.now();
+  const today = new Date().toDateString();
   localStorage.setItem(LAST_VISIT_KEY, String(now));
 
   if (lastVisit) {
     const hoursAway = (now - Number(lastVisit)) / (1000 * 60 * 60);
     if (hoursAway > 4) {
+      // Memory-based daily check-in (once per day)
+      if (lastCheckin !== today && memories && memories.length > 0) {
+        localStorage.setItem(DAILY_CHECKIN_KEY, today);
+        const memText = getMemoryFollowUp(memories);
+        if (memText && name) {
+          return `Hey ${name} 💚 I was thinking about you. Last time you mentioned: "${memText}" — how's that going?`;
+        }
+        if (memText) {
+          return `Hey 💚 I remembered something from before: "${memText}" — how are things now?`;
+        }
+      }
       if (name) {
         const g = PROACTIVE_GREETINGS_WITH_NAME[Math.floor(Math.random() * PROACTIVE_GREETINGS_WITH_NAME.length)];
         return g.replace("NAME", name);
@@ -166,20 +189,21 @@ function getProactiveGreeting(name?: string | null): string {
 const Chat = () => {
   const { userId, memoryEnabled, memories, realName, loading: memLoading, setPreference, refetchMemories } = useAIMemory();
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: "assistant", content: getProactiveGreeting() },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [mode, setMode] = useState<ChatMode>("companion");
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+  const [greetingSet, setGreetingSet] = useState(false);
 
-  // Update greeting when realName becomes available
+  // Set greeting once memory/name data is loaded
   useEffect(() => {
-    if (realName && messages.length === 1 && messages[0].role === "assistant") {
-      setMessages([{ role: "assistant", content: getProactiveGreeting(realName) }]);
+    if (!memLoading && !greetingSet) {
+      const greeting = getProactiveGreeting(realName, memoryEnabled ? memories : undefined);
+      setMessages([{ role: "assistant", content: greeting }]);
+      setGreetingSet(true);
     }
-  }, [realName]);
+  }, [memLoading, realName, memories, memoryEnabled, greetingSet]);
 
   const showMemoryChoice = !memLoading && !!userId && memoryEnabled === null;
 
