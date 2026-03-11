@@ -92,7 +92,8 @@ const ChatInput = ({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Share what's on your mind..."
-            className="flex-1 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-white/30"
+            className="flex-1 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 px-4 py-3 text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-white/30"
+            style={{ fontSize: "16px" }}
           />
           <button
             type="submit"
