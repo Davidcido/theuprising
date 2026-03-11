@@ -281,11 +281,15 @@ const Chat = () => {
       }
 
       const memoryTexts = memoryEnabled ? memories.map((m) => m.memory_text) : undefined;
+      const lifeEventTexts = memoryEnabled && lifeEvents.length > 0
+        ? lifeEvents.map((e) => ({ text: e.event_text, category: e.event_category, date: e.event_date }))
+        : undefined;
 
       await streamChat({
         messages: apiMessages,
         mode,
         memories: memoryTexts,
+        lifeEvents: lifeEventTexts,
         userId,
         memoryEnabled: memoryEnabled === true,
         realName,
