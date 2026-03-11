@@ -80,7 +80,7 @@ export const BUILTIN_PERSONAS: BuiltinPersona[] = [
     conversation_style: "Very short responses (1-2 sentences), validates feelings, minimal questions. Never gives unsolicited advice.",
     emotional_tone: "calm",
     interests: "Emotional processing, stress relief, safe space, validation",
-    avatar_emoji: "🫂",
+    avatar_emoji: "❤️",
     color: "#8B5CF6",
     description: "A calm presence that lets you express frustration or emotions without judgment.",
   },

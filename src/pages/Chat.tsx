@@ -371,7 +371,9 @@ const Chat = () => {
               <h2 className="font-display font-semibold text-foreground text-sm truncate">{persona.name}</h2>
               <PersonaSelector currentPersona={persona} onSelect={(p) => {
                 setPersona(p);
-                setMessages([{ role: "assistant", content: `Hey${realName ? ` ${realName}` : ""} ${persona.avatar_emoji || "💚"} I'm ${p.name}. ${p.description} How can I help you today?` }]);
+                const mappedMode = PERSONA_MODE_MAP[p.id] || "companion";
+                setMode(mappedMode);
+                setMessages([{ role: "assistant", content: `Hey${realName ? ` ${realName}` : ""} ${p.avatar_emoji || "💚"} I'm ${p.name}. ${p.description} How can I help you today?` }]);
               }} userId={userId} />
             </div>
             <p className="text-xs text-muted-foreground">
