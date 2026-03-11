@@ -501,18 +501,20 @@ const Chat = () => {
           <button
             type="button"
             onClick={handleNewChat}
-            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-uprising-green-dark/90 border border-primary/20 hover:bg-uprising-green-dark transition-colors shadow-soft"
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 hover:opacity-90 transition-colors"
+            style={{ backgroundColor: "#0F2E1F" }}
           >
-            <Plus className="w-3.5 h-3.5 text-primary-foreground" />
-            <span className="text-xs text-primary-foreground font-medium">New Chat</span>
+            <Plus className="w-3.5 h-3.5 text-white" />
+            <span className="text-xs text-white font-medium">New Chat</span>
           </button>
           <button
             type="button"
             onClick={() => navigate("/companions")}
-            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-uprising-green-dark/90 border border-primary/20 hover:bg-uprising-green-dark transition-colors shadow-soft"
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 hover:opacity-90 transition-colors"
+            style={{ backgroundColor: "#0F2E1F" }}
           >
-            <RefreshCw className="w-3.5 h-3.5 text-primary-foreground" />
-            <span className="text-xs text-primary-foreground font-medium">Switch</span>
+            <RefreshCw className="w-3.5 h-3.5 text-white" />
+            <span className="text-xs text-white font-medium">Switch</span>
           </button>
           {memoryEnabled && (
             <div className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/20 border border-primary/30">
