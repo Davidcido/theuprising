@@ -411,24 +411,23 @@ const Chat = () => {
 
       {/* Floating particles */}
       <div className="absolute inset-0 z-[1] pointer-events-none overflow-hidden">
-        {Array.from({ length: 12 }).map((_, i) => {
-          const left = `${(i * 37 + 13) % 100}%`;
-          const top = `${(i * 53 + 7) % 100}%`;
+        {Array.from({ length: 18 }).map((_, i) => {
+          const left = `${(i * 31 + 11) % 100}%`;
+          const top = `${(i * 47 + 9) % 100}%`;
           const size = 2 + (i % 3);
-          const dur = `${18 + (i * 7) % 14}s`;
-          const delay = `${(i * 3) % 10}s`;
+          const dur = `${22 + (i * 5) % 18}s`;
+          const delay = `${(i * 2.3) % 12}s`;
           const isGold = i % 3 === 0;
           return (
             <div
               key={i}
-              className="absolute rounded-full animate-[chatParticleDrift_ease-in-out_infinite_alternate]"
+              className="absolute rounded-full"
               style={{
                 left, top,
                 width: size, height: size,
-                background: isGold ? "rgba(218,195,130,0.08)" : "rgba(180,230,200,0.07)",
-                boxShadow: isGold ? "0 0 4px rgba(218,195,130,0.12)" : "0 0 4px rgba(180,230,200,0.10)",
-                animationDuration: dur,
-                animationDelay: delay,
+                background: isGold ? "rgba(218,195,130,0.06)" : "rgba(180,230,200,0.05)",
+                boxShadow: isGold ? "0 0 6px rgba(218,195,130,0.10)" : "0 0 6px rgba(180,230,200,0.08)",
+                animation: `chatParticleDrift ${dur} ${delay} ease-in-out infinite alternate`,
               }}
             />
           );
