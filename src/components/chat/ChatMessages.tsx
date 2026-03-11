@@ -165,7 +165,7 @@ const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, on
             </motion.div>
           )}
 
-          <div ref={bottomRef} />
+          <div className="h-px w-full" aria-hidden="true" />
         </div>
       </div>
 

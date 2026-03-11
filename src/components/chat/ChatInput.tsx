@@ -48,8 +48,12 @@ const ChatInput = ({
   }, [attachments, onAttachmentsChange]);
 
   return (
-    <div className="px-4 py-3 backdrop-blur-xl border-t border-white/10"
-      style={{ background: "rgba(15, 81, 50, 0.4)" }}
+    <div
+      className="shrink-0 px-4 py-3 backdrop-blur-xl border-t border-white/10"
+      style={{
+        background: "rgba(15, 81, 50, 0.4)",
+        paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))",
+      }}
     >
       <div className="container mx-auto max-w-2xl">
         <FilePreview
