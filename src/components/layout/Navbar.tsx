@@ -33,10 +33,11 @@ const Navbar = () => {
     setMobileOpen(false);
     
     try {
-      // 1. Sign out from Supabase FIRST so auth state change fires
-      await supabase.auth.signOut();
+      // 1. Sign out from Supabase with global scope to invalidate all sessions
+      await supabase.auth.signOut({ scope: 'global' });
     } catch (e) {
       console.error("Sign out error:", e);
+      // Even if signOut fails, continue with cleanup
     }
     
     // 2. Clear all stored data (preserve session_id for anonymous features)
@@ -49,8 +50,6 @@ const Navbar = () => {
     document.cookie.split(";").forEach((c) => {
       document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
     });
-    
-    toast.success("Logged out successfully");
     
     // 4. Hard redirect to ensure PWA fully resets auth state
     window.location.href = "/";

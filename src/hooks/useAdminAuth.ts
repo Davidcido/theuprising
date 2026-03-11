@@ -91,10 +91,14 @@ export const useAdminAuth = () => {
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: 'global' });
     setUser(null);
     setIsAdmin(false);
-    toast.success("Logged out");
+    const sessionIdBackup = localStorage.getItem("uprising_session_id");
+    localStorage.clear();
+    sessionStorage.clear();
+    if (sessionIdBackup) localStorage.setItem("uprising_session_id", sessionIdBackup);
+    window.location.href = "/";
   };
 
   return {
