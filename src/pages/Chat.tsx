@@ -219,19 +219,24 @@ const Chat = () => {
         setPersona(config);
         setMode(PERSONA_MODE_MAP[found.id] || "companion");
         setGreetingSet(false);
-        setMessages([]);
+        saveCompanionId(found.id);
       }
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
 
-  // When companion changes, reset greeting flag but DON'T clear messages yet —
-  // wait for history to load to avoid a flash of empty UI.
+  // Persist selected companion and reset greeting flag without clearing current UI.
   const prevPersonaIdRef = useRef(persona.id);
   useEffect(() => {
+    saveCompanionId(persona.id);
+
     if (prevPersonaIdRef.current !== persona.id) {
       prevPersonaIdRef.current = persona.id;
       setGreetingSet(false);
+      setInput("");
+      setAttachments([]);
+      setEditingIndex(null);
+      setIsTyping(false);
     }
   }, [persona.id]);
 
@@ -239,24 +244,26 @@ const Chat = () => {
   useEffect(() => {
     if (memLoading || historyLoading) return;
 
-    if (savedMessages && savedMessages.length > 0) {
-      setMessages(savedMessages);
-      setGreetingSet(true);
-      return;
-    }
-
-    if (!greetingSet) {
-      const savedId = getSavedCompanionId();
-      if (savedId && persona.greeting) {
-        const greetingText = realName
-          ? persona.greeting.replace(/^Hey /, `Hey ${realName} `)
-          : persona.greeting;
-        setMessages([{ role: "assistant", content: greetingText }]);
-      } else {
-        const greeting = getProactiveGreeting(realName, memoryEnabled ? memories : undefined);
-        setMessages([{ role: "assistant", content: greeting }]);
+    if (savedMessages) {
+      if (savedMessages.length > 0) {
+        setMessages(savedMessages);
+        setGreetingSet(true);
+        return;
       }
-      setGreetingSet(true);
+
+      if (!greetingSet) {
+        const savedId = getSavedCompanionId();
+        if (savedId && persona.greeting) {
+          const greetingText = realName
+            ? persona.greeting.replace(/^Hey /, `Hey ${realName} `)
+            : persona.greeting;
+          setMessages([{ role: "assistant", content: greetingText }]);
+        } else {
+          const greeting = getProactiveGreeting(realName, memoryEnabled ? memories : undefined);
+          setMessages([{ role: "assistant", content: greeting }]);
+        }
+        setGreetingSet(true);
+      }
     }
   }, [memLoading, historyLoading, savedMessages, realName, memories, memoryEnabled, greetingSet, persona]);
 
