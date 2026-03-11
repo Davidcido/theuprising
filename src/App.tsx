@@ -138,6 +138,11 @@ const AppContent = () => {
             <Route path="/daily-rise" element={
               <ErrorBoundary inline><DailyRise /></ErrorBoundary>
             } />
+            <Route path="/companions" element={
+              <ProtectedRoute>
+                <ErrorBoundary inline><CompanionExplorer /></ErrorBoundary>
+              </ProtectedRoute>
+            } />
           </Route>
           <Route path="/admin" element={<Admin />} />
           <Route path="/reset-password" element={<ResetPassword />} />
