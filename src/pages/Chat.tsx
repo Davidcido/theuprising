@@ -168,6 +168,11 @@ function getProactiveGreeting(name?: string | null, memories?: { memory_text: st
   return "Hey there 💚 I'm your Uprising Companion. This is a safe space — no judgment, just support. How are you feeling right now?";
 }
 
+const defaultPersona: PersonaConfig = {
+  ...BUILTIN_PERSONAS[0],
+  is_custom: false,
+};
+
 const Chat = () => {
   const { userId, memoryEnabled, memories, lifeEvents, realName, loading: memLoading, setPreference, refetchMemories } = useAIMemory();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -177,6 +182,7 @@ const Chat = () => {
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [greetingSet, setGreetingSet] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [persona, setPersona] = useState<PersonaConfig>(defaultPersona);
 
   useEffect(() => {
     if (!memLoading && !greetingSet) {
