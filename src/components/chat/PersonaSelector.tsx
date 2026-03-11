@@ -183,7 +183,7 @@ const PersonaSelector = ({ currentPersona, onSelect, userId }: PersonaSelectorPr
                         }`}
                       >
                         {/* Avatar */}
-                        <div className="w-16 h-16 rounded-full overflow-hidden mb-3 ring-2 ring-offset-2 ring-offset-background" style={{ ringColor: p.color }}>
+                        <div className="w-16 h-16 rounded-full overflow-hidden mb-3 ring-2 ring-offset-2 ring-offset-background" style={{ borderColor: p.color }}>
                           {builtinData?.avatar_image ? (
                             <img src={builtinData.avatar_image} alt={p.name} className="w-full h-full object-cover" />
                           ) : (
