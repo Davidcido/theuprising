@@ -243,6 +243,15 @@ const Chat = () => {
         ? lifeEvents.map((e) => ({ text: e.event_text, category: e.event_category, date: e.event_date }))
         : undefined;
 
+      const personaPayload = persona.id !== "companion" ? {
+        name: persona.name,
+        role: persona.role,
+        personality: persona.personality,
+        conversation_style: persona.conversation_style,
+        emotional_tone: persona.emotional_tone,
+        interests: persona.interests,
+      } : null;
+
       await streamChat({
         messages: apiMessages,
         mode,
@@ -251,6 +260,7 @@ const Chat = () => {
         userId,
         memoryEnabled: memoryEnabled === true,
         realName,
+        persona: personaPayload,
         onDelta: (chunk) => {
           if (assistantSoFar === "") {
             setMessages((prev) => [...prev, { role: "assistant", content: chunk }]);
@@ -261,7 +271,6 @@ const Chat = () => {
           }
         },
         onDone: () => {
-          // Handle multi-part split responses
           setMessages((prev) => {
             const last = prev[prev.length - 1];
             if (last?.role === "assistant" && last.content.includes("||SPLIT||")) {
@@ -282,7 +291,7 @@ const Chat = () => {
       setIsTyping(false);
       toast.error(e.message || "Something went wrong. Please try again.");
     }
-  }, [memoryEnabled, memories, lifeEvents, userId, realName, refetchMemories, mode]);
+  }, [memoryEnabled, memories, lifeEvents, userId, realName, refetchMemories, mode, persona]);
 
   const handleSend = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0) || isTyping) return;
