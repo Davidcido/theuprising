@@ -24,25 +24,48 @@ type ChatMessagesProps = {
 
 const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, onEditMessage, onDeleteMessage }: ChatMessagesProps) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const [viewerImages, setViewerImages] = useState<string[] | null>(null);
   const [viewerIndex, setViewerIndex] = useState(0);
 
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    container.scrollTo({
-      top: container.scrollHeight,
-      behavior: "smooth",
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    // Use rAF to ensure DOM has updated
+    requestAnimationFrame(() => {
+      const container = scrollContainerRef.current;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
     });
-  }, [messages, isTyping]);
+  }, []);
+
+  // Scroll on new messages or typing state change
+  useEffect(() => {
+    scrollToBottom("smooth");
+  }, [messages, isTyping, scrollToBottom]);
+
+  // Handle iOS keyboard open/close via visualViewport API
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const handleResize = () => {
+      // When keyboard opens/closes, scroll to bottom to keep latest message visible
+      scrollToBottom("smooth");
+    };
+
+    vv.addEventListener("resize", handleResize);
+    vv.addEventListener("scroll", handleResize);
+    return () => {
+      vv.removeEventListener("resize", handleResize);
+      vv.removeEventListener("scroll", handleResize);
+    };
+  }, [scrollToBottom]);
 
   const openImage = useCallback((images: string[], index: number) => {
     setViewerImages(images);
     setViewerIndex(index);
   }, []);
 
-  // Collect all images from a message content (markdown image syntax)
   const extractContentImages = (content: string): string[] => {
     const regex = /!\[.*?\]\((.*?)\)/g;
     const urls: string[] = [];
@@ -72,12 +95,8 @@ const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, on
                 transition={{ duration: 0.2 }}
                 className={`group flex items-end gap-1.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
-                {/* Actions for assistant messages */}
                 {msg.role === "assistant" && (
-                  <MessageActions
-                    content={msg.content}
-                    isUser={false}
-                  />
+                  <MessageActions content={msg.content} isUser={false} />
                 )}
 
                 <div
@@ -88,7 +107,6 @@ const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, on
                   }`}
                   style={{ textShadow: "0px 1px 2px rgba(0,0,0,0.35)" }}
                 >
-                  {/* Attachment previews */}
                   {msg.attachments && msg.attachments.length > 0 && (
                     <div className="flex gap-2 mb-2 flex-wrap">
                       {msg.attachments.map((att, j) => (
@@ -136,7 +154,6 @@ const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, on
                   )}
                 </div>
 
-                {/* Actions for user messages */}
                 {msg.role === "user" && (
                   <MessageActions
                     content={msg.content}
@@ -165,11 +182,10 @@ const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, on
             </motion.div>
           )}
 
-          <div className="h-px w-full" aria-hidden="true" />
+          <div ref={bottomRef} className="h-px w-full" aria-hidden="true" />
         </div>
       </div>
 
-      {/* Full-screen Image Viewer */}
       {viewerImages && (
         <ImageViewer
           images={viewerImages}

@@ -501,17 +501,27 @@ const Chat = () => {
         </div>
       )}
 
-      {/* Privacy notice */}
-      <div className="px-4 py-1 relative z-10">
-        <p className="text-center text-[10px] text-muted-foreground/40">
-          {memoryEnabled
-            ? "💚 Memory is on — I'll remember helpful details to support you better."
-            : "🔒 Your conversation is private. No personal data is stored."}
-        </p>
-      </div>
+      {/* Input - fixed at bottom */}
+      <div className="shrink-0 relative z-10">
+        {/* Edit indicator */}
+        {editingIndex !== null && (
+          <div className="px-4 py-1.5 bg-primary/10 border-t border-primary/20 flex items-center justify-between">
+            <span className="text-xs text-primary">Editing message...</span>
+            <button onClick={() => { setEditingIndex(null); setInput(""); }} className="text-xs text-muted-foreground hover:text-foreground">
+              Cancel
+            </button>
+          </div>
+        )}
 
-      {/* Input */}
-      <div className="relative z-10">
+        {/* Privacy notice */}
+        <div className="px-4 py-1">
+          <p className="text-center text-[10px] text-muted-foreground/40">
+            {memoryEnabled
+              ? "💚 Memory is on — I'll remember helpful details to support you better."
+              : "🔒 Your conversation is private. No personal data is stored."}
+          </p>
+        </div>
+
         <ChatInput
           input={input}
           setInput={setInput}
