@@ -375,7 +375,10 @@ const Chat = () => {
                 setPersona(p);
                 const mappedMode = PERSONA_MODE_MAP[p.id] || "companion";
                 setMode(mappedMode);
-                setMessages([{ role: "assistant", content: `Hey${realName ? ` ${realName}` : ""} ${p.avatar_emoji || "💚"} I'm ${p.name}. ${p.description} How can I help you today?` }]);
+                const greetingText = p.greeting
+                  ? (realName ? p.greeting.replace(/^Hey /, `Hey ${realName} `) : p.greeting)
+                  : `Hey${realName ? ` ${realName}` : ""} ${p.avatar_emoji || "💚"} I'm ${p.name}. ${p.description}`;
+                setMessages([{ role: "assistant", content: greetingText }]);
               }} userId={userId} />
             </div>
             <p className="text-xs text-muted-foreground">
