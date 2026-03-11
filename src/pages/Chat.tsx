@@ -353,6 +353,12 @@ const Chat = () => {
           });
           setIsTyping(false);
           if (memoryEnabled) setTimeout(() => refetchMemories(), 1500);
+          // Save to persistent storage after response completes
+          setMessages((prev) => {
+            // Use a timeout so we save the final state
+            setTimeout(() => saveMessages(prev), 500);
+            return prev;
+          });
         },
       });
     } catch (e: any) {
