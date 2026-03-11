@@ -394,7 +394,7 @@ const Chat = () => {
     setInput("");
     setAttachments([]);
     await sendMessage(newMessages, currentInput, currentAttachments);
-  }, [input, isTyping, messages, editingIndex, attachments, sendMessage]);
+  }, [input, isTyping, messages, editingIndex, attachments, sendMessage, persistMessages]);
 
   const handleNewChat = useCallback(async () => {
     await clearHistory();
