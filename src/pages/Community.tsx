@@ -1413,9 +1413,32 @@ const Community = () => {
             )}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 relative">
+            {/* New Posts Available indicator */}
+            <AnimatePresence>
+              {newPostsAvailable > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="sticky top-16 z-30 flex justify-center"
+                >
+                  <button
+                    onClick={scrollToTop}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-primary-foreground text-xs font-semibold shadow-lg hover:scale-105 active:scale-95 transition-transform"
+                  >
+                    <ArrowUp className="w-3.5 h-3.5" />
+                    {newPostsAvailable} new {newPostsAvailable === 1 ? "post" : "posts"} available
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Virtual feed spacer top */}
+            {topSpacer > 0 && <div style={{ height: topSpacer }} aria-hidden />}
+
             <AnimatePresence mode="popLayout">
-              {visiblePosts.map((post) => (
+              {visiblePosts.map((post, idx) => (
                 <PostViewObserver key={post.id} postId={post.id} onView={trackView}>
                   <PostCard
                     post={post}
@@ -1451,9 +1474,16 @@ const Community = () => {
                     onDeletePost={handleDeletePost}
                     onEditPost={handleEditPost}
                   />
+                  {/* Prefetch sentinel halfway through the feed */}
+                  {idx === Math.floor(visiblePosts.length / 2) && (
+                    <div ref={prefetchSentinelRef} aria-hidden />
+                  )}
                 </PostViewObserver>
               ))}
             </AnimatePresence>
+
+            {/* Virtual feed spacer bottom */}
+            {bottomSpacer > 0 && <div style={{ height: bottomSpacer }} aria-hidden />}
 
             {/* Infinite scroll sentinel */}
             {hasMore && (
