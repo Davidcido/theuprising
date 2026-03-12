@@ -254,7 +254,6 @@ const VoiceCompanion = () => {
     try { return localStorage.getItem("uprising_voice_uri") || ""; } catch { return ""; }
   });
   const [selectedCompanion, setSelectedCompanion] = useState<CompanionOption>(companions[0]);
-  const [selectedCompanion, setSelectedCompanion] = useState<CompanionOption>(companions[0]);
 
   const phaseRef = useRef<CallPhase>("idle");
   const activeRef = useRef(false);
