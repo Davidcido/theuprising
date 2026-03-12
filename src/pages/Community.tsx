@@ -272,7 +272,8 @@ const Community = () => {
         });
         setCachedPosts(enriched);
       }
-      setHasMore(data.length === POSTS_PER_PAGE);
+      // Only stop loading more when we get fewer results than requested
+      setHasMore(data.length >= POSTS_PER_PAGE);
     } catch (err: any) {
       console.error("[Community] fetchPosts failed:", err?.message);
       if (retryCount < 1) {
