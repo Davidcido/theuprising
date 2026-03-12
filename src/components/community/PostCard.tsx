@@ -162,6 +162,8 @@ const PostCard = ({
     setEditMediaFiles(existing);
   };
 
+  const hasMedia = (post.media_urls && post.media_urls.length > 0) || (post._pendingMedia && post._pendingMedia.length > 0);
+
   const handleSaveEdit = async () => {
     const contentChanged = editContent.trim() !== post.content;
     const existingUrls = post.media_urls || [];
