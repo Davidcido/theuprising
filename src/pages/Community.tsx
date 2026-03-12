@@ -484,35 +484,91 @@ const Community = () => {
     };
   }, [authReady]);
 
-  // Prefetch: start loading next batch when user is halfway through current posts
+  // Prefetch next batch in background when user scrolls halfway
   const prefetchTriggered = useRef(false);
   useEffect(() => {
     if (!hasMore || loadingMore || fetchingRef.current) return;
-    // Reset prefetch flag when new posts arrive
     prefetchTriggered.current = false;
   }, [allPosts.length]);
 
+  // Background prefetch — loads next PREFETCH_BATCH posts into cache before user reaches bottom
+  const prefetchNextBatch = useCallback(async () => {
+    if (prefetchTriggered.current || !hasMore || fetchingRef.current) return;
+    prefetchTriggered.current = true;
+    
+    try {
+      let query = supabase
+        .from("community_posts")
+        .select("id, content, anonymous_name, author_id, is_anonymous, likes_count, comments_count, shares_count, views_count, created_at, media_urls, original_post_id, reposted_by_name, engagement_score")
+        .order("created_at", { ascending: false })
+        .limit(PREFETCH_BATCH);
+
+      if (cursorRef.current) {
+        query = query.lt("created_at", cursorRef.current);
+      }
+
+      const { data } = await query;
+      if (data && data.length > 0) {
+        const enriched = await enrichPosts(data);
+        prefetchCacheRef.current = enriched;
+      }
+    } catch {}
+  }, [hasMore, enrichPosts]);
+
+  // Prefetch sentinel — halfway through feed triggers background prefetch
+  useEffect(() => {
+    const sentinel = prefetchSentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && hasMore && !fetchingRef.current && activeTab === "foryou") {
+          prefetchNextBatch();
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, prefetchNextBatch, activeTab]);
+
+  // Bottom sentinel — triggers actual load (uses prefetched data if available)
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting && hasMore && !loadingMore && !fetchingRef.current && activeTab === "foryou") {
-          fetchPosts(true);
+          if (prefetchCacheRef.current.length > 0) {
+            // Use prefetched data instantly
+            const prefetched = prefetchCacheRef.current;
+            prefetchCacheRef.current = [];
+            setAllPosts(prev => {
+              const existingIds = new Set(prev.map(p => p.id));
+              const newPosts = prefetched.filter(p => !existingIds.has(p.id));
+              if (newPosts.length > 0 && prefetched.length > 0) {
+                cursorRef.current = prefetched[prefetched.length - 1].created_at;
+              }
+              return [...prev, ...newPosts];
+            });
+            setHasMore(prefetched.length >= PREFETCH_BATCH);
+            prefetchTriggered.current = false;
+          } else {
+            fetchPosts(true);
+          }
         }
       },
-      { rootMargin: "600px" }
+      { rootMargin: "800px" }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [hasMore, loadingMore, fetchPosts, activeTab]);
 
+  // Update cache whenever posts change
   useEffect(() => {
-    if (activeTab !== "foryou") return;
-  }, [activeTab]);
+    if (allPosts.length > 0) feedCache.updateCache(allPosts);
+  }, [allPosts.length]);
 
   const displayPosts = useMemo(() => {
-    // Always sort by created_at descending (newest first) as the base
     const chronological = [...allPosts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     
     switch (activeTab) {
