@@ -162,7 +162,7 @@ const Community = () => {
     try {
       let query = supabase
         .from("community_posts")
-        .select("*")
+        .select("id, content, anonymous_name, author_id, is_anonymous, likes_count, comments_count, shares_count, views_count, created_at, media_urls, original_post_id, reposted_by_name, engagement_score")
         .order("created_at", { ascending: false })
         .limit(POSTS_PER_PAGE);
 
