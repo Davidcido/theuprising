@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { MoreHorizontal, Pencil, Trash2, Check, X, Flag, Reply, ChevronDown, ChevronUp, Send } from "lucide-react";
 import UserAvatar from "@/components/UserAvatar";
+import { isAICompanion, getCompanionAvatar } from "@/lib/companionAvatars";
 import { formatDistanceToNow } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";

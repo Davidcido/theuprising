@@ -228,12 +228,18 @@ const PostCard = ({
         {/* Post header */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
-            <UserAvatar
-              avatarUrl={post.author_profile?.avatar_url}
-              displayName={!post.is_anonymous && post.author_profile?.display_name ? post.author_profile.display_name : post.anonymous_name}
-              size="sm"
-              onClick={!post.is_anonymous && post.author_id ? () => onNavigate(`/profile/${post.author_id}`) : undefined}
-            />
+            {(() => {
+              const displayName = !post.is_anonymous && post.author_profile?.display_name ? post.author_profile.display_name : post.anonymous_name;
+              const companionData = isAICompanion(displayName) ? getCompanionAvatar(displayName) : null;
+              return (
+                <UserAvatar
+                  avatarUrl={companionData?.avatarUrl || post.author_profile?.avatar_url}
+                  displayName={displayName}
+                  size="sm"
+                  onClick={!post.is_anonymous && post.author_id ? () => onNavigate(`/profile/${post.author_id}`) : undefined}
+                />
+              );
+            })()}
             <div>
               <span
                 className={`text-sm font-semibold text-foreground ${!post.is_anonymous && post.author_id ? "cursor-pointer hover:underline" : ""}`}
