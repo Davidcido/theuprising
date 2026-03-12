@@ -661,8 +661,10 @@ Never expose the English interpretation to the user — always reply fully in Ha
       window.speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.9;
-      utterance.pitch = 1.1;
+      // Use companion-specific speech parameters for personality
+      const personality = getVoicePersonality(selectedCompanionRef.current.id);
+      utterance.rate = personality.rate;
+      utterance.pitch = personality.pitch;
       utterance.volume = 1.0;
       utterance.voice = voice;
 
