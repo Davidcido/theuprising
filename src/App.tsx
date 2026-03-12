@@ -145,6 +145,14 @@ const AppContent = () => {
                 <ErrorBoundary inline><CompanionExplorer /></ErrorBoundary>
               </ProtectedRoute>
             } />
+            <Route path="/companion/:companionId" element={
+              <ErrorBoundary inline><CompanionProfile /></ErrorBoundary>
+            } />
+            <Route path="/sleep" element={
+              <ProtectedRoute>
+                <ErrorBoundary inline><SleepMode /></ErrorBoundary>
+              </ProtectedRoute>
+            } />
           </Route>
           <Route path="/admin" element={<Admin />} />
           <Route path="/reset-password" element={<ResetPassword />} />
