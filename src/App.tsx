@@ -16,6 +16,7 @@ import OnboardingFlow from "./components/onboarding/OnboardingFlow";
 import DailyRisePopup from "./components/dailyrise/DailyRisePopup";
 import { useOnboarding } from "./hooks/useOnboarding";
 import { useDailyRise } from "./hooks/useDailyRise";
+import SpiralPortal from "./components/portal/SpiralPortal";
 import { AuthProvider } from "./hooks/useAuthReady";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { GlobalCallProvider } from "./hooks/useGlobalCalls";
