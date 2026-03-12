@@ -909,6 +909,30 @@ const Community = () => {
     }
   };
 
+  const AI_COMPANIONS = ["seren", "atlas", "nova", "orion", "kai", "sol", "elias", "leo"];
+
+  const triggerCompanionReply = async (postId: string, commentId: string, commentContent: string, parentCommentId?: string) => {
+    // Check if comment mentions an AI companion
+    const mentionRegex = /@(seren|atlas|nova|orion|kai|sol|elias|leo)\b/i;
+    const match = commentContent.match(mentionRegex);
+    if (!match) return;
+
+    const mentionedCompanion = match[1].toLowerCase();
+
+    // Fire and forget - don't block the UI
+    supabase.functions.invoke("reply-to-mention", {
+      body: {
+        post_id: postId,
+        comment_id: commentId,
+        comment_content: commentContent,
+        mentioned_companion: mentionedCompanion,
+        parent_comment_id: parentCommentId || null,
+      },
+    }).then(({ error }) => {
+      if (error) console.error("AI reply error:", error);
+    }).catch(err => console.error("AI reply failed:", err));
+  };
+
   const addReply = async (postId: string, content: string, parentCommentId: string, parentAuthorId?: string | null) => {
     if (!content.trim()) return;
     const commentName = currentUser ? currentUser.displayName : sessionId;
@@ -921,8 +945,8 @@ const Community = () => {
     if (currentUser) {
       insertData.author_id = currentUser.id;
     }
-    const { error } = await supabase.from("community_comments").insert(insertData);
-    if (!error) {
+    const { data: insertedReply, error } = await supabase.from("community_comments").insert(insertData).select("id").single();
+    if (!error && insertedReply) {
       await supabase.rpc("increment_comments", { post_id_input: postId });
       setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
       const { data } = await supabase
@@ -934,6 +958,8 @@ const Community = () => {
       if (currentUser && parentAuthorId && parentAuthorId !== currentUser.id) {
         createNotification(parentAuthorId, currentUser.id, "reply", "replied to your comment", postId);
       }
+      // Trigger AI companion reply if @mentioned
+      triggerCompanionReply(postId, insertedReply.id, content, parentCommentId);
     }
   };
 
