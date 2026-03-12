@@ -18,13 +18,23 @@ const COMPANIONS = [
   { name: "Leo", emoji: "🛠", style: "practical encourager" },
 ];
 
+// Pre-uploaded cinematic video URLs in community-media bucket
+const FEED_VIDEOS = [
+  "feed-videos/glowing-forest.mp4",
+  "feed-videos/sunrise-mountains.mp4",
+  "feed-videos/ocean-waves.mp4",
+  "feed-videos/glowing-orbs.mp4",
+  "feed-videos/breathing-meditation.mp4",
+  "feed-videos/bamboo-forest.mp4",
+];
+
 const POST_SCHEDULE = [
-  { slot: "morning", hour: 7 },
-  { slot: "late_morning", hour: 10 },
-  { slot: "afternoon", hour: 13 },
-  { slot: "late_afternoon", hour: 16 },
-  { slot: "evening", hour: 19 },
-  { slot: "night", hour: 22 },
+  { slot: "morning", hour: 7, mediaType: "image" as const },
+  { slot: "late_morning", hour: 10, mediaType: "discussion" as const },
+  { slot: "afternoon", hour: 13, mediaType: "video" as const },
+  { slot: "late_afternoon", hour: 16, mediaType: "image" as const },
+  { slot: "evening", hour: 19, mediaType: "image" as const },
+  { slot: "night", hour: 22, mediaType: "video" as const },
 ];
 
 serve(async (req) => {
@@ -41,11 +51,9 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     let targetDate: string;
-    let generateImages = false;
     try {
       const body = await req.json();
       targetDate = body.date || new Date().toISOString().split("T")[0];
-      generateImages = body.generate_images === true;
     } catch {
       targetDate = new Date().toISOString().split("T")[0];
     }
@@ -75,7 +83,11 @@ serve(async (req) => {
       throw new Error("Failed to generate text content");
     }
 
+    // Build video public URLs
+    const storageBase = `${supabaseUrl}/storage/v1/object/public/community-media/`;
+
     let postsCreated = 0;
+    let videoIndex = 0;
 
     for (let i = 0; i < Math.min(textContent.length, 6); i++) {
       const post = textContent[i];
@@ -84,8 +96,13 @@ serve(async (req) => {
 
       let mediaUrls: string[] = [];
 
-      // Only generate images if explicitly requested (separate pass)
-      if (generateImages) {
+      if (schedule.mediaType === "video") {
+        // Assign a pre-uploaded video
+        const videoPath = FEED_VIDEOS[videoIndex % FEED_VIDEOS.length];
+        mediaUrls = [`${storageBase}${videoPath}`];
+        videoIndex++;
+      } else if (schedule.mediaType === "image") {
+        // Generate AI image
         try {
           const imageUrl = await generateAndUploadImage(
             LOVABLE_API_KEY,
@@ -98,6 +115,7 @@ serve(async (req) => {
           console.error(`Image gen failed for ${schedule.slot}:`, imgErr);
         }
       }
+      // "discussion" type = text-only (no media)
 
       const fullContent = `**${post.title}**\n\n${post.message}\n\n${post.caption}\n\n#${post.emotion_tag} #uprising #dailyrise`;
 
@@ -156,23 +174,28 @@ async function generateDayContent(apiKey: string, date: string) {
 
   const prompt = `Generate 6 social media posts for the Uprising community feed for ${dayName}, ${date}.
 
-Schedule:
-1. Morning (7AM) - Calm/Inspirational Visual post
-2. Late Morning (10AM) - AI Discussion Prompt (reflective question)
-3. Afternoon (1PM) - Reflective Micro Story (life/growth/resilience insight)
-4. Late Afternoon (4PM) - Motivational/Healing Message
-5. Evening (7PM) - AI Companion Reflection (wisdom)
-6. Night (10PM) - Meditation/Calm Visual post
+Schedule (70% visual, 30% text):
+1. Morning (7AM) - 🖼️ IMAGE POST: Calm/Inspirational Visual with cinematic image
+2. Late Morning (10AM) - 💬 DISCUSSION POST (text-only): Start a community discussion with a thought-provoking question that invites users to share their experiences
+3. Afternoon (1PM) - 🎥 VIDEO POST: Reflective post paired with cinematic nature video
+4. Late Afternoon (4PM) - 🖼️ IMAGE POST: Motivational/Healing Message with striking visual
+5. Evening (7PM) - 🖼️ IMAGE POST: AI Companion Reflection with dreamy visual
+6. Night (10PM) - 🎥 VIDEO POST: Meditation/Calm post paired with peaceful video
+
+Discussion post examples (slot 2):
+- "What small moment made your day better today?"
+- "What helps you find calm when life feels overwhelming?"
+- "What's something you're grateful for tonight?"
+- "If you could give your younger self one piece of advice, what would it be?"
 
 For each return JSON with:
 - "title": short powerful title (2-5 words)
-- "visual_concept": cinematic scene description (glowing forests, peaceful landscapes, sunrise/sunset, calming water, floating particles, mystical nature, soft green tones, dreamlike)
+- "visual_concept": cinematic scene description for image posts (glowing forests, peaceful landscapes, sunrise/sunset, calming water, floating particles, mystical nature, soft green tones, dreamlike). For discussion/video posts, still provide a concept.
 - "message": 1-3 emotionally resonant sentences
 - "caption": short social media caption with emoji
 - "companion_name": one of Seren/Atlas/Nova/Orion/Kai/Sol/Elias/Leo
 - "companion_comment": supportive 1-2 sentence comment in that companion's voice
 - "emotion_tag": one of calm/hopeful/reflective/motivating/healing/inspiring
-- "video_motion": animation style (slow zoom, floating particles, drifting fog, etc.)
 
 Return ONLY a valid JSON array of 6 objects.`;
 
@@ -228,7 +251,7 @@ async function generateAndUploadImage(
       model: "google/gemini-3.1-flash-image-preview",
       messages: [{
         role: "user",
-        content: `Create a beautiful cinematic image: ${visualConcept}. Style: dreamy, soft lighting, rich colors, peaceful, mystical glow. No text in image.`,
+        content: `Create a beautiful cinematic image: ${visualConcept}. Style: dreamy, soft lighting, rich colors, peaceful, mystical glow. No text in image. Vertical 9:16 aspect ratio.`,
       }],
       modalities: ["image", "text"],
     }),
