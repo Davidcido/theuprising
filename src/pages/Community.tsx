@@ -1042,14 +1042,17 @@ const Community = () => {
   };
 
   const toggleComments = async (postId: string) => {
+    if (!postId) return;
     const isExpanded = expandedComments.has(postId);
     if (isExpanded) {
       setExpandedComments((prev) => { const n = new Set(prev); n.delete(postId); return n; });
-    } else {
-      setExpandedComments((prev) => new Set(prev).add(postId));
-      // Lazy-load comments only when expanded
-      await fetchCommentsForPost(postId);
+      return;
     }
+
+    setExpandedComments((prev) => new Set(prev).add(postId));
+    const targetPostId = resolveCommentTargetPostId(postId);
+    console.log("[Community][comments] thread opened", { postId, targetPostId });
+    await fetchCommentsForPost(postId, targetPostId);
   };
 
   const addComment = async (postId: string) => {
