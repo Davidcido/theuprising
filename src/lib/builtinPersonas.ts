@@ -12,6 +12,8 @@ export type BuiltinPersona = {
   name: string;
   meaning: string;
   role: string;
+  roleTitle: string;
+  tagline: string;
   personality: string;
   conversation_style: string;
   emotional_tone: string;
