@@ -110,7 +110,7 @@ const CommentCard = ({
     setReplyContent(`@${comment.anonymous_name} `);
   };
 
-  const MAX_REPLY_DEPTH = 4;
+  const MAX_REPLY_DEPTH = 2;
   const directReplies = allComments.filter(c => c.parent_comment_id === comment.id);
   const canReply = depth < MAX_REPLY_DEPTH;
 
