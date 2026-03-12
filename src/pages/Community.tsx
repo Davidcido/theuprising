@@ -492,6 +492,7 @@ const Community = () => {
     return () => {
       supabase.removeChannel(postsChannel);
       supabase.removeChannel(commentsChannel);
+      supabase.removeChannel(likesChannel);
       supabase.removeChannel(reactionsChannel);
       supabase.removeChannel(commentReactionsChannel);
       supabase.removeChannel(settingsChannel);
