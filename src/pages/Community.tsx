@@ -443,6 +443,21 @@ const Community = () => {
       })
       .subscribe();
 
+    // Real-time engagement: likes update post counters live
+    const likesChannel = supabase
+      .channel("community-likes-rt")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "community_likes" }, (payload) => {
+        const like = payload.new as { post_id: string; session_id: string };
+        if (like.session_id !== sessionId) {
+          setAllPosts(prev => prev.map(p => p.id === like.post_id ? { ...p, likes_count: p.likes_count + 1 } : p));
+        }
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "community_likes" }, (payload) => {
+        const like = payload.old as { post_id: string };
+        setAllPosts(prev => prev.map(p => p.id === like.post_id ? { ...p, likes_count: Math.max(0, p.likes_count - 1) } : p));
+      })
+      .subscribe();
+
     const reactionsChannel = supabase
       .channel("community-reactions")
       .on("postgres_changes", { event: "*", schema: "public", table: "community_reactions" }, () => fetchReactions())
