@@ -29,7 +29,9 @@ const NotificationBell = ({ userId }: NotificationBellProps) => {
   const handleNotificationClick = (n: any) => {
     if (!n.read) markAsRead(n.id);
     // Navigate based on notification type
-    if (n.type === "follow" && n.actor_id) {
+    if (n.type === "companion_checkin") {
+      navigate("/tools");
+    } else if (n.type === "follow" && n.actor_id) {
       navigate(`/profile/${n.actor_id}`);
     } else if ((n.type === "like" || n.type === "comment" || n.type === "reaction") && n.reference_id) {
       navigate("/community");
