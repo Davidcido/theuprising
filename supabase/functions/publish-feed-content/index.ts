@@ -109,14 +109,11 @@ serve(async (req) => {
       );
     }
 
-    // Generate 6 posts text content
+    // Generate 10 posts text content
     const textContent = await generateDayContent(LOVABLE_API_KEY, targetDate);
     if (!textContent || textContent.length === 0) {
       throw new Error("Failed to generate text content");
     }
-
-    // Build video public URLs
-    const storageBase = `${supabaseUrl}/storage/v1/object/public/community-media/`;
 
     // Build video public URLs — use direct CDN links
     let postsCreated = 0;
