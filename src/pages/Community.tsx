@@ -426,10 +426,39 @@ const Community = () => {
       .on("postgres_changes", { event: "*", schema: "public", table: "community_comments" }, (payload) => {
         if (payload.eventType === "INSERT") {
           const newComment = payload.new as Comment;
-          setComments((prev) => ({
-            ...prev,
-            [newComment.post_id]: [...(prev[newComment.post_id] || []), newComment],
-          }));
+          setComments((prev) => {
+            const existing = prev[newComment.post_id] || [];
+            // Deduplicate: skip if this ID already exists (from optimistic insert)
+            if (existing.some(c => c.id === newComment.id)) return prev;
+            // Also check if there's an optimistic comment we should replace
+            // (optimistic IDs start with "optimistic-")
+            const hasMatchingOptimistic = existing.some(c =>
+              c.id.startsWith("optimistic-") &&
+              c.content === newComment.content &&
+              c.anonymous_name === newComment.anonymous_name &&
+              c.post_id === newComment.post_id
+            );
+            if (hasMatchingOptimistic) {
+              // Replace the first matching optimistic comment with the real one
+              let replaced = false;
+              return {
+                ...prev,
+                [newComment.post_id]: existing.map(c => {
+                  if (!replaced && c.id.startsWith("optimistic-") &&
+                      c.content === newComment.content &&
+                      c.anonymous_name === newComment.anonymous_name) {
+                    replaced = true;
+                    return newComment;
+                  }
+                  return c;
+                }),
+              };
+            }
+            return {
+              ...prev,
+              [newComment.post_id]: [...existing, newComment],
+            };
+          });
         } else if (payload.eventType === "DELETE") {
           const oldComment = payload.old as { id: string; post_id: string };
           setComments((prev) => ({
