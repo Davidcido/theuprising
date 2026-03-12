@@ -221,15 +221,15 @@ serve(async (req) => {
 
       postsCreated++;
 
-      // Add AI companion comment
+      // Add AI companion comment matching video theme
       if (insertedPost && post.companion_comment) {
-        const companion = COMPANIONS.find(
-          (c) => c.name.toLowerCase() === post.companion_name?.toLowerCase()
-        ) || COMPANIONS[i % COMPANIONS.length];
+        const commentText = videoTheme
+          ? `${companion.emoji} ${getThemeComment(videoTheme, companion.name)}`
+          : `${companion.emoji} ${post.companion_comment}`;
 
         await supabase.from("community_comments").insert({
           post_id: insertedPost.id,
-          content: `${companion.emoji} ${post.companion_comment}`,
+          content: commentText,
           anonymous_name: companion.name,
         });
 
