@@ -29,11 +29,11 @@ const FEED_VIDEOS = [
 ];
 
 const POST_SCHEDULE = [
-  { slot: "morning", hour: 7, mediaType: "video" as const },
+  { slot: "morning", hour: 7, mediaType: "image" as const },
   { slot: "late_morning", hour: 10, mediaType: "video" as const },
   { slot: "afternoon", hour: 13, mediaType: "image" as const },
   { slot: "late_afternoon", hour: 16, mediaType: "video" as const },
-  { slot: "evening", hour: 19, mediaType: "video" as const },
+  { slot: "evening", hour: 19, mediaType: "image" as const },
   { slot: "night", hour: 22, mediaType: "discussion" as const },
 ];
 
