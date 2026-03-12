@@ -2,6 +2,8 @@ import { useState, useEffect, createContext, useContext } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
 
+const LOGOUT_FLAG = "uprising_logged_out";
+
 interface AuthState {
   user: User | null;
   session: Session | null;
@@ -14,23 +16,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({ user: null, session: null, isReady: false });
 
   useEffect(() => {
-    // 1. Listen FIRST so we catch INITIAL_SESSION + SIGNED_OUT events
+    // If the logout flag is set, force logged-out state immediately
+    // This prevents preview/PWA from restoring a cached session after logout
+    const wasLoggedOut = sessionStorage.getItem(LOGOUT_FLAG) === "1";
+    if (wasLoggedOut) {
+      sessionStorage.removeItem(LOGOUT_FLAG);
+      // Force sign out any lingering session the client may have cached
+      supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+      setState({ user: null, session: null, isReady: true });
+      // Still subscribe so future logins work
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        (event, session) => {
+          if (event === "SIGNED_IN" && session?.user) {
+            setState({ user: session.user, session, isReady: true });
+          } else if (event === "SIGNED_OUT") {
+            setState({ user: null, session: null, isReady: true });
+          }
+        }
+      );
+      return () => subscription.unsubscribe();
+    }
+
+    // Normal flow: listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         console.log("[Auth] state change:", event);
-        setState({ user: session?.user ?? null, session, isReady: true });
+        setState({ user: session?.user ?? null, session: session ?? null, isReady: true });
       }
     );
 
-    // 2. Force-refresh session from server (not just local cache) for PWA reliability
+    // Force-refresh session from server
     supabase.auth.getSession().then(({ data: { session }, error }) => {
-      // If there's an error or no session, ensure we mark as logged out
       const user = (!error && session?.user) ? session.user : null;
       const validSession = user ? session : null;
       setState(prev => prev.isReady ? prev : { user, session: validSession, isReady: true });
     });
 
-    // 3. Safety timeout for Safari edge cases
+    // Safety timeout for Safari edge cases
     const timeout = setTimeout(() => {
       setState(prev => prev.isReady ? prev : { ...prev, isReady: true });
     }, 5000);
@@ -46,4 +68,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuthReady() {
   return useContext(AuthContext);
+}
+
+/** Set a flag so AuthProvider knows to force-clear session on next load */
+export function markLoggedOut() {
+  try { sessionStorage.setItem(LOGOUT_FLAG, "1"); } catch {}
 }

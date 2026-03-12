@@ -9,7 +9,7 @@ import NotificationBell from "@/components/notifications/NotificationBell";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import uprisingLogo from "@/assets/uprising-logo.jpeg";
 import { toast } from "sonner";
-import { useAuthReady } from "@/hooks/useAuthReady";
+import { useAuthReady, markLoggedOut } from "@/hooks/useAuthReady";
 
 const navItems = [
   { to: "/", label: "Home", icon: Heart },
