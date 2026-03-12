@@ -809,24 +809,41 @@ Never expose the English interpretation to the user — always reply fully in Ha
   }, [setupAudioAnalyser, speakText, setPhaseSync, clearTimer, loadBestVoice]);
 
   const endCall = useCallback(() => {
+    // Immediately mark inactive to prevent any further AI processing
     activeRef.current = false;
     clearTimer();
     killRecognition();
+
+    // Force-cancel all speech synthesis — call multiple times for reliability
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      // Some browsers need a second cancel after a tick
+      setTimeout(() => window.speechSynthesis?.cancel(), 50);
+      setTimeout(() => window.speechSynthesis?.cancel(), 200);
+    }
+
     killAudio();
+
+    // Stop microphone
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
+
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+
+    // Clear all conversation state
+    conversationRef.current = [];
 
     setCallActive(false);
     setMuted(false);
     mutedRef.current = false;
     setShowTranscript(false);
+    setShowTextInput(false);
     setPhaseSync("idle");
     setCurrentPartial("");
     setAudioLevel(0);
-
-    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
-      mediaStreamRef.current = null;
-    }
+    setTextInput("");
   }, [clearTimer, killRecognition, killAudio, setPhaseSync]);
 
   const toggleMute = useCallback(() => {
