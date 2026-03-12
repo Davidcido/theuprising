@@ -14,8 +14,8 @@ export function useVirtualFeed<T extends { id: string }>(
   } = {}
 ) {
   const {
-    estimatedItemHeight = 400,
-    overscan = 5,
+    estimatedItemHeight = 350,
+    overscan = 6,
     enabled = true,
   } = options;
 
