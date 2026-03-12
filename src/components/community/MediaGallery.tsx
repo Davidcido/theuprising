@@ -30,12 +30,13 @@ let currentCommunityAudio: HTMLAudioElement | null = null;
 const MAX_FEED_VIDEO_HEIGHT = 700;
 
 // Fallback ambient videos when a post video fails to load
+// Use only HD (1080p) versions — UHD files often fail on mobile due to size/CORS
 const FALLBACK_VIDEOS = [
-  "https://videos.pexels.com/video-files/1093662/1093662-uhd_2560_1440_30fps.mp4",
-  "https://videos.pexels.com/video-files/3571264/3571264-uhd_2560_1440_30fps.mp4",
-  "https://videos.pexels.com/video-files/1409899/1409899-uhd_2560_1440_25fps.mp4",
-  "https://videos.pexels.com/video-files/4255925/4255925-uhd_2560_1440_24fps.mp4",
+  "https://videos.pexels.com/video-files/1093662/1093662-hd_1920_1080_30fps.mp4",
+  "https://videos.pexels.com/video-files/3571264/3571264-hd_1920_1080_30fps.mp4",
+  "https://videos.pexels.com/video-files/1409899/1409899-hd_1920_1080_25fps.mp4",
   "https://videos.pexels.com/video-files/1826896/1826896-hd_1920_1080_30fps.mp4",
+  "https://videos.pexels.com/video-files/1585619/1585619-hd_1920_1080_30fps.mp4",
 ];
 
 // Community-specific ambient sounds — separate pool from story audio
