@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Pause, Play, Volume2, VolumeX, Volume1 } from "lucide-react";
 import { BUILTIN_PERSONAS, type BuiltinPersona } from "@/lib/builtinPersonas";
 import { useAudioPreferences, fadeAudio } from "@/hooks/useAudioPreferences";
-import { pickScenesForCompanion, type StoryScene } from "@/lib/storyScenes";
+import { pickScenesForCompanion, getFallbackScene, type StoryScene } from "@/lib/storyScenes";
 import { Slider } from "@/components/ui/slider";
 
 const STORY_COMPANIONS = ["seren", "sol", "atlas", "nova", "kai"];
@@ -50,6 +50,64 @@ const VolumeIcon = ({ muted, volume }: { muted: boolean; volume: number }) => {
   return <Volume2 className="w-3.5 h-3.5 text-white" />;
 };
 
+/* ─── Story Video Background ─────────────────────────────────── */
+const StoryVideo = ({
+  scene,
+  storyIndex,
+  onFallback,
+}: {
+  scene: StoryScene;
+  storyIndex: number;
+  onFallback: (fallback: StoryScene) => void;
+}) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoReady, setVideoReady] = useState(false);
+
+  // Reset ready state when scene changes
+  useEffect(() => {
+    setVideoReady(false);
+  }, [scene.id, storyIndex]);
+
+  const handleCanPlay = () => {
+    setVideoReady(true);
+    videoRef.current?.play().catch(() => {});
+  };
+
+  const handleError = () => {
+    // Swap to a fallback scene if the video fails
+    const fallback = getFallbackScene(scene.id);
+    onFallback(fallback);
+  };
+
+  return (
+    <div className="absolute inset-0">
+      {/* Gradient fallback — always visible as base layer */}
+      <div className={`absolute inset-0 bg-gradient-to-br ${scene.gradient}`} />
+
+      {/* Video layer */}
+      <video
+        ref={videoRef}
+        key={`${scene.video}-${storyIndex}`}
+        src={scene.video}
+        autoPlay
+        loop
+        muted
+        playsInline
+        preload="auto"
+        onCanPlay={handleCanPlay}
+        onError={handleError}
+        className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
+        style={{ opacity: videoReady ? 1 : 0 }}
+      />
+
+      {/* Overlays for readability */}
+      <div className={`absolute inset-0 bg-gradient-to-br ${scene.gradient} mix-blend-multiply transition-opacity duration-700`} style={{ opacity: videoReady ? 0.5 : 0.8 }} />
+      <div className="absolute inset-0 bg-black/20" />
+    </div>
+  );
+};
+
+/* ─── Main Component ─────────────────────────────────────────── */
 const CompanionStoryBar = () => {
   const [companionStories, setCompanionStories] = useState<CompanionStory[]>([]);
   const [activeStory, setActiveStory] = useState<CompanionStory | null>(null);
@@ -59,7 +117,6 @@ const CompanionStoryBar = () => {
   const [showVolumeControl, setShowVolumeControl] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const { volume, muted, setVolume, toggleMute } = useAudioPreferences();
   const [viewedCompanions, setViewedCompanions] = useState<Set<string>>(() => {
     try {
@@ -70,7 +127,7 @@ const CompanionStoryBar = () => {
     } catch { return new Set(); }
   });
 
-  const LOW_DEFAULT_VOLUME = 0.3;
+  const LOW_DEFAULT_VOLUME = 0.25;
 
   // Build stories with unique scenes per frame
   useEffect(() => {
@@ -87,6 +144,16 @@ const CompanionStoryBar = () => {
     }).filter(Boolean) as CompanionStory[];
     setCompanionStories(stories);
   }, [viewedCompanions]);
+
+  // Handle video fallback — replace scene in active story
+  const handleVideoFallback = useCallback((fallback: StoryScene) => {
+    setActiveStory(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, stories: [...prev.stories] };
+      updated.stories[storyIndex] = { ...updated.stories[storyIndex], scene: fallback };
+      return updated;
+    });
+  }, [storyIndex]);
 
   // Start/crossfade ambient audio when frame changes
   useEffect(() => {
@@ -114,12 +181,10 @@ const CompanionStoryBar = () => {
     const isSameTrack = audio.src && audio.src.includes(audioFileName);
 
     if (!isSameTrack) {
-      // Crossfade to new track
       fadeAudio(audio, 0, 250);
       setTimeout(() => {
         audio.src = currentScene.audio;
         audio.volume = 0;
-        // Start muted until user interacts (browser autoplay policy)
         audio.muted = !hasInteracted;
         audio.play().then(() => {
           if (hasInteracted && !muted) {
@@ -150,13 +215,6 @@ const CompanionStoryBar = () => {
       audioRef.current.play().catch(() => {});
       if (hasInteracted && !muted) fadeAudio(audioRef.current, volume || LOW_DEFAULT_VOLUME, 500);
     }
-  }, [paused]);
-
-  // Pause/resume video
-  useEffect(() => {
-    if (!videoRef.current || !activeStory) return;
-    if (paused) videoRef.current.pause();
-    else videoRef.current.play().catch(() => {});
   }, [paused]);
 
   // Auto-advance timer
@@ -219,10 +277,7 @@ const CompanionStoryBar = () => {
     } else {
       const idx = companionStories.findIndex(cs => cs.companion.id === activeStory.companion.id);
       if (idx < companionStories.length - 1) openStory(companionStories[idx + 1]);
-      else {
-        setActiveStory(null);
-        setHasInteracted(false);
-      }
+      else { setActiveStory(null); setHasInteracted(false); }
     }
   };
 
@@ -252,10 +307,6 @@ const CompanionStoryBar = () => {
   const handleVolumeChange = (value: number[]) => {
     handleUserInteraction();
     setVolume(value[0]);
-  };
-
-  const handleStoryAreaClick = () => {
-    handleUserInteraction();
   };
 
   if (companionStories.length === 0) return null;
@@ -306,29 +357,16 @@ const CompanionStoryBar = () => {
           >
             <div
               className="relative w-full max-w-md h-[85vh] max-h-[700px] rounded-2xl overflow-hidden"
-              onClick={handleStoryAreaClick}
+              onClick={() => handleUserInteraction()}
             >
-              {/* Video Background — no AnimatePresence delay, instant swap */}
-              <div className="absolute inset-0" key={`bg-${storyIndex}-${currentStory.scene.id}`}>
-                {/* Gradient fallback shows instantly */}
-                <div className={`absolute inset-0 bg-gradient-to-br ${currentStory.scene.gradient}`} />
-                <video
-                  ref={videoRef}
-                  key={currentStory.scene.video + storyIndex}
-                  src={currentStory.scene.video}
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  className="absolute inset-0 w-full h-full object-cover"
-                  style={{ opacity: 1 }}
-                />
-                {/* Overlay for readability */}
-                <div className={`absolute inset-0 bg-gradient-to-br ${currentStory.scene.gradient} mix-blend-multiply opacity-60`} />
-                <div className="absolute inset-0 bg-black/25" />
-              </div>
+              {/* Video Background with fallback */}
+              <StoryVideo
+                scene={currentStory.scene}
+                storyIndex={storyIndex}
+                onFallback={handleVideoFallback}
+              />
 
-              {/* "Tap for sound" hint — shown before first interaction */}
+              {/* "Tap for sound" hint */}
               <AnimatePresence>
                 {!hasInteracted && (
                   <motion.div
