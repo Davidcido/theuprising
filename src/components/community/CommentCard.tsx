@@ -42,6 +42,8 @@ const formatTime = (ts: string) => {
   try { return formatDistanceToNow(new Date(ts), { addSuffix: true }); } catch { return ts; }
 };
 
+const MAX_REPLY_DEPTH = 2;
+
 const CommentCard = ({
   comment, replies, currentUserId, currentUserName, communityOpen, depth = 0,
   onDelete, onUpdate, onReply, allComments,
@@ -56,7 +58,7 @@ const CommentCard = ({
   const navigate = useNavigate();
 
   const isOwner = currentUserId && comment.author_id === currentUserId;
-  const maxDepthIndent = Math.min(depth, 2);
+  const canReply = depth < MAX_REPLY_DEPTH;
 
   const handleSaveEdit = async () => {
     if (!editContent.trim()) return;
@@ -110,17 +112,25 @@ const CommentCard = ({
     setReplyContent(`@${comment.anonymous_name} `);
   };
 
-  const MAX_REPLY_DEPTH = 2;
   const directReplies = allComments.filter(c => c.parent_comment_id === comment.id);
-  const canReply = depth < MAX_REPLY_DEPTH;
+
+  // Thread line + consistent left padding instead of cumulative margin-left
+  const threadPadding = depth > 0 ? 16 : 0; // flat 16px for ALL nested levels (no stacking)
 
   return (
-    <div style={{ marginLeft: maxDepthIndent > 0 ? `${maxDepthIndent * 12}px` : undefined }} className="max-w-full overflow-hidden">
-      <div className="flex gap-2.5 group relative">
-        {depth > 0 && (
-          <div className="absolute -left-3 top-0 bottom-0 w-px bg-white/10" />
-        )}
+    <div
+      className="relative w-full"
+      style={{ paddingLeft: `${threadPadding}px` }}
+    >
+      {/* Vertical thread line for nested comments */}
+      {depth > 0 && (
+        <div
+          className="absolute top-0 bottom-0 w-px bg-white/10"
+          style={{ left: `${threadPadding - 8}px` }}
+        />
+      )}
 
+      <div className="flex gap-2.5 group relative w-full min-w-0">
         {(() => {
           const companionData = isAICompanion(comment.anonymous_name) ? getCompanionAvatar(comment.anonymous_name) : null;
           const avatar = (
@@ -136,23 +146,23 @@ const CommentCard = ({
           }
           return avatar;
         })()}
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div
             className="px-3 py-2.5 rounded-xl"
             style={{ background: "#1F6B45", boxShadow: "0 1px 4px rgba(0,0,0,0.15)" }}
           >
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <span
-                  className={`text-xs font-semibold text-white ${comment.author_id ? "cursor-pointer hover:underline" : ""}`}
+                  className={`text-xs font-semibold text-white truncate ${comment.author_id ? "cursor-pointer hover:underline" : ""}`}
                   onClick={() => { if (comment.author_id) navigate(`/profile/${comment.author_id}`); }}
                 >
                   {comment.anonymous_name}
                 </span>
-                <span className="text-[10px] text-white/40">{formatTime(comment.created_at)}</span>
+                <span className="text-[10px] text-white/40 shrink-0">{formatTime(comment.created_at)}</span>
               </div>
 
-              <div className="relative">
+              <div className="relative shrink-0">
                 <button
                   onClick={() => setMenuOpen(!menuOpen)}
                   className="p-1 rounded-full hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"
@@ -274,7 +284,7 @@ const CommentCard = ({
                 autoFocus
                 placeholder="Write a reply..."
                 rows={1}
-                className="flex-1 rounded-xl bg-white/5 border border-white/10 px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 resize-none overflow-hidden"
+                className="flex-1 min-w-0 rounded-xl bg-white/5 border border-white/10 px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 resize-none overflow-hidden"
                 style={{ minHeight: "28px" }}
               />
               <button

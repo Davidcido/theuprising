@@ -38,7 +38,7 @@ const FEED_TABS: { key: FeedTab; label: string; icon: typeof Sparkles }[] = [
   { key: "trending", label: "Trending", icon: TrendingUp },
 ];
 
-const POSTS_PER_PAGE = 10;
+const POSTS_PER_PAGE = 15;
 
 const getSessionId = () => {
   let id = localStorage.getItem("uprising_session_id");
@@ -493,6 +493,14 @@ const Community = () => {
     };
   }, [authReady]);
 
+  // Prefetch: start loading next batch when user is halfway through current posts
+  const prefetchTriggered = useRef(false);
+  useEffect(() => {
+    if (!hasMore || loadingMore || fetchingRef.current) return;
+    // Reset prefetch flag when new posts arrive
+    prefetchTriggered.current = false;
+  }, [allPosts.length]);
+
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
@@ -502,7 +510,7 @@ const Community = () => {
           fetchPosts(true);
         }
       },
-      { rootMargin: "300px" }
+      { rootMargin: "600px" }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();

@@ -79,7 +79,7 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
     if (!isOpen || !videoRef.current || error) return;
 
     const v = videoRef.current;
-    v.muted = true; // Start muted for autoplay
+    v.muted = true;
     v.volume = 0;
     v.load();
 
@@ -87,7 +87,6 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
       v.play().then(() => {
         setPlaying(true);
         setBuffering(false);
-        // Fade in audio if user preference is unmuted
         if (!muted) {
           setTimeout(() => {
             v.muted = false;
@@ -134,19 +133,24 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
 
   useEffect(() => { resetHideTimer(); }, [playing, resetHideTimer]);
 
-  // Lock body scroll
+  // Lock body scroll — robust cleanup
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
-      return () => { document.body.style.overflow = ""; };
+      document.body.style.touchAction = "none";
     }
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.touchAction = "";
+      document.body.style.pointerEvents = "";
+    };
   }, [isOpen]);
 
   // Keyboard controls
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") handleClose();
       if (e.key === " ") { e.preventDefault(); togglePlay(); }
       if (e.key === "m") handleToggleMute();
       if (e.key === "ArrowRight") seek(5);
@@ -157,6 +161,26 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [isOpen, playing, volume]);
+
+  // Safe close that guarantees scroll restoration
+  const handleClose = useCallback(() => {
+    // Stop video
+    const v = videoRef.current;
+    if (v) {
+      v.pause();
+      v.removeAttribute("src");
+      v.load();
+    }
+    // Force restore body styles
+    document.body.style.overflow = "";
+    document.body.style.touchAction = "";
+    document.body.style.pointerEvents = "";
+    // Exit native fullscreen if active
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+    onClose();
+  }, [onClose]);
 
   const togglePlay = () => {
     const v = videoRef.current;
@@ -169,12 +193,10 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
     const v = videoRef.current;
     if (!v) return;
     if (muted) {
-      // Unmuting: fade in
       v.muted = false;
       v.volume = 0;
       fadeAudio(v, volume, 600);
     } else {
-      // Muting: instant
       v.muted = true;
       v.volume = 0;
     }
@@ -267,6 +289,7 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[200] bg-black flex items-center justify-center"
+        style={{ touchAction: "none" }}
         onClick={resetHideTimer}
         onTouchStart={(e) => { touchStartRef.current = { y: e.touches[0].clientY, time: Date.now() }; }}
         onTouchEnd={(e) => {
@@ -274,7 +297,7 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
           const deltaY = e.changedTouches[0].clientY - touchStartRef.current.y;
           const deltaTime = Date.now() - touchStartRef.current.time;
           touchStartRef.current = null;
-          if (deltaY > 80 && deltaTime < 500) onClose();
+          if (deltaY > 80 && deltaTime < 500) handleClose();
         }}
       >
         {/* Video */}
@@ -339,7 +362,7 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
             >
               {/* Top bar */}
               <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/60 to-transparent pointer-events-auto flex justify-between items-center">
-                <button onClick={onClose} className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors">
+                <button onClick={handleClose} className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors">
                   <X className="w-5 h-5 text-white" />
                 </button>
                 <button onClick={toggleNativeFullscreen} className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors">
@@ -442,7 +465,7 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
 
         {/* Close button always visible */}
         {(!showControls || showError) && (
-          <button onClick={onClose} className="absolute top-4 left-4 p-2 rounded-full bg-black/40 hover:bg-white/20 transition-colors z-10">
+          <button onClick={handleClose} className="absolute top-4 left-4 p-2 rounded-full bg-black/40 hover:bg-white/20 transition-colors z-10">
             <X className="w-5 h-5 text-white" />
           </button>
         )}
