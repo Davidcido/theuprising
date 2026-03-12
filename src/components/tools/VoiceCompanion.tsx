@@ -49,11 +49,29 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 type TranscriptEntry = { role: "user" | "assistant"; text: string };
 
+// High-quality English voices allowed in the selector
+const ALLOWED_VOICES = new Set([
+  "samantha", "karen", "daniel", "moira", "alex", "victoria",
+  "tessa", "rishi", "fred", "kathy", "ralph",
+]);
+
+const isAllowedVoice = (v: SpeechSynthesisVoice): boolean => {
+  // Always allow Google / Microsoft premium voices
+  if (v.name.includes("Google") && v.lang.startsWith("en")) return true;
+  if (v.name.includes("Microsoft") && v.lang.startsWith("en")) return true;
+  // Allow specific high-quality local voices
+  const baseName = v.name.split(" ")[0].toLowerCase();
+  if (ALLOWED_VOICES.has(baseName) && v.lang.startsWith("en")) return true;
+  // Allow any premium/neural English voices
+  if (/natural|neural|premium|enhanced/i.test(v.name) && v.lang.startsWith("en")) return true;
+  return false;
+};
+
 const getVoiceCategory = (voiceName: string): string => {
   const v = voiceName.toLowerCase();
   if (/narrator|news|david/.test(v)) return "Narrator";
   if (/story|aria|samantha|daniel/.test(v)) return "Storyteller";
-  if (/calm|soft|serena|siri female/.test(v)) return "Calm Guide";
+  if (/calm|soft|serena|siri female|moira|karen/.test(v)) return "Calm Guide";
   if (/energetic|coach|motiv|guy|jenny/.test(v)) return "Motivational Coach";
   return "Friendly Companion";
 };
