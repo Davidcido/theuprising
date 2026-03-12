@@ -40,8 +40,8 @@ const FEED_TABS: { key: FeedTab; label: string; icon: typeof Sparkles }[] = [
   { key: "trending", label: "Trending", icon: TrendingUp },
 ];
 
-const POSTS_PER_PAGE = 25;
-const PREFETCH_BATCH = 30;
+const POSTS_PER_PAGE = 40;
+const PREFETCH_BATCH = 40;
 
 const getSessionId = () => {
   let id = localStorage.getItem("uprising_session_id");
@@ -336,31 +336,25 @@ const Community = () => {
   // This prevents firing queries for every post with comments_count > 0 on mount
   const fetchCommentsForPost = useCallback(async (postId: string) => {
     if (comments[postId]) return; // already loaded
+    // Fetch ALL comments for the post (both root and replies) in one query
     const { data } = await supabase
       .from("community_comments")
       .select("*")
       .eq("post_id", postId)
-      .is("parent_comment_id", null) // top-level comments only
       .order("created_at", { ascending: true })
-      .limit(30);
+      .limit(200);
 
     if (data) {
-      // Also load replies for these top-level comments
-      const topIds = data.map(c => c.id);
-      let allComments = data as Comment[];
-
-      if (topIds.length > 0) {
-        const { data: replies } = await supabase
-          .from("community_comments")
-          .select("*")
-          .in("parent_comment_id", topIds)
-          .order("created_at", { ascending: true });
-        if (replies) {
-          allComments = [...allComments, ...(replies as Comment[])];
-        }
-      }
-
-      setComments(prev => ({ ...prev, [postId]: allComments }));
+      const allComments = data as Comment[];
+      setComments(prev => {
+        // Merge with any optimistic comments already in state
+        const existing = prev[postId] || [];
+        const optimistic = existing.filter(c => c.id.startsWith("optimistic-"));
+        const dbIds = new Set(allComments.map(c => c.id));
+        // Keep optimistic comments that haven't been confirmed yet
+        const unconfirmedOptimistic = optimistic.filter(c => !dbIds.has(c.id));
+        return { ...prev, [postId]: [...allComments, ...unconfirmedOptimistic] };
+      });
       // Sync comment count
       setAllPosts(prev => prev.map(p =>
         p.id === postId ? { ...p, comments_count: Math.max(p.comments_count, allComments.length) } : p
@@ -396,12 +390,24 @@ const Community = () => {
         const enriched = await enrichPosts([newPost]);
         if (enriched.length > 0) {
           setAllPosts(prev => {
+            // Skip if this post ID already exists
             if (prev.some(p => p.id === enriched[0].id)) return prev;
-            // If user is scrolled down, show "new posts" indicator instead
+            // Check if there's a matching optimistic post to replace
+            const matchIdx = prev.findIndex(p =>
+              p._optimistic &&
+              p.content === enriched[0].content &&
+              p.anonymous_name === enriched[0].anonymous_name
+            );
+            if (matchIdx >= 0) {
+              // Replace optimistic with real post
+              const updated = [...prev];
+              updated[matchIdx] = { ...enriched[0], _pendingMedia: prev[matchIdx]._pendingMedia, _onCancelUpload: prev[matchIdx]._onCancelUpload, _onRetryUpload: prev[matchIdx]._onRetryUpload };
+              return updated;
+            }
+            // New post from another user
             const scrolledDown = window.scrollY > 400;
             if (scrolledDown) {
               setNewPostsAvailable(c => c + 1);
-              // Still add to state so it's available when they scroll up
             }
             return [enriched[0], ...prev];
           });
@@ -426,10 +432,39 @@ const Community = () => {
       .on("postgres_changes", { event: "*", schema: "public", table: "community_comments" }, (payload) => {
         if (payload.eventType === "INSERT") {
           const newComment = payload.new as Comment;
-          setComments((prev) => ({
-            ...prev,
-            [newComment.post_id]: [...(prev[newComment.post_id] || []), newComment],
-          }));
+          setComments((prev) => {
+            const existing = prev[newComment.post_id] || [];
+            // Deduplicate: skip if this ID already exists (from optimistic insert)
+            if (existing.some(c => c.id === newComment.id)) return prev;
+            // Also check if there's an optimistic comment we should replace
+            // (optimistic IDs start with "optimistic-")
+            const hasMatchingOptimistic = existing.some(c =>
+              c.id.startsWith("optimistic-") &&
+              c.content === newComment.content &&
+              c.anonymous_name === newComment.anonymous_name &&
+              c.post_id === newComment.post_id
+            );
+            if (hasMatchingOptimistic) {
+              // Replace the first matching optimistic comment with the real one
+              let replaced = false;
+              return {
+                ...prev,
+                [newComment.post_id]: existing.map(c => {
+                  if (!replaced && c.id.startsWith("optimistic-") &&
+                      c.content === newComment.content &&
+                      c.anonymous_name === newComment.anonymous_name) {
+                    replaced = true;
+                    return newComment;
+                  }
+                  return c;
+                }),
+              };
+            }
+            return {
+              ...prev,
+              [newComment.post_id]: [...existing, newComment],
+            };
+          });
         } else if (payload.eventType === "DELETE") {
           const oldComment = payload.old as { id: string; post_id: string };
           setComments((prev) => ({
