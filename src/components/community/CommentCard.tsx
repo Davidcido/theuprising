@@ -231,7 +231,7 @@ const CommentCard = ({
           />
 
           {/* Reply button */}
-          {communityOpen && !editing && (
+          {communityOpen && !editing && canReply && (
             <div className="flex items-center gap-3 mt-1 ml-1">
               <button
                 onClick={startReply}
