@@ -931,13 +931,10 @@ Never expose the English interpretation to the user — always reply fully in Ha
     await setupAudioAnalyser();
 
     const mode = selectedModeRef.current;
-    const companionName = selectedCompanionRef.current.name;
-    const greeting =
-      mode === "vent"
-        ? `Hi, this is ${companionName}. I'm here to listen. Take your time, and say whatever's on your mind.`
-        : mode === "calm"
-        ? `Hi, this is ${companionName}. Let's take a moment to breathe and find some calm together. I'm right here with you.`
-        : `Hi, this is ${companionName}. I'm here with you. How are you doing today?`;
+    const companionId = selectedCompanionRef.current.id;
+    const personality = getVoicePersonality(companionId);
+    const modeKey = mode === "vent" ? "vent" : mode === "calm" ? "calm" : "support";
+    const greeting = personality.greetings[modeKey];
 
     setTranscript([{ role: "assistant", text: greeting }]);
     conversationRef.current.push({ role: "assistant", content: greeting });
