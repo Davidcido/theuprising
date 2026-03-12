@@ -502,7 +502,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
 
   // Filter to only high-quality English voices and sort for display
   const categorizeVoices = useCallback((voices: SpeechSynthesisVoice[]) => {
-    const filtered = voices.filter(isAllowedVoice);
+    const filtered = voices.filter(v => isAllowedVoice(v) && isStableVoice(v));
     const scored = filtered.map(v => {
       let score = 0;
       // Prioritise Samantha as default
