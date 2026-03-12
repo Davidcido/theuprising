@@ -93,12 +93,12 @@ const Community = () => {
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const prefetchSentinelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  // Cursor for pagination — stores created_at of the last loaded post
-  const cursorRef = useRef<string | null>(null);
-  const prefetchCacheRef = useRef<Post[]>([]);
+  // Cursor for pagination — stores created_at + id of the last loaded post
+  const cursorRef = useRef<PaginationCursor | null>(null);
   const fetchingRef = useRef(false);
+  const [isFetchingPosts, setIsFetchingPosts] = useState(false);
+  const lastCursorLogRef = useRef<string | null>(null);
 
   const { isBookmarked, toggleBookmark } = useBookmarks(currentUser?.id);
   const { saveDraft } = useDrafts(currentUser?.id);
