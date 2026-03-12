@@ -209,12 +209,12 @@ const PostCard = ({
       >
         {/* Optimistic indicator */}
         {post._optimistic && (
-          <div className="text-[10px] text-muted-foreground mb-2">Publishing...</div>
+          <div className={`text-[10px] text-muted-foreground mb-2 ${hasMedia ? "px-5 pt-3" : ""}`}>Publishing...</div>
         )}
 
         {/* Pinned label */}
         {isPinned && (
-          <div className="flex items-center gap-1.5 mb-2 text-amber-400/70 text-xs">
+          <div className={`flex items-center gap-1.5 mb-2 text-amber-400/70 text-xs ${hasMedia ? "px-5 pt-3" : ""}`}>
             <Pin className="w-3.5 h-3.5" />
             <span className="font-medium">Pinned post</span>
           </div>
@@ -222,14 +222,14 @@ const PostCard = ({
 
         {/* Repost label */}
         {post.reposted_by_name && (
-          <div className="flex items-center gap-1.5 mb-2 text-emerald-400/70 text-xs">
+          <div className={`flex items-center gap-1.5 mb-2 text-emerald-400/70 text-xs ${hasMedia ? "px-5 pt-2" : ""}`}>
             <Repeat2 className="w-3.5 h-3.5" />
             <span className="font-medium">{post.reposted_by_name} reposted</span>
           </div>
         )}
 
         {/* Post header */}
-        <div className="flex items-center justify-between mb-3">
+        <div className={`flex items-center justify-between mb-3 ${hasMedia ? "px-5 pt-3" : ""}`}>
           <div className="flex items-center gap-3">
             {(() => {
               const displayName = !post.is_anonymous && post.author_profile?.display_name ? post.author_profile.display_name : post.anonymous_name;
