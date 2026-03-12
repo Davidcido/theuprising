@@ -504,7 +504,7 @@ const PostCard = ({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-1 border-t border-white/5 pt-3">
+        <div className={`flex items-center gap-1 border-t border-white/5 pt-3 ${hasMedia ? "px-5" : ""}`}>
           <div className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-sm">
             <motion.button
               onClick={() => onToggleLike(post.id)}
