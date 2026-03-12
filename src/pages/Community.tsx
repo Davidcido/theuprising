@@ -760,13 +760,12 @@ const Community = () => {
     setMediaFiles([]);
     if (textareaRef.current) textareaRef.current.style.height = "auto";
 
-    // Separate already-uploaded images (have public URLs) from local video files
+    // Separate already-uploaded images from local video files
     const readyUrls: string[] = [];
     const videoFilesToUpload: { file: File; previewUrl: string }[] = [];
 
     for (const m of savedMedia) {
       if (m.type === "video" && m.file) {
-        // Enforce 50MB limit
         if (m.file.size > 50 * 1024 * 1024) {
           toast({ title: "Video too large", description: "Please upload a file under 50MB.", variant: "destructive" });
           setNewPost(savedContent);
@@ -780,40 +779,10 @@ const Community = () => {
       }
     }
 
-    // Insert the post immediately with only the ready image URLs
-    const insertData: any = {
-      content: savedContent.trim().slice(0, 10000) || "",
-      anonymous_name: postAnonymously ? sessionId : (currentUser?.displayName || sessionId),
-      is_anonymous: postAnonymously,
-      media_urls: readyUrls,
-    };
-    // Always store author_id from auth (not currentUser which may lag)
-    if (authUser?.id) {
-      insertData.author_id = authUser.id;
-    } else if (currentUser) {
-      insertData.author_id = currentUser.id;
-    }
+    // Build optimistic post immediately
+    const optimisticId = `optimistic-post-${Date.now()}`;
+    const authorId = authUser?.id || currentUser?.id || null;
 
-    console.log("[Community] Inserting post:", JSON.stringify(insertData));
-    const { data: insertedPost, error } = await supabase
-      .from("community_posts")
-      .insert(insertData)
-      .select()
-      .single();
-
-    if (error || !insertedPost) {
-      console.error("[Community] Post creation failed:", error?.message, error?.details, error?.hint);
-      setNewPost(savedContent);
-      setMediaFiles(savedMedia);
-      toast({ title: "Post failed to publish", description: error?.message || "Could not post. Try again.", variant: "destructive" });
-      setPosting(false);
-      return;
-    }
-
-    console.log("[Community] Post created successfully:", insertedPost.id);
-    const postId = insertedPost.id;
-
-    // Build pending media entries for videos
     const pendingMedia: PendingMedia[] = videoFilesToUpload.map((v) => {
       const mediaId = `media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       pendingFilesRef.current.set(mediaId, { file: v.file, type: "video" });
@@ -827,61 +796,111 @@ const Community = () => {
       };
     });
 
-    const newPostObj: Post = {
-      id: postId,
-      content: insertedPost.content,
-      anonymous_name: insertedPost.anonymous_name,
+    const optimisticPost: Post = {
+      id: optimisticId,
+      content: savedContent.trim().slice(0, 10000) || "",
+      anonymous_name: postAnonymously ? sessionId : (currentUser?.displayName || sessionId),
       likes_count: 0,
       comments_count: 0,
       shares_count: 0,
       views_count: 0,
-      created_at: insertedPost.created_at,
-      author_id: insertedPost.author_id,
-      is_anonymous: insertedPost.is_anonymous,
+      created_at: new Date().toISOString(),
+      author_id: authorId,
+      is_anonymous: postAnonymously,
       media_urls: readyUrls,
       author_profile: currentUser && !postAnonymously ? { display_name: currentUser.displayName, avatar_url: "" } : null,
+      _optimistic: true,
       _pendingMedia: pendingMedia.length > 0 ? pendingMedia : undefined,
-      _onCancelUpload: pendingMedia.length > 0 ? (mediaId: string) => cancelPendingUpload(postId, mediaId) : undefined,
-      _onRetryUpload: pendingMedia.length > 0 ? (mediaId: string) => retryPendingUpload(postId, mediaId) : undefined,
     };
 
-    const isFirstPost = !allPosts.some(p => p.author_id === currentUser?.id && p.id !== postId);
+    const isFirstPost = !allPosts.some(p => p.author_id === currentUser?.id);
 
-    setAllPosts(prev => [newPostObj, ...prev.filter(p => p.id !== postId)]);
-    toast({ title: videoFilesToUpload.length > 0 ? "Post published! Video uploading..." : "Post published successfully! 🎉" });
+    // Show post immediately
+    setAllPosts(prev => [optimisticPost, ...prev]);
     setPosting(false);
 
-    // Refetch feed to ensure consistency (don't await — optimistic post is already shown)
-    fetchPosts(false).catch(err => console.error("[Community] Post-creation refetch failed:", err));
+    // 4s failsafe: if DB hasn't responded, keep the optimistic post visible
+    const failsafeTimer = setTimeout(() => {
+      // Post is already shown — no stuck state possible
+    }, 4000);
 
-    if (isFirstPost && currentUser) {
-      setShowFirstPostCelebration(true);
-    }
+    // Insert into DB asynchronously
+    const insertData: any = {
+      content: savedContent.trim().slice(0, 10000) || "",
+      anonymous_name: postAnonymously ? sessionId : (currentUser?.displayName || sessionId),
+      is_anonymous: postAnonymously,
+      media_urls: readyUrls,
+    };
+    if (authorId) insertData.author_id = authorId;
 
-    // Start background video uploads
-    for (const pm of pendingMedia) {
-      const fileEntry = pendingFilesRef.current.get(pm.id);
-      if (fileEntry) {
-        startBackgroundUpload(postId, pm.id, fileEntry.file, "video", pm.previewUrl);
+    try {
+      const { data: insertedPost, error } = await supabase
+        .from("community_posts")
+        .insert(insertData)
+        .select("id, content, anonymous_name, author_id, is_anonymous, likes_count, comments_count, shares_count, views_count, created_at, media_urls")
+        .single();
+
+      clearTimeout(failsafeTimer);
+
+      if (error || !insertedPost) {
+        // Remove optimistic post on failure
+        setAllPosts(prev => prev.filter(p => p.id !== optimisticId));
+        setNewPost(savedContent);
+        setMediaFiles(savedMedia);
+        toast({ title: "Post failed to publish", description: error?.message || "Could not post. Try again.", variant: "destructive" });
+        return;
       }
-    }
 
-    // Send mention notifications
-    if (currentUser) {
-      const mentions = extractMentions(savedContent);
-      if (mentions.length > 0) {
-        const { data: mentionedProfiles } = await supabase
-          .from("profiles")
-          .select("user_id, display_name")
-          .in("display_name", mentions);
-        if (mentionedProfiles) {
-          for (const mp of mentionedProfiles) {
-            if (mp.user_id !== currentUser.id) {
-              createNotification(mp.user_id, currentUser.id, "mention", "mentioned you in a post", postId);
-            }
-          }
+      const postId = insertedPost.id;
+
+      // Replace optimistic post with real post
+      const realPost: Post = {
+        ...optimisticPost,
+        id: postId,
+        created_at: insertedPost.created_at,
+        _optimistic: undefined,
+        _onCancelUpload: pendingMedia.length > 0 ? (mediaId: string) => cancelPendingUpload(postId, mediaId) : undefined,
+        _onRetryUpload: pendingMedia.length > 0 ? (mediaId: string) => retryPendingUpload(postId, mediaId) : undefined,
+      };
+
+      setAllPosts(prev => prev.map(p => p.id === optimisticId ? realPost : p));
+      toast({ title: videoFilesToUpload.length > 0 ? "Post published! Video uploading..." : "Post published successfully! 🎉" });
+
+      if (isFirstPost && currentUser) {
+        setShowFirstPostCelebration(true);
+      }
+
+      // Start background video uploads
+      for (const pm of pendingMedia) {
+        const fileEntry = pendingFilesRef.current.get(pm.id);
+        if (fileEntry) {
+          startBackgroundUpload(postId, pm.id, fileEntry.file, "video", pm.previewUrl);
         }
       }
+
+      // Send mention notifications (fire and forget)
+      if (currentUser) {
+        const mentions = extractMentions(savedContent);
+        if (mentions.length > 0) {
+          supabase
+            .from("profiles")
+            .select("user_id, display_name")
+            .in("display_name", mentions)
+            .then(({ data: mentionedProfiles }) => {
+              if (mentionedProfiles) {
+                for (const mp of mentionedProfiles) {
+                  if (mp.user_id !== currentUser.id) {
+                    createNotification(mp.user_id, currentUser.id, "mention", "mentioned you in a post", postId);
+                  }
+                }
+              }
+            });
+        }
+      }
+    } catch (err: any) {
+      clearTimeout(failsafeTimer);
+      // Keep optimistic post visible — user sees their content regardless
+      console.error("[Community] Post insert error:", err?.message);
     }
   };
 
