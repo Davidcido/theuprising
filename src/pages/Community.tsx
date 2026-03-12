@@ -521,97 +521,42 @@ const Community = () => {
     };
   }, [authReady]);
 
-  // Prefetch next batch in background when user scrolls halfway
-  const prefetchTriggered = useRef(false);
-  useEffect(() => {
-    if (!hasMore || loadingMore || fetchingRef.current) return;
-    prefetchTriggered.current = false;
-  }, [allPosts.length]);
-
-  // Background prefetch — loads next PREFETCH_BATCH posts into cache before user reaches bottom
-  // Uses a separate cursor to avoid conflicting with main pagination
-  const prefetchCursorRef = useRef<string | null>(null);
-  const prefetchNextBatch = useCallback(async () => {
-    if (prefetchTriggered.current || !hasMore || fetchingRef.current) return;
-    prefetchTriggered.current = true;
-    
-    // Use the main cursor as prefetch starting point
-    const prefetchCursor = cursorRef.current;
-    if (!prefetchCursor) return;
-    
-    try {
-      const { data } = await supabase
-        .from("community_posts")
-        .select("id, content, anonymous_name, author_id, is_anonymous, likes_count, comments_count, shares_count, views_count, created_at, media_urls, original_post_id, reposted_by_name, engagement_score")
-        .order("created_at", { ascending: false })
-        .lt("created_at", prefetchCursor)
-        .limit(PREFETCH_BATCH);
-
-      if (data && data.length > 0) {
-        const enriched = await enrichPosts(data);
-        prefetchCacheRef.current = enriched;
-        // Store the cursor for when this batch gets consumed
-        prefetchCursorRef.current = data[data.length - 1].created_at;
-      }
-    } catch {}
-  }, [hasMore, enrichPosts]);
-
-  // Prefetch sentinel — halfway through feed triggers background prefetch
-  useEffect(() => {
-    const sentinel = prefetchSentinelRef.current;
-    if (!sentinel) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && hasMore && !fetchingRef.current && activeTab === "foryou") {
-          prefetchNextBatch();
-        }
-      },
-      { rootMargin: "200px" }
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [hasMore, prefetchNextBatch, activeTab]);
-
-  // Bottom sentinel — triggers actual load with debounce (uses prefetched data if available)
   const scrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastScrollTriggerRef = useRef(0);
+
+  const scheduleLoadMore = useCallback((reason: string) => {
+    if (activeTab !== "foryou" || !hasMore) return;
+    if (scrollDebounceRef.current) return;
+
+    const elapsed = Date.now() - lastScrollTriggerRef.current;
+    const delay = elapsed >= SCROLL_DEBOUNCE_MS ? 0 : SCROLL_DEBOUNCE_MS - elapsed;
+
+    scrollDebounceRef.current = setTimeout(() => {
+      scrollDebounceRef.current = null;
+      if (activeTab !== "foryou" || !hasMore) return;
+      if (fetchingRef.current || isFetchingPosts || loadingMore) {
+        console.log("[Community][feed] load-more blocked", { reason, isFetchingPosts, loadingMore });
+        return;
+      }
+      lastScrollTriggerRef.current = Date.now();
+      console.log("[Community][feed] load-more trigger", { reason, cursor: cursorRef.current });
+      fetchPosts(true);
+    }, delay);
+  }, [activeTab, fetchPosts, hasMore, isFetchingPosts, loadingMore]);
+
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
+
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && hasMore && !loadingMore && !fetchingRef.current && activeTab === "foryou") {
-          // Debounce: only fire once per SCROLL_DEBOUNCE_MS
-          if (scrollDebounceRef.current) return;
-          scrollDebounceRef.current = setTimeout(() => {
-            scrollDebounceRef.current = null;
-            if (fetchingRef.current || loadingMore) return; // re-check after debounce
-
-            if (prefetchCacheRef.current.length > 0) {
-              // Use prefetched data instantly
-              const prefetched = prefetchCacheRef.current;
-              prefetchCacheRef.current = [];
-              if (prefetchCursorRef.current) {
-                cursorRef.current = prefetchCursorRef.current;
-                prefetchCursorRef.current = null;
-              }
-              setAllPosts(prev => {
-                const existingIds = new Set(prev.map(p => p.id));
-                const newPosts = prefetched.filter(p => !existingIds.has(p.id));
-                return [...prev, ...newPosts];
-              });
-              // Only mark finished if prefetch returned zero; otherwise keep paginating
-              if (prefetched.length === 0) {
-                setHasMore(false);
-              }
-              prefetchTriggered.current = false;
-            } else {
-              fetchPosts(true);
-            }
-          }, SCROLL_DEBOUNCE_MS);
+        if (entry.isIntersecting) {
+          scheduleLoadMore("sentinel-intersect");
         }
       },
       { rootMargin: "600px" }
     );
+
     observer.observe(sentinel);
     return () => {
       observer.disconnect();
@@ -620,7 +565,18 @@ const Community = () => {
         scrollDebounceRef.current = null;
       }
     };
-  }, [hasMore, loadingMore, fetchPosts, activeTab]);
+  }, [scheduleLoadMore]);
+
+  // If the sentinel is still visible after append, keep paginating until DB is exhausted.
+  useEffect(() => {
+    if (activeTab !== "foryou" || !hasMore || loadingMore || fetchingRef.current || isFetchingPosts) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const rect = sentinel.getBoundingClientRect();
+    if (rect.top <= window.innerHeight + 600) {
+      scheduleLoadMore("catch-up-after-append");
+    }
+  }, [activeTab, allPosts.length, hasMore, isFetchingPosts, loadingMore, scheduleLoadMore]);
 
   // Update cache whenever posts change
   useEffect(() => {
