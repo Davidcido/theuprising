@@ -79,6 +79,7 @@ const VoiceCompanion = () => {
   const [showTextInput, setShowTextInput] = useState(false);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceUri, setSelectedVoiceUri] = useState<string>("");
+  const [selectedCompanion, setSelectedCompanion] = useState<CompanionOption>(companions[0]);
 
   const phaseRef = useRef<CallPhase>("idle");
   const activeRef = useRef(false);
@@ -93,6 +94,7 @@ const VoiceCompanion = () => {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedLangRef = useRef(selectedLang);
   const selectedModeRef = useRef(selectedMode);
+  const selectedCompanionRef = useRef(selectedCompanion);
 
   const setPhaseSync = useCallback((p: CallPhase) => {
     phaseRef.current = p;
