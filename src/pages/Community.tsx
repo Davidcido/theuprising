@@ -399,8 +399,13 @@ const Community = () => {
         const enriched = await enrichPosts([newPost]);
         if (enriched.length > 0) {
           setAllPosts(prev => {
-            // Skip if we already have this post (from instant publish)
             if (prev.some(p => p.id === enriched[0].id)) return prev;
+            // If user is scrolled down, show "new posts" indicator instead
+            const scrolledDown = window.scrollY > 400;
+            if (scrolledDown) {
+              setNewPostsAvailable(c => c + 1);
+              // Still add to state so it's available when they scroll up
+            }
             return [enriched[0], ...prev];
           });
         }
