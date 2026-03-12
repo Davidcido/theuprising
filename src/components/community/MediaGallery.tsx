@@ -53,7 +53,11 @@ const COMMUNITY_AMBIENT_SOUNDS = [
   "https://cdn.pixabay.com/audio/2022/05/16/audio_ded27e32f1.mp3", // night ambience
 ];
 
-const getRandomFallbackVideo = () => FALLBACK_VIDEOS[Math.floor(Math.random() * FALLBACK_VIDEOS.length)];
+const getRandomFallbackVideo = (exclude?: string) => {
+  const pool = exclude ? FALLBACK_VIDEOS.filter(v => v !== exclude && !exclude.includes(v.split('/').pop()!.split('-')[0])) : FALLBACK_VIDEOS;
+  const list = pool.length > 0 ? pool : FALLBACK_VIDEOS;
+  return list[Math.floor(Math.random() * list.length)];
+};
 const getCommunityAmbient = (url: string) => {
   // Deterministic pick based on url hash so same post gets same sound
   let hash = 0;
