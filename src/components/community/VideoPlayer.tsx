@@ -268,6 +268,14 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[200] bg-black flex items-center justify-center"
         onClick={resetHideTimer}
+        onTouchStart={(e) => { touchStartRef.current = { y: e.touches[0].clientY, time: Date.now() }; }}
+        onTouchEnd={(e) => {
+          if (!touchStartRef.current) return;
+          const deltaY = e.changedTouches[0].clientY - touchStartRef.current.y;
+          const deltaTime = Date.now() - touchStartRef.current.time;
+          touchStartRef.current = null;
+          if (deltaY > 80 && deltaTime < 500) onClose();
+        }}
       >
         {/* Video */}
         <video
