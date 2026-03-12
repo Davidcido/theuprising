@@ -105,6 +105,9 @@ const Community = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  // Cursor for pagination — stores created_at of the last loaded post
+  const cursorRef = useRef<string | null>(null);
+  const fetchingRef = useRef(false);
 
   const { isBookmarked, toggleBookmark } = useBookmarks(currentUser?.id);
   const { saveDraft } = useDrafts(currentUser?.id);
