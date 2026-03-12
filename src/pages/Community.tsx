@@ -1099,11 +1099,11 @@ const Community = () => {
           c.id === optimisticId ? { ...c, id: insertedComment.id } : c
         ),
       }));
-      await supabase.rpc("increment_comments", { post_id_input: postId });
+      await supabase.rpc("increment_comments", { post_id_input: targetPostId });
       if (currentUser && post?.author_id && post.author_id !== currentUser.id) {
-        createNotification(post.author_id, currentUser.id, "comment", "commented on your post", postId);
+        createNotification(post.author_id, currentUser.id, "comment", "commented on your post", targetPostId);
       }
-      triggerCompanionReply(postId, insertedComment.id, text);
+      triggerCompanionReply(targetPostId, insertedComment.id, text);
     } else {
       // Rollback optimistic
       setComments(prev => ({
