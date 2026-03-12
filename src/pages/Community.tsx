@@ -332,44 +332,41 @@ const Community = () => {
     if (allPosts.length > 0) fetchReactions();
   }, [allPosts.length]);
 
-  // Auto-fetch comments for all posts that have comments_count > 0
-  // This ensures comments are always available when the section is expanded
-  const fetchCommentsForPosts = useCallback(async (posts: Post[]) => {
-    const postsNeedingComments = posts.filter(
-      p => p.comments_count > 0 && !comments[p.id] && !p.id.startsWith("repost-") && !p.id.startsWith("optimistic-")
-    );
-    if (postsNeedingComments.length === 0) return;
-    
-    const postIds = postsNeedingComments.map(p => p.id);
+  // Lazy comment loading: only fetch comments when a post's comment section is expanded
+  // This prevents firing queries for every post with comments_count > 0 on mount
+  const fetchCommentsForPost = useCallback(async (postId: string) => {
+    if (comments[postId]) return; // already loaded
     const { data } = await supabase
       .from("community_comments")
       .select("*")
-      .in("post_id", postIds)
-      .order("created_at", { ascending: true });
-    
-    if (data && data.length > 0) {
-      const grouped: Record<string, Comment[]> = {};
-      for (const c of data) {
-        if (!grouped[c.post_id]) grouped[c.post_id] = [];
-        grouped[c.post_id].push(c as Comment);
-      }
-      setComments(prev => ({ ...prev, ...grouped }));
-      
-      // Sync comment counts with actual DB data
-      setAllPosts(prev => prev.map(p => {
-        const actual = grouped[p.id];
-        if (actual && actual.length !== p.comments_count) {
-          return { ...p, comments_count: actual.length };
+      .eq("post_id", postId)
+      .is("parent_comment_id", null) // top-level comments only
+      .order("created_at", { ascending: true })
+      .limit(30);
+
+    if (data) {
+      // Also load replies for these top-level comments
+      const topIds = data.map(c => c.id);
+      let allComments = data as Comment[];
+
+      if (topIds.length > 0) {
+        const { data: replies } = await supabase
+          .from("community_comments")
+          .select("*")
+          .in("parent_comment_id", topIds)
+          .order("created_at", { ascending: true });
+        if (replies) {
+          allComments = [...allComments, ...(replies as Comment[])];
         }
-        return p;
-      }));
+      }
+
+      setComments(prev => ({ ...prev, [postId]: allComments }));
+      // Sync comment count
+      setAllPosts(prev => prev.map(p =>
+        p.id === postId ? { ...p, comments_count: Math.max(p.comments_count, allComments.length) } : p
+      ));
     }
   }, [comments]);
-
-  // Trigger auto-fetch whenever allPosts changes
-  useEffect(() => {
-    if (allPosts.length > 0) fetchCommentsForPosts(allPosts);
-  }, [allPosts.length]);
 
   // Load comment reactions when comments are expanded
   useEffect(() => {
