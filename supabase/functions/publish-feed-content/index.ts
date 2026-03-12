@@ -374,3 +374,53 @@ async function generateAndUploadImage(
   const { data: urlData } = supabase.storage.from("community-media").getPublicUrl(fileName);
   return urlData?.publicUrl || null;
 }
+
+/** Return a caption that matches the video theme */
+function getThemeCaption(theme: string): string {
+  const captions: Record<string, string[]> = {
+    ocean: ["🌊 The ocean reminds us to breathe and flow.", "🌊 Waves carry away what no longer serves us."],
+    calm_water: ["💧 Still waters run deep. So do you.", "💧 In calm waters, you find your reflection."],
+    waterfalls: ["💦 Like water, keep moving forward.", "💦 A waterfall never hesitates — neither should you."],
+    forest: ["🌿 The forest holds a quiet wisdom.", "🌿 Among the trees, you find yourself."],
+    rain: ["🌧 Let the rain wash away your worries.", "🌧 Rain reminds us that growth needs storms."],
+    sunrise: ["🌅 Every sunrise is a second chance.", "🌅 A new day, a new beginning."],
+    sunset: ["🌇 The sky paints itself just for you tonight.", "🌇 Even the sun knows when to rest."],
+    clouds: ["☁️ Above the clouds, the sky is always clear.", "☁️ Let your thoughts drift like clouds."],
+    mountains: ["⛰️ Mountains teach us patience and strength.", "⛰️ The view from the top is worth every step."],
+    sky: ["✨ Look up. The sky has no limits.", "✨ You are as vast as the sky above."],
+    rivers: ["🏞 The river doesn't fight the path — it flows.", "🏞 Like a river, find your way."],
+    night_sky: ["🌌 The stars remind us we're part of something bigger.", "🌌 Even in darkness, there is light."],
+    stars: ["⭐ You shine even when you don't see it.", "⭐ Count stars, not problems."],
+    meadow: ["🌸 In the meadow, everything blooms in its own time.", "🌸 Bloom where you are planted."],
+    campfire: ["🔥 The fire within you is brighter than any around you.", "🔥 Warmth comes from within."],
+    fog: ["🌫 Through the fog, clarity awaits.", "🌫 Not all who wander through the mist are lost."],
+    coral: ["🐠 Beneath the surface, beauty thrives.", "🐠 The ocean floor holds wonders unseen."],
+  };
+  const options = captions[theme] || ["✨ Take a moment to breathe and be present."];
+  return options[Math.floor(Math.random() * options.length)];
+}
+
+/** Return a companion comment matching the video theme */
+function getThemeComment(theme: string, companionName: string): string {
+  const comments: Record<string, string[]> = {
+    ocean: ["This feels incredibly peaceful.", "The ocean always reminds us to slow down.", "Listening to the waves is healing."],
+    calm_water: ["There's something deeply calming about this.", "Still water reflects the truth within."],
+    waterfalls: ["The power of flowing water is mesmerizing.", "Like water, keep moving forward."],
+    forest: ["The stillness here is beautiful.", "Nature has a quiet wisdom.", "Among trees, the mind finds peace."],
+    rain: ["The sound of rain soothes the soul.", "Let the rain be your meditation.", "Every drop carries a tiny blessing."],
+    sunrise: ["A new day, a new chance to begin again.", "Mornings are proof that we always get another try."],
+    sunset: ["This golden light reminds me to slow down.", "Sunsets are proof that endings can be beautiful too."],
+    clouds: ["There's beauty in letting go and drifting.", "Above the clouds, everything is clear."],
+    mountains: ["The mountain stands still — so can we.", "Strength isn't always loud."],
+    sky: ["Limitless, just like you.", "The sky holds all of us."],
+    rivers: ["Flow, don't force.", "The river always finds its way home."],
+    night_sky: ["Under these stars, we are all connected.", "The night sky reminds us of infinite possibility."],
+    stars: ["You are a star, even on cloudy nights.", "Stars don't compete — they just shine."],
+    meadow: ["Everything blooms in its own season.", "This is what patience looks like."],
+    campfire: ["Warmth doesn't have to be loud.", "This fire reminds me of inner strength."],
+    fog: ["The fog lifts. It always does.", "Clarity comes to those who wait."],
+    coral: ["Beauty exists in the depths too.", "The unseen world holds so much wonder."],
+  };
+  const options = comments[theme] || ["This is truly beautiful.", "Take a moment to appreciate this."];
+  return options[Math.floor(Math.random() * options.length)];
+}
