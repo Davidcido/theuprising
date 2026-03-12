@@ -202,8 +202,8 @@ const PostCard = ({
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: post._optimistic ? 0.7 : 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className={`p-5 rounded-2xl backdrop-blur-xl border border-white/10 transition-colors hover:border-white/20 ${post._optimistic ? "animate-pulse" : ""}`}
-        style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)" }}
+        className={`rounded-2xl overflow-hidden backdrop-blur-xl border border-white/8 transition-all hover:border-white/15 shadow-lg shadow-black/10 ${post._optimistic ? "animate-pulse" : ""} ${hasMedia ? "" : "p-5"}`}
+        style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.015) 100%)" }}
       >
         {/* Optimistic indicator */}
         {post._optimistic && (
