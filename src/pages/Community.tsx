@@ -390,12 +390,24 @@ const Community = () => {
         const enriched = await enrichPosts([newPost]);
         if (enriched.length > 0) {
           setAllPosts(prev => {
+            // Skip if this post ID already exists
             if (prev.some(p => p.id === enriched[0].id)) return prev;
-            // If user is scrolled down, show "new posts" indicator instead
+            // Check if there's a matching optimistic post to replace
+            const matchIdx = prev.findIndex(p =>
+              p._optimistic &&
+              p.content === enriched[0].content &&
+              p.anonymous_name === enriched[0].anonymous_name
+            );
+            if (matchIdx >= 0) {
+              // Replace optimistic with real post
+              const updated = [...prev];
+              updated[matchIdx] = { ...enriched[0], _pendingMedia: prev[matchIdx]._pendingMedia, _onCancelUpload: prev[matchIdx]._onCancelUpload, _onRetryUpload: prev[matchIdx]._onRetryUpload };
+              return updated;
+            }
+            // New post from another user
             const scrolledDown = window.scrollY > 400;
             if (scrolledDown) {
               setNewPostsAvailable(c => c + 1);
-              // Still add to state so it's available when they scroll up
             }
             return [enriched[0], ...prev];
           });
