@@ -35,42 +35,42 @@ const quickTools = [
   {
     id: "ask",
     icon: MessageCircle,
-    label: "Ask AI",
+    label: "Ask a Companion",
     desc: "Get answers to anything on your mind.",
     style: "companion",
   },
   {
     id: "write",
     icon: PenLine,
-    label: "Writing Assistant",
+    label: "Writing Companion",
     desc: "Help with essays, messages, and creative writing.",
     style: "creative",
   },
   {
     id: "idea",
     icon: Lightbulb,
-    label: "Idea Generator",
+    label: "Idea Spark",
     desc: "Brainstorm fresh ideas for any project.",
     style: "creative",
   },
   {
     id: "advice",
     icon: Heart,
-    label: "Life Advice",
+    label: "Guidance",
     desc: "Thoughtful guidance for life's big questions.",
     style: "companion",
   },
   {
     id: "explain",
     icon: HelpCircle,
-    label: "Explain Something",
+    label: "Help Me Understand",
     desc: "Break down complex topics simply.",
     style: "thinking",
   },
   {
     id: "brainstorm",
     icon: Brain,
-    label: "Brainstorm Ideas",
+    label: "Creative Thinking",
     desc: "Collaborate on creative solutions.",
     style: "thinking",
   },
@@ -224,13 +224,13 @@ const Tools = () => {
         >
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 mb-4">
             <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-xs text-white/70 font-medium">AI-powered</span>
+            <span className="text-xs text-white/70 font-medium">Healing Space</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-display font-bold text-white mb-2">
-            AI Hub
+            Companion Hub
           </h1>
           <p className="text-white/50 text-sm max-w-xs mx-auto leading-relaxed">
-            Your companions and AI tools, all in one place.
+            Your companions and tools for reflection, guidance, and growth.
           </p>
         </motion.div>
 
@@ -301,7 +301,7 @@ const Tools = () => {
               {/* ── Section 2: Quick AI Tools ── */}
               <section>
                 <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-3">
-                  Quick AI Tools
+                  Companion Tools
                 </h2>
                 <div className="grid grid-cols-2 gap-2.5">
                   {quickTools.map((tool, i) => (

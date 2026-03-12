@@ -218,11 +218,18 @@ const isAllowedVoice = (v: SpeechSynthesisVoice): boolean => {
 
 const getVoiceCategory = (voiceName: string): string => {
   const v = voiceName.toLowerCase();
-  if (/narrator|news|david/.test(v)) return "Narrator";
+  if (/narrator|news|david/.test(v)) return "Clear Narrator";
   if (/story|aria|samantha|daniel/.test(v)) return "Storyteller";
   if (/calm|soft|serena|siri female|moira|karen/.test(v)) return "Calm Guide";
   if (/energetic|coach|motiv|guy|jenny/.test(v)) return "Motivational Coach";
-  return "Friendly Companion";
+  return "Natural Voice";
+};
+
+// Exclude unstable voices that cause buffering, repeated greetings, and lingering speech
+const BLOCKED_VOICE_CATEGORIES = new Set(["Natural Voice"]);
+const isStableVoice = (v: SpeechSynthesisVoice): boolean => {
+  const category = getVoiceCategory(v.name);
+  return !BLOCKED_VOICE_CATEGORIES.has(category);
 };
 
 // Strict state machine: IDLE -> LISTENING -> PROCESSING -> SPEAKING -> COOLDOWN -> LISTENING
@@ -495,7 +502,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
 
   // Filter to only high-quality English voices and sort for display
   const categorizeVoices = useCallback((voices: SpeechSynthesisVoice[]) => {
-    const filtered = voices.filter(isAllowedVoice);
+    const filtered = voices.filter(v => isAllowedVoice(v) && isStableVoice(v));
     const scored = filtered.map(v => {
       let score = 0;
       // Prioritise Samantha as default
@@ -522,8 +529,8 @@ Never expose the English interpretation to the user — always reply fully in Ha
       if (userPick) return userPick;
     }
 
-    // Only consider allowed voices
-    const allowed = voices.filter(isAllowedVoice);
+    // Only consider allowed + stable voices
+    const allowed = voices.filter(v => isAllowedVoice(v) && isStableVoice(v));
     if (!allowed.length) {
       // Fallback: any English voice
       return voices.find(v => v.lang.startsWith("en")) || voices[0];
@@ -963,22 +970,26 @@ Never expose the English interpretation to the user — always reply fully in Ha
   }, [setupAudioAnalyser, speakText, setPhaseSync, clearTimer, loadBestVoice]);
 
   const endCall = useCallback(() => {
-    // Immediately mark inactive to prevent any further AI processing
+    // Immediately mark inactive to prevent any further AI processing or re-listening
     activeRef.current = false;
     clearTimer();
     killRecognition();
 
-    // Force-cancel all speech synthesis — call multiple times for reliability
+    // Force-cancel all speech synthesis — aggressive multi-pass to ensure nothing lingers
     if (window.speechSynthesis) {
       window.speechSynthesis.cancel();
-      // Some browsers need a second cancel after a tick
-      setTimeout(() => window.speechSynthesis?.cancel(), 50);
-      setTimeout(() => window.speechSynthesis?.cancel(), 200);
+      // Some browsers queue speech internally; cancel repeatedly across frames
+      setTimeout(() => window.speechSynthesis?.cancel(), 30);
+      setTimeout(() => window.speechSynthesis?.cancel(), 100);
+      setTimeout(() => window.speechSynthesis?.cancel(), 250);
+      setTimeout(() => window.speechSynthesis?.cancel(), 500);
+      // Final safety sweep after a full second
+      setTimeout(() => window.speechSynthesis?.cancel(), 1000);
     }
 
     killAudio();
 
-    // Stop microphone
+    // Stop microphone tracks immediately
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((t) => t.stop());
       mediaStreamRef.current = null;
@@ -986,8 +997,11 @@ Never expose the English interpretation to the user — always reply fully in Ha
 
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
 
-    // Clear all conversation state
+    // Clear all conversation state to prevent replays
     conversationRef.current = [];
+
+    // Reset voice cache so stale utterances can't replay
+    voiceLoadPromiseRef.current = null;
 
     setCallActive(false);
     setMuted(false);
