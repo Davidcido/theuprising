@@ -31,28 +31,33 @@ const Navbar = () => {
 
   const handleLogout = async () => {
     setMobileOpen(false);
-    
-    try {
-      // 1. Sign out from Supabase with global scope to invalidate all sessions
-      await supabase.auth.signOut({ scope: 'global' });
-    } catch (e) {
-      console.error("Sign out error:", e);
-      // Even if signOut fails, continue with cleanup
-    }
-    
-    // 2. Clear all stored data (preserve session_id for anonymous features)
+
+    // 1. Preserve anonymous session id
     const sessionIdBackup = localStorage.getItem("uprising_session_id");
+
+    // 2. Sign out from Supabase – try global first, fall back to local
+    try {
+      await supabase.auth.signOut({ scope: 'global' });
+    } catch {
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {
+        // Force-clear Supabase storage keys manually
+      }
+    }
+
+    // 3. Aggressively clear ALL local storage (Supabase stores tokens here)
     localStorage.clear();
     sessionStorage.clear();
     if (sessionIdBackup) localStorage.setItem("uprising_session_id", sessionIdBackup);
-    
-    // 3. Clear cookies
+
+    // 4. Clear cookies
     document.cookie.split(";").forEach((c) => {
       document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
     });
-    
-    // 4. Hard redirect to ensure PWA fully resets auth state
-    window.location.href = "/";
+
+    // 5. Hard redirect – forces full page reload so AuthProvider re-initializes with no session
+    window.location.replace("/");
   };
 
   return (
