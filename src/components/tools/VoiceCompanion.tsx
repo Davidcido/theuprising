@@ -218,11 +218,18 @@ const isAllowedVoice = (v: SpeechSynthesisVoice): boolean => {
 
 const getVoiceCategory = (voiceName: string): string => {
   const v = voiceName.toLowerCase();
-  if (/narrator|news|david/.test(v)) return "Narrator";
+  if (/narrator|news|david/.test(v)) return "Clear Narrator";
   if (/story|aria|samantha|daniel/.test(v)) return "Storyteller";
   if (/calm|soft|serena|siri female|moira|karen/.test(v)) return "Calm Guide";
   if (/energetic|coach|motiv|guy|jenny/.test(v)) return "Motivational Coach";
-  return "Friendly Companion";
+  return "Natural Voice";
+};
+
+// Exclude unstable voices that cause buffering, repeated greetings, and lingering speech
+const BLOCKED_VOICE_CATEGORIES = new Set(["Natural Voice"]);
+const isStableVoice = (v: SpeechSynthesisVoice): boolean => {
+  const category = getVoiceCategory(v.name);
+  return !BLOCKED_VOICE_CATEGORIES.has(category);
 };
 
 // Strict state machine: IDLE -> LISTENING -> PROCESSING -> SPEAKING -> COOLDOWN -> LISTENING
