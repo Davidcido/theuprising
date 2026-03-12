@@ -455,45 +455,10 @@ const Community = () => {
       })
       .subscribe();
 
-    const reactionsChannel = supabase
-      .channel("community-reactions")
-      .on("postgres_changes", { event: "*", schema: "public", table: "community_reactions" }, () => fetchReactions())
-      .subscribe();
-
-    const commentReactionsChannel = supabase
-      .channel("comment-reactions")
-      .on("postgres_changes", { event: "*", schema: "public", table: "comment_reactions" }, () => fetchCommentReactions())
-      .subscribe();
-
-    const settingsChannel = supabase
-      .channel("community-settings")
-      .on("postgres_changes", { event: "*", schema: "public", table: "community_settings" }, (payload) => {
-        const row = payload.new as { key: string; value: string };
-        if (row.key === "community_status") setCommunityOpen(row.value === "open");
-      })
-      .subscribe();
-
-    const followsChannel = supabase
-      .channel("community-follows")
-      .on("postgres_changes", { event: "*", schema: "public", table: "follows" }, async () => {
-        if (authUser) {
-          const { data: follows } = await supabase
-            .from("follows")
-            .select("following_id")
-            .eq("follower_id", authUser.id);
-          if (follows) setFollowingIds(new Set(follows.map(f => f.following_id)));
-        }
-      })
-      .subscribe();
-
     return () => {
       supabase.removeChannel(postsChannel);
       supabase.removeChannel(commentsChannel);
       supabase.removeChannel(likesChannel);
-      supabase.removeChannel(reactionsChannel);
-      supabase.removeChannel(commentReactionsChannel);
-      supabase.removeChannel(settingsChannel);
-      supabase.removeChannel(followsChannel);
     };
   }, [authReady]);
 
