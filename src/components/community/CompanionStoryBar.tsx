@@ -13,6 +13,15 @@ import { Slider } from "@/components/ui/slider";
 
 const STORY_COMPANIONS = ["seren", "sol", "atlas", "nova", "kai"];
 
+/** Time-of-day greeting based on user's local time */
+const getTimeGreeting = (): { greeting: string; emoji: string } => {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return { greeting: "Good morning. A new day begins.", emoji: "🌅" };
+  if (hour >= 12 && hour < 18) return { greeting: "Good afternoon. Stay present.", emoji: "☀️" };
+  if (hour >= 18 && hour < 22) return { greeting: "Good evening. Take a moment to breathe.", emoji: "🌇" };
+  return { greeting: "The night is quiet. Let your thoughts settle.", emoji: "🌙" };
+};
+
 type StoryItem = {
   type: "text" | "reflection" | "breathing" | "inspiration";
   title: string;
@@ -490,6 +499,15 @@ const CompanionStoryBar = () => {
                   transition={{ duration: 0.4 }}
                   className="absolute inset-0 z-10 flex flex-col items-center justify-center p-8 text-center"
                 >
+                  {/* Time-of-day greeting on first frame */}
+                  {storyIndex === 0 && (() => {
+                    const { greeting, emoji } = getTimeGreeting();
+                    return (
+                      <p className="text-white/50 text-xs mb-3 italic">
+                        {emoji} {greeting}
+                      </p>
+                    );
+                  })()}
                   <p className="text-white/60 text-xs font-semibold uppercase tracking-widest mb-4">
                     {currentStory.type === "breathing" ? "🌬 Breathing Exercise" :
                      currentStory.type === "reflection" ? "💭 Reflection" :

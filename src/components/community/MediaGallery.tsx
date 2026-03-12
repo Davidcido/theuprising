@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { X, Play, ChevronLeft, ChevronRight, VolumeX, Volume2, AlertCircle, RefreshCw, Maximize } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import VideoPlayer from "./VideoPlayer";
@@ -24,25 +24,88 @@ const isValidMediaUrl = (url: string) => url && !url.startsWith("blob:") && (url
 
 // Global tracker: only one video autoplays at a time
 let currentlyPlayingFeedVideo: HTMLVideoElement | null = null;
+// Global tracker: only one community audio at a time
+let currentCommunityAudio: HTMLAudioElement | null = null;
 
 const MAX_FEED_VIDEO_HEIGHT = 700;
+
+// Fallback ambient videos when a post video fails to load
+const FALLBACK_VIDEOS = [
+  "https://videos.pexels.com/video-files/1093662/1093662-uhd_2560_1440_30fps.mp4",
+  "https://videos.pexels.com/video-files/3571264/3571264-uhd_2560_1440_30fps.mp4",
+  "https://videos.pexels.com/video-files/1409899/1409899-uhd_2560_1440_25fps.mp4",
+  "https://videos.pexels.com/video-files/4255925/4255925-uhd_2560_1440_24fps.mp4",
+  "https://videos.pexels.com/video-files/1826896/1826896-hd_1920_1080_30fps.mp4",
+];
+
+// Community-specific ambient sounds (different from story audio)
+const COMMUNITY_AMBIENT_SOUNDS = [
+  "https://cdn.pixabay.com/audio/2022/10/30/audio_452ade9a6c.mp3", // fireplace
+  "https://cdn.pixabay.com/audio/2024/11/03/audio_7bb484a87d.mp3", // cafe ambience
+  "https://cdn.pixabay.com/audio/2022/06/07/audio_4f43600e20.mp3", // distant thunder
+  "https://cdn.pixabay.com/audio/2022/08/31/audio_419263a458.mp3", // evening wind
+  "https://cdn.pixabay.com/audio/2024/09/27/audio_371a053c55.mp3", // nature ambience
+  "https://cdn.pixabay.com/audio/2022/01/31/audio_46eb6a9029.mp3", // river flowing
+  "https://cdn.pixabay.com/audio/2022/08/02/audio_884fe92c21.mp3", // ocean deep
+];
+
+const getRandomFallbackVideo = () => FALLBACK_VIDEOS[Math.floor(Math.random() * FALLBACK_VIDEOS.length)];
+const getCommunityAmbient = (url: string) => {
+  // Deterministic pick based on url hash so same post gets same sound
+  let hash = 0;
+  for (let i = 0; i < url.length; i++) hash = ((hash << 5) - hash + url.charCodeAt(i)) | 0;
+  return COMMUNITY_AMBIENT_SOUNDS[Math.abs(hash) % COMMUNITY_AMBIENT_SOUNDS.length];
+};
 
 /** Feed video — autoplays muted when 60% visible, tap to unmute, expand button for full-screen */
 const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: boolean; onTap: () => void; isSingle?: boolean }) => {
   
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const ambientRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [activeUrl, setActiveUrl] = useState(url);
+  const [soundOn, setSoundOn] = useState(false);
   const touchStartYRef = useRef<number | null>(null);
+
+  // Start/stop community ambient audio
+  const startAmbient = useCallback(() => {
+    if (ambientRef.current) return;
+    const audio = new Audio(getCommunityAmbient(url));
+    audio.loop = true;
+    audio.volume = 0.15;
+    // Stop any other community audio
+    if (currentCommunityAudio) {
+      currentCommunityAudio.pause();
+      currentCommunityAudio.src = "";
+    }
+    audio.play().catch(() => {});
+    currentCommunityAudio = audio;
+    ambientRef.current = audio;
+    setSoundOn(true);
+  }, [url]);
+
+  const stopAmbient = useCallback(() => {
+    if (ambientRef.current) {
+      ambientRef.current.pause();
+      ambientRef.current.src = "";
+      if (currentCommunityAudio === ambientRef.current) currentCommunityAudio = null;
+      ambientRef.current = null;
+    }
+    setSoundOn(false);
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => () => stopAmbient(), [stopAmbient]);
 
   // IntersectionObserver for autoplay / autopause
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || error) return;
+    if (!el) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         const video = videoRef.current;
@@ -58,6 +121,7 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
         } else {
           video.pause();
           setIsPlaying(false);
+          stopAmbient();
           if (currentlyPlayingFeedVideo === video) currentlyPlayingFeedVideo = null;
         }
       },
@@ -68,7 +132,7 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
       observer.disconnect();
       if (videoRef.current && currentlyPlayingFeedVideo === videoRef.current) currentlyPlayingFeedVideo = null;
     };
-  }, [error, retryCount]);
+  }, [retryCount, activeUrl, stopAmbient]);
 
   const handleMetadata = () => {
     setLoaded(true);
@@ -77,41 +141,34 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
 
   const handleError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
-    console.error("[FeedVideo] Video failed to load:", url, "networkState:", video.networkState, "readyState:", video.readyState, "error:", video.error?.code, video.error?.message);
-    // Don't show error for blob URLs or empty URLs — these are expected during upload
-    if (!url || url.startsWith("blob:")) return;
-    // Auto-retry once before showing error
+    console.error("[FeedVideo] Video failed:", activeUrl, video.error?.code, video.error?.message);
+    if (!activeUrl || activeUrl.startsWith("blob:")) return;
+    // Retry once with cache-bust, then fallback to ambient video
     if (retryCount === 0) {
       setRetryCount(1);
       const v = videoRef.current;
       if (v) {
-        v.src = url + (url.includes("?") ? "&" : "?") + `_r=${Date.now()}`;
+        v.src = activeUrl + (activeUrl.includes("?") ? "&" : "?") + `_r=${Date.now()}`;
         v.load();
       }
       return;
     }
-    setError(true);
-    setLoaded(true);
+    // Instead of showing error, load a fallback ambient video
+    const fallback = getRandomFallbackVideo();
+    console.log("[FeedVideo] Using fallback video:", fallback);
+    setActiveUrl(fallback);
+    setRetryCount(0);
+    setError(false);
+    setLoaded(false);
   };
 
   const handleRetry = (e: React.MouseEvent) => {
     e.stopPropagation();
     setError(false);
     setLoaded(false);
-    setRetryCount(c => c + 1);
-    // Force reload by setting src again
-    const v = videoRef.current;
-    if (v) {
-      v.src = url + (url.includes("?") ? "&" : "?") + `_r=${Date.now()}`;
-      v.load();
-    }
+    setActiveUrl(url); // Reset to original
+    setRetryCount(0);
   };
-
-  // Container: for single videos, enforce 4:5 vertical aspect ratio for immersive mobile feel.
-  // For grid items, use fixed heights.
-  const containerClass = isSingle
-    ? "relative cursor-pointer group w-full"
-    : "relative cursor-pointer group w-full";
 
   const containerStyle: React.CSSProperties = isSingle
     ? { aspectRatio: "4/5", maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px`, overflow: "clip" }
@@ -119,31 +176,17 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
     ? { height: "10rem", overflow: "clip" }
     : { height: "14rem", overflow: "clip" };
 
-  if (error) {
-    return (
-      <div
-        ref={containerRef}
-        className="relative w-full flex flex-col items-center justify-center gap-2 bg-black/30 rounded-xl"
-        style={isSingle ? { minHeight: "200px", maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px` } : containerStyle}
-      >
-        <AlertCircle className="w-8 h-8 text-white/50" />
-        <p className="text-xs text-white/60">Video failed to load</p>
-        <button
-          onClick={handleRetry}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white/80 text-xs transition-colors"
-        >
-          <RefreshCw className="w-3 h-3" /> Retry
-        </button>
-      </div>
-    );
-  }
-
-  // Tap toggles mute; dedicated button opens full-screen
+  // Tap toggles mute + ambient sound
   const toggleMute = () => {
     const v = videoRef.current;
     if (v) {
       v.muted = !v.muted;
       setIsMuted(v.muted);
+      if (!v.muted) {
+        startAmbient();
+      } else {
+        stopAmbient();
+      }
     }
   };
 
@@ -163,7 +206,7 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
   return (
     <div
       ref={containerRef}
-      className={containerClass}
+      className="relative cursor-pointer group w-full"
       onClick={(e) => {
         // Desktop click — tap to unmute
         if ('ontouchstart' in window) return;
@@ -175,8 +218,8 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
     >
       <video
         ref={videoRef}
-        key={retryCount}
-        src={url}
+        key={`${activeUrl}-${retryCount}`}
+        src={activeUrl}
         crossOrigin="anonymous"
         className="w-full h-full rounded-xl"
         style={{
@@ -213,9 +256,18 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
           {isMuted ? (
             <VolumeX className="w-4 h-4 text-white/80" />
           ) : (
-            <Volume2 className="w-4 h-4 text-white/80" />
+            <Volume2 className="w-4 h-4 text-emerald-400" />
           )}
         </button>
+      )}
+      {/* Ambient sound indicator */}
+      {soundOn && isPlaying && (
+        <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-full bg-black/50 backdrop-blur-sm z-10">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="w-0.5 bg-emerald-400 rounded-full animate-pulse" style={{ height: `${6 + i * 3}px`, animationDelay: `${i * 0.15}s` }} />
+          ))}
+          <span className="text-[9px] text-white/60 ml-1">♪</span>
+        </div>
       )}
       {/* Expand to full-screen button */}
       {isPlaying && (
