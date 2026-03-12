@@ -159,120 +159,139 @@ const Community = () => {
   }, []);
 
   const fetchPosts = useCallback(async (loadMore = false, retryCount = 0) => {
-    if (fetchingRef.current) return;
+    if (fetchingRef.current || isFetchingPosts) {
+      console.log("[Community][feed] fetch skipped (lock active)", {
+        loadMore,
+        isFetchingPosts,
+      });
+      return;
+    }
+
     fetchingRef.current = true;
+    setIsFetchingPosts(true);
     if (loadMore) setLoadingMore(true);
     setFetchError(null);
+
+    console.log("[Community][feed] fetch start", {
+      mode: loadMore ? "scroll" : "initial",
+      cursor: cursorRef.current,
+    });
 
     try {
       let query = supabase
         .from("community_posts")
         .select("id, content, anonymous_name, author_id, is_anonymous, likes_count, comments_count, shares_count, views_count, created_at, media_urls, original_post_id, reposted_by_name, engagement_score")
         .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
         .limit(POSTS_PER_PAGE);
 
-      // Cursor-based pagination: use created_at of last post
       if (loadMore && cursorRef.current) {
-        query = query.lt("created_at", cursorRef.current);
+        const { createdAt, id } = cursorRef.current;
+        query = query.or(`created_at.lt.${createdAt},and(created_at.eq.${createdAt},id.lt.${id})`);
       }
 
-      console.log("[Community] Fetching posts, cursor:", loadMore ? cursorRef.current : "initial");
       const { data, error } = await query;
+      if (error) throw error;
 
-      if (error) {
-        console.error("[Community] Supabase query error:", error.message);
-        throw error;
+      const rows = data || [];
+      console.log("[Community][feed] fetch end", {
+        mode: loadMore ? "scroll" : "initial",
+        count: rows.length,
+      });
+
+      if (rows.length === 0) {
+        setHasMore(false);
+        return;
       }
-      if (!data) throw new Error("No data");
-      console.log("[Community] Fetched", data.length, "posts");
 
-      // Update cursor to last post's created_at
-      if (data.length > 0) {
-        cursorRef.current = data[data.length - 1].created_at;
+      setHasMore(true);
+      const last = rows[rows.length - 1] as { created_at: string; id: string };
+      const nextCursor: PaginationCursor = {
+        createdAt: new Date(last.created_at).toISOString(),
+        id: String(last.id),
+      };
+      cursorRef.current = nextCursor;
+      const cursorKey = `${nextCursor.createdAt}|${nextCursor.id}`;
+      if (lastCursorLogRef.current !== cursorKey) {
+        console.log("[Community][feed] cursor updated", nextCursor);
+        lastCursorLogRef.current = cursorKey;
       }
 
-      const enriched = await enrichPosts(data);
+      const enriched = await enrichPosts(rows);
+
       if (loadMore) {
         setAllPosts(prev => {
           const existingIds = new Set(prev.map(p => p.id));
           const newPosts = enriched.filter(p => !existingIds.has(p.id));
           return [...prev, ...newPosts];
         });
-      } else {
-        // Reset cursor for fresh load
-        if (data.length > 0) {
-          cursorRef.current = data[data.length - 1].created_at;
-        } else {
-          cursorRef.current = null;
-        }
+        return;
+      }
 
-        let directRepostPosts: Post[] = [];
-        try {
-          const { data: reposts } = await supabase
-            .from("community_reposts")
-            .select("*")
-            .is("quote_content", null)
-            .order("created_at", { ascending: false })
-            .limit(50);
+      let directRepostPosts: Post[] = [];
+      try {
+        const { data: reposts } = await supabase
+          .from("community_reposts")
+          .select("*")
+          .is("quote_content", null)
+          .order("created_at", { ascending: false })
+          .limit(50);
 
-          if (reposts && reposts.length > 0) {
-            const postsMap: Record<string, any> = {};
-            for (const p of enriched) postsMap[p.id] = p;
-            const reposterIds = [...new Set(reposts.map(r => r.user_id))];
-            let reposterProfiles: Record<string, string> = {};
-            if (reposterIds.length > 0) {
-              const { data: rProfiles } = await supabase
-                .from("profiles")
-                .select("user_id, display_name")
-                .in("user_id", reposterIds);
-              if (rProfiles) {
-                for (const rp of rProfiles) reposterProfiles[rp.user_id] = rp.display_name || "Someone";
-              }
-            }
-            for (const r of reposts) {
-              const original = postsMap[r.original_post_id];
-              if (original) {
-                directRepostPosts.push({
-                  ...original,
-                  id: `repost-${r.id}`,
-                  created_at: r.created_at,
-                  reposted_by_name: reposterProfiles[r.user_id] || "Someone",
-                });
-              }
+        if (reposts && reposts.length > 0) {
+          const postsMap: Record<string, any> = {};
+          for (const p of enriched) postsMap[p.id] = p;
+          const reposterIds = [...new Set(reposts.map(r => r.user_id))];
+          let reposterProfiles: Record<string, string> = {};
+          if (reposterIds.length > 0) {
+            const { data: rProfiles } = await supabase
+              .from("profiles")
+              .select("user_id, display_name")
+              .in("user_id", reposterIds);
+            if (rProfiles) {
+              for (const rp of rProfiles) reposterProfiles[rp.user_id] = rp.display_name || "Someone";
             }
           }
-        } catch {
-          // Reposts failed — still show main posts
-        }
-        const merged = [...enriched, ...directRepostPosts];
-        // Preserve posts with active pending media uploads
-        setAllPosts(prev => {
-          const pendingPosts = prev.filter(p => p._pendingMedia && p._pendingMedia.length > 0);
-          const mergedIds = new Set(merged.map(p => p.id));
-          const result = merged.map(p => {
-            const pending = pendingPosts.find(pp => pp.id === p.id);
-            if (pending) {
-              return { ...p, _pendingMedia: pending._pendingMedia, _onCancelUpload: pending._onCancelUpload, _onRetryUpload: pending._onRetryUpload };
+          for (const r of reposts) {
+            const original = postsMap[r.original_post_id];
+            if (original) {
+              directRepostPosts.push({
+                ...original,
+                id: `repost-${r.id}`,
+                created_at: r.created_at,
+                reposted_by_name: reposterProfiles[r.user_id] || "Someone",
+                original_post: original,
+                source_post_id: original.id,
+              } as Post);
             }
-            return p;
-          });
-          for (const pp of pendingPosts) {
-            if (!mergedIds.has(pp.id)) result.unshift(pp);
           }
-          return result;
+        }
+      } catch {
+        // Reposts failed — still show main posts
+      }
+
+      const merged = [...enriched, ...directRepostPosts];
+      setAllPosts(prev => {
+        const pendingPosts = prev.filter(p => p._pendingMedia && p._pendingMedia.length > 0);
+        const mergedIds = new Set(merged.map(p => p.id));
+        const result = merged.map(p => {
+          const pending = pendingPosts.find(pp => pp.id === p.id);
+          if (pending) {
+            return { ...p, _pendingMedia: pending._pendingMedia, _onCancelUpload: pending._onCancelUpload, _onRetryUpload: pending._onRetryUpload };
+          }
+          return p;
         });
-        feedCache.updateCache(enriched);
-      }
-      // Only stop pagination when DB returns zero posts
-      if (data.length === 0) {
-        setHasMore(false);
-      } else {
-        setHasMore(true);
-      }
+        for (const pp of pendingPosts) {
+          if (!mergedIds.has(pp.id)) result.unshift(pp);
+        }
+        return result;
+      });
+
+      feedCache.updateCache(enriched);
     } catch (err: any) {
-      console.error("[Community] fetchPosts failed:", err?.message);
+      console.error("[Community][feed] fetch failed", err?.message || err);
       if (retryCount < 1) {
         fetchingRef.current = false;
+        setIsFetchingPosts(false);
         return fetchPosts(loadMore, retryCount + 1);
       }
       if (!loadMore && allPosts.length === 0) {
@@ -287,8 +306,12 @@ const Community = () => {
       setLoading(false);
       setLoadingMore(false);
       fetchingRef.current = false;
+      setIsFetchingPosts(false);
+      console.log("[Community][feed] fetch lock released", {
+        mode: loadMore ? "scroll" : "initial",
+      });
     }
-  }, [enrichPosts]);
+  }, [allPosts.length, enrichPosts, feedCache, isFetchingPosts]);
 
   const fetchLikedPosts = useCallback(async () => {
     const { data } = await supabase
