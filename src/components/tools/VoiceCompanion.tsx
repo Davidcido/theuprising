@@ -338,15 +338,18 @@ Never expose the English interpretation to the user — always reply fully in Ha
   const selectedVoiceUriRef = useRef(selectedVoiceUri);
   useEffect(() => { selectedVoiceUriRef.current = selectedVoiceUri; }, [selectedVoiceUri]);
 
-  // Categorize and sort voices for display
+  // Filter to only high-quality English voices and sort for display
   const categorizeVoices = useCallback((voices: SpeechSynthesisVoice[]) => {
-    const scored = voices.map(v => {
+    const filtered = voices.filter(isAllowedVoice);
+    const scored = filtered.map(v => {
       let score = 0;
+      // Prioritise Samantha as default
+      if (v.name.toLowerCase().startsWith("samantha")) score += 200;
       if (v.name.includes("Google")) score += 100;
       if (v.name.includes("Microsoft")) score += 80;
       if (/natural|neural|premium|enhanced/i.test(v.name)) score += 60;
       if (v.lang.startsWith("en")) score += 40;
-      if (!v.localService) score += 20; // network voices are usually better
+      if (!v.localService) score += 20;
       return { voice: v, score };
     });
     scored.sort((a, b) => b.score - a.score);
