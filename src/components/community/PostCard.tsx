@@ -467,7 +467,7 @@ const PostCard = ({
         )}
 
         {/* Emoji Reactions */}
-        <div className="flex flex-wrap gap-1.5 mb-3">
+        <div className={`flex flex-wrap gap-1.5 mb-3 ${hasMedia ? "px-5" : ""}`}>
           {REACTION_EMOJIS.map(({ emoji, label }) => {
             const count = reactionCounts[emoji] || 0;
             const isMine = myReactions.has(`${post.id}:${emoji}`);
