@@ -503,7 +503,10 @@ Never expose the English interpretation to the user — always reply fully in Ha
   const voicesLoadedRef = useRef(false);
   const voiceLoadPromiseRef = useRef<Promise<SpeechSynthesisVoice | null> | null>(null);
   const selectedVoiceUriRef = useRef(selectedVoiceUri);
-  useEffect(() => { selectedVoiceUriRef.current = selectedVoiceUri; }, [selectedVoiceUri]);
+  useEffect(() => {
+    selectedVoiceUriRef.current = selectedVoiceUri;
+    try { localStorage.setItem("uprising_voice_uri", selectedVoiceUri); } catch {}
+  }, [selectedVoiceUri]);
 
   // Filter to only high-quality English voices, deduplicate, and sort for display
   const categorizeVoices = useCallback((voices: SpeechSynthesisVoice[]) => {
