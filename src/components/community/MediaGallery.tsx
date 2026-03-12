@@ -218,8 +218,8 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
     >
       <video
         ref={videoRef}
-        key={retryCount}
-        src={url}
+        key={`${activeUrl}-${retryCount}`}
+        src={activeUrl}
         crossOrigin="anonymous"
         className="w-full h-full rounded-xl"
         style={{
