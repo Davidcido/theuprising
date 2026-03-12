@@ -40,8 +40,8 @@ const FEED_TABS: { key: FeedTab; label: string; icon: typeof Sparkles }[] = [
   { key: "trending", label: "Trending", icon: TrendingUp },
 ];
 
-const POSTS_PER_PAGE = 25;
-const PREFETCH_BATCH = 30;
+const POSTS_PER_PAGE = 40;
+const PREFETCH_BATCH = 40;
 
 const getSessionId = () => {
   let id = localStorage.getItem("uprising_session_id");
