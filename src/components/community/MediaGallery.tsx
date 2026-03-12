@@ -30,12 +30,13 @@ let currentCommunityAudio: HTMLAudioElement | null = null;
 const MAX_FEED_VIDEO_HEIGHT = 700;
 
 // Fallback ambient videos when a post video fails to load
+// Use only HD (1080p) versions — UHD files often fail on mobile due to size/CORS
 const FALLBACK_VIDEOS = [
-  "https://videos.pexels.com/video-files/1093662/1093662-uhd_2560_1440_30fps.mp4",
-  "https://videos.pexels.com/video-files/3571264/3571264-uhd_2560_1440_30fps.mp4",
-  "https://videos.pexels.com/video-files/1409899/1409899-uhd_2560_1440_25fps.mp4",
-  "https://videos.pexels.com/video-files/4255925/4255925-uhd_2560_1440_24fps.mp4",
+  "https://videos.pexels.com/video-files/1093662/1093662-hd_1920_1080_30fps.mp4",
+  "https://videos.pexels.com/video-files/3571264/3571264-hd_1920_1080_30fps.mp4",
+  "https://videos.pexels.com/video-files/1409899/1409899-hd_1920_1080_25fps.mp4",
   "https://videos.pexels.com/video-files/1826896/1826896-hd_1920_1080_30fps.mp4",
+  "https://videos.pexels.com/video-files/1585619/1585619-hd_1920_1080_30fps.mp4",
 ];
 
 // Community-specific ambient sounds — separate pool from story audio
@@ -52,7 +53,11 @@ const COMMUNITY_AMBIENT_SOUNDS = [
   "https://cdn.pixabay.com/audio/2022/05/16/audio_ded27e32f1.mp3", // night ambience
 ];
 
-const getRandomFallbackVideo = () => FALLBACK_VIDEOS[Math.floor(Math.random() * FALLBACK_VIDEOS.length)];
+const getRandomFallbackVideo = (exclude?: string) => {
+  const pool = exclude ? FALLBACK_VIDEOS.filter(v => v !== exclude && !exclude.includes(v.split('/').pop()!.split('-')[0])) : FALLBACK_VIDEOS;
+  const list = pool.length > 0 ? pool : FALLBACK_VIDEOS;
+  return list[Math.floor(Math.random() * list.length)];
+};
 const getCommunityAmbient = (url: string) => {
   // Deterministic pick based on url hash so same post gets same sound
   let hash = 0;
@@ -156,11 +161,17 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
       }
       return;
     }
-    // Instead of showing error, load a fallback ambient video
-    const fallback = getRandomFallbackVideo();
+    // Max 2 fallback attempts to prevent infinite loops
+    if (retryCount >= 3) {
+      console.warn("[FeedVideo] Max fallback attempts reached, showing error state");
+      setError(true);
+      return;
+    }
+    // Pick a fallback that isn't the URL that just failed
+    const fallback = getRandomFallbackVideo(activeUrl);
     console.log("[FeedVideo] Using fallback video:", fallback);
     setActiveUrl(fallback);
-    setRetryCount(0);
+    setRetryCount(prev => prev + 1);
     setError(false);
     setLoaded(false);
   };
