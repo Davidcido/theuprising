@@ -259,8 +259,12 @@ const Community = () => {
         });
         feedCache.updateCache(enriched);
       }
-      // Only stop loading more when we get fewer results than requested
-      setHasMore(data.length >= POSTS_PER_PAGE);
+      // Only stop pagination when DB returns zero posts
+      if (data.length === 0) {
+        setHasMore(false);
+      } else {
+        setHasMore(true);
+      }
     } catch (err: any) {
       console.error("[Community] fetchPosts failed:", err?.message);
       if (retryCount < 1) {
