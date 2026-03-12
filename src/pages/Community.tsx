@@ -1017,19 +1017,8 @@ const Community = () => {
       setExpandedComments((prev) => { const n = new Set(prev); n.delete(postId); return n; });
     } else {
       setExpandedComments((prev) => new Set(prev).add(postId));
-      // Always refetch comments to ensure sync with DB count
-      const { data } = await supabase
-        .from("community_comments")
-        .select("*")
-        .eq("post_id", postId)
-        .order("created_at", { ascending: true });
-      if (data) {
-        setComments((prev) => ({ ...prev, [postId]: data as Comment[] }));
-        // Sync the comment count displayed on the post
-        setAllPosts(prev => prev.map(p => 
-          p.id === postId ? { ...p, comments_count: data.length } : p
-        ));
-      }
+      // Lazy-load comments only when expanded
+      await fetchCommentsForPost(postId);
     }
   };
 
@@ -1046,16 +1035,48 @@ const Community = () => {
     if (currentUser) {
       insertData.author_id = currentUser.id;
     }
+
+    // Optimistic comment insertion — show immediately
+    const optimisticId = `optimistic-${Date.now()}`;
+    const optimisticComment: Comment = {
+      id: optimisticId,
+      post_id: postId,
+      content: text.slice(0, 5000),
+      anonymous_name: commentName,
+      author_id: currentUser?.id || null,
+      parent_comment_id: null,
+      created_at: new Date().toISOString(),
+    };
+    setComments(prev => ({
+      ...prev,
+      [postId]: [...(prev[postId] || []), optimisticComment],
+    }));
+    setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
+    setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
+
+    // Send to DB
     const { data: insertedComment, error } = await supabase.from("community_comments").insert(insertData).select("id").single();
     if (!error && insertedComment) {
+      // Replace optimistic with real comment
+      setComments(prev => ({
+        ...prev,
+        [postId]: (prev[postId] || []).map(c =>
+          c.id === optimisticId ? { ...c, id: insertedComment.id } : c
+        ),
+      }));
       await supabase.rpc("increment_comments", { post_id_input: postId });
-      setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
-      setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
       if (currentUser && post?.author_id && post.author_id !== currentUser.id) {
         createNotification(post.author_id, currentUser.id, "comment", "commented on your post", postId);
       }
-      // Trigger AI companion reply if @mentioned
       triggerCompanionReply(postId, insertedComment.id, text);
+    } else {
+      // Rollback optimistic
+      setComments(prev => ({
+        ...prev,
+        [postId]: (prev[postId] || []).filter(c => c.id !== optimisticId),
+      }));
+      setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: Math.max(0, p.comments_count - 1) } : p));
+      toast({ title: "Error", description: "Could not add comment.", variant: "destructive" });
     }
   };
 
