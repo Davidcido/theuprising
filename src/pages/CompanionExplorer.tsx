@@ -106,7 +106,8 @@ const CompanionExplorer = () => {
               <h2 className="text-2xl font-display font-bold text-foreground flex items-center gap-2">
                 {selectedProfile.avatar_emoji} {selectedProfile.name}
               </h2>
-              <p className="text-sm text-muted-foreground mt-1">{selectedProfile.role}</p>
+              <p className="text-sm font-medium mt-1" style={{ color: selectedProfile.color }}>{selectedProfile.roleTitle}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 italic">"{selectedProfile.tagline}"</p>
             </div>
 
             {/* Profile Details */}

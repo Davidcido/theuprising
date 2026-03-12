@@ -1070,7 +1070,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
                   key={companion.id}
                   type="button"
                   onClick={() => setSelectedCompanion(companion)}
-                  className={`shrink-0 min-w-[88px] px-2 py-2 rounded-xl border transition-all flex flex-col items-center gap-1.5 ${
+                  className={`shrink-0 min-w-[92px] px-2 py-2.5 rounded-xl border transition-all flex flex-col items-center gap-1 ${
                     isActive
                       ? "border-white/40 bg-white/20"
                       : "border-white/10 bg-white/5"
@@ -1085,6 +1085,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
                     </AvatarFallback>
                   </Avatar>
                   <span className="text-[11px] text-white/85 font-medium">{companion.name}</span>
+                  <span className="text-[9px] font-medium" style={{ color: companion.color }}>{companion.roleTitle}</span>
                 </button>
               );
             })}
