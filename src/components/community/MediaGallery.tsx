@@ -62,17 +62,50 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
   
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const ambientRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [activeUrl, setActiveUrl] = useState(url);
+  const [soundOn, setSoundOn] = useState(false);
   const touchStartYRef = useRef<number | null>(null);
+
+  // Start/stop community ambient audio
+  const startAmbient = useCallback(() => {
+    if (ambientRef.current) return;
+    const audio = new Audio(getCommunityAmbient(url));
+    audio.loop = true;
+    audio.volume = 0.15;
+    // Stop any other community audio
+    if (currentCommunityAudio) {
+      currentCommunityAudio.pause();
+      currentCommunityAudio.src = "";
+    }
+    audio.play().catch(() => {});
+    currentCommunityAudio = audio;
+    ambientRef.current = audio;
+    setSoundOn(true);
+  }, [url]);
+
+  const stopAmbient = useCallback(() => {
+    if (ambientRef.current) {
+      ambientRef.current.pause();
+      ambientRef.current.src = "";
+      if (currentCommunityAudio === ambientRef.current) currentCommunityAudio = null;
+      ambientRef.current = null;
+    }
+    setSoundOn(false);
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => () => stopAmbient(), [stopAmbient]);
 
   // IntersectionObserver for autoplay / autopause
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || error) return;
+    if (!el) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         const video = videoRef.current;
@@ -88,6 +121,7 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
         } else {
           video.pause();
           setIsPlaying(false);
+          stopAmbient();
           if (currentlyPlayingFeedVideo === video) currentlyPlayingFeedVideo = null;
         }
       },
@@ -98,7 +132,7 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
       observer.disconnect();
       if (videoRef.current && currentlyPlayingFeedVideo === videoRef.current) currentlyPlayingFeedVideo = null;
     };
-  }, [error, retryCount]);
+  }, [retryCount, activeUrl, stopAmbient]);
 
   const handleMetadata = () => {
     setLoaded(true);
@@ -107,41 +141,34 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
 
   const handleError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
-    console.error("[FeedVideo] Video failed to load:", url, "networkState:", video.networkState, "readyState:", video.readyState, "error:", video.error?.code, video.error?.message);
-    // Don't show error for blob URLs or empty URLs — these are expected during upload
-    if (!url || url.startsWith("blob:")) return;
-    // Auto-retry once before showing error
+    console.error("[FeedVideo] Video failed:", activeUrl, video.error?.code, video.error?.message);
+    if (!activeUrl || activeUrl.startsWith("blob:")) return;
+    // Retry once with cache-bust, then fallback to ambient video
     if (retryCount === 0) {
       setRetryCount(1);
       const v = videoRef.current;
       if (v) {
-        v.src = url + (url.includes("?") ? "&" : "?") + `_r=${Date.now()}`;
+        v.src = activeUrl + (activeUrl.includes("?") ? "&" : "?") + `_r=${Date.now()}`;
         v.load();
       }
       return;
     }
-    setError(true);
-    setLoaded(true);
+    // Instead of showing error, load a fallback ambient video
+    const fallback = getRandomFallbackVideo();
+    console.log("[FeedVideo] Using fallback video:", fallback);
+    setActiveUrl(fallback);
+    setRetryCount(0);
+    setError(false);
+    setLoaded(false);
   };
 
   const handleRetry = (e: React.MouseEvent) => {
     e.stopPropagation();
     setError(false);
     setLoaded(false);
-    setRetryCount(c => c + 1);
-    // Force reload by setting src again
-    const v = videoRef.current;
-    if (v) {
-      v.src = url + (url.includes("?") ? "&" : "?") + `_r=${Date.now()}`;
-      v.load();
-    }
+    setActiveUrl(url); // Reset to original
+    setRetryCount(0);
   };
-
-  // Container: for single videos, enforce 4:5 vertical aspect ratio for immersive mobile feel.
-  // For grid items, use fixed heights.
-  const containerClass = isSingle
-    ? "relative cursor-pointer group w-full"
-    : "relative cursor-pointer group w-full";
 
   const containerStyle: React.CSSProperties = isSingle
     ? { aspectRatio: "4/5", maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px`, overflow: "clip" }
@@ -149,31 +176,17 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
     ? { height: "10rem", overflow: "clip" }
     : { height: "14rem", overflow: "clip" };
 
-  if (error) {
-    return (
-      <div
-        ref={containerRef}
-        className="relative w-full flex flex-col items-center justify-center gap-2 bg-black/30 rounded-xl"
-        style={isSingle ? { minHeight: "200px", maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px` } : containerStyle}
-      >
-        <AlertCircle className="w-8 h-8 text-white/50" />
-        <p className="text-xs text-white/60">Video failed to load</p>
-        <button
-          onClick={handleRetry}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white/80 text-xs transition-colors"
-        >
-          <RefreshCw className="w-3 h-3" /> Retry
-        </button>
-      </div>
-    );
-  }
-
-  // Tap toggles mute; dedicated button opens full-screen
+  // Tap toggles mute + ambient sound
   const toggleMute = () => {
     const v = videoRef.current;
     if (v) {
       v.muted = !v.muted;
       setIsMuted(v.muted);
+      if (!v.muted) {
+        startAmbient();
+      } else {
+        stopAmbient();
+      }
     }
   };
 
