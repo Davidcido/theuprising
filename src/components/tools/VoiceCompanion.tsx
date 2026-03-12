@@ -250,7 +250,10 @@ const VoiceCompanion = () => {
   const [textInput, setTextInput] = useState("");
   const [showTextInput, setShowTextInput] = useState(false);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [selectedVoiceUri, setSelectedVoiceUri] = useState<string>("");
+  const [selectedVoiceUri, setSelectedVoiceUri] = useState<string>(() => {
+    try { return localStorage.getItem("uprising_voice_uri") || ""; } catch { return ""; }
+  });
+  const [selectedCompanion, setSelectedCompanion] = useState<CompanionOption>(companions[0]);
   const [selectedCompanion, setSelectedCompanion] = useState<CompanionOption>(companions[0]);
 
   const phaseRef = useRef<CallPhase>("idle");
