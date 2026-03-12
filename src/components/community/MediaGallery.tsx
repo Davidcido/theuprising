@@ -161,11 +161,17 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
       }
       return;
     }
-    // Instead of showing error, load a fallback ambient video
-    const fallback = getRandomFallbackVideo();
+    // Max 2 fallback attempts to prevent infinite loops
+    if (retryCount >= 3) {
+      console.warn("[FeedVideo] Max fallback attempts reached, showing error state");
+      setError(true);
+      return;
+    }
+    // Pick a fallback that isn't the URL that just failed
+    const fallback = getRandomFallbackVideo(activeUrl);
     console.log("[FeedVideo] Using fallback video:", fallback);
     setActiveUrl(fallback);
-    setRetryCount(0);
+    setRetryCount(prev => prev + 1);
     setError(false);
     setLoaded(false);
   };
