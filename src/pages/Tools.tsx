@@ -30,7 +30,7 @@ import GratitudeReflection from "@/components/tools/GratitudeReflection";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthReady } from "@/hooks/useAuthReady";
 
-/* ── Quick AI Tools ── */
+/* ── Companion Tools ── */
 const quickTools = [
   {
     id: "ask",
