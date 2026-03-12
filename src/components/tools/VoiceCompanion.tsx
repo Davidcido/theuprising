@@ -49,6 +49,19 @@ const companions: CompanionOption[] = [
   { id: "kai", name: "Kai" },
 ];
 
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+
+type TranscriptEntry = { role: "user" | "assistant"; text: string };
+
+const getVoiceCategory = (voiceName: string): string => {
+  const v = voiceName.toLowerCase();
+  if (/narrator|news|david/.test(v)) return "Narrator";
+  if (/story|aria|samantha|daniel/.test(v)) return "Storyteller";
+  if (/calm|soft|serena|siri female/.test(v)) return "Calm Guide";
+  if (/energetic|coach|motiv|guy|jenny/.test(v)) return "Motivational Coach";
+  return "Friendly Companion";
+};
+
 // Strict state machine: IDLE -> LISTENING -> PROCESSING -> SPEAKING -> COOLDOWN -> LISTENING
 type CallPhase = "idle" | "listening" | "processing" | "speaking" | "cooldown";
 
