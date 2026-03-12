@@ -622,6 +622,7 @@ const PostCard = ({
             </motion.div>
           )}
         </AnimatePresence>
+      {hasMedia && <div className="pb-5" />}
       </motion.div>
 
       {/* Likes modal */}
