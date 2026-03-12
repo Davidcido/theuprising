@@ -559,12 +559,14 @@ const Community = () => {
             // Use prefetched data instantly
             const prefetched = prefetchCacheRef.current;
             prefetchCacheRef.current = [];
+            // Update main cursor from prefetch cursor
+            if (prefetchCursorRef.current) {
+              cursorRef.current = prefetchCursorRef.current;
+              prefetchCursorRef.current = null;
+            }
             setAllPosts(prev => {
               const existingIds = new Set(prev.map(p => p.id));
               const newPosts = prefetched.filter(p => !existingIds.has(p.id));
-              if (newPosts.length > 0 && prefetched.length > 0) {
-                cursorRef.current = prefetched[prefetched.length - 1].created_at;
-              }
               return [...prev, ...newPosts];
             });
             setHasMore(prefetched.length >= PREFETCH_BATCH);
