@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone,
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getCompanionAvatar, getCompanionEmoji } from "@/lib/companionAvatars";
+import { BUILTIN_PERSONAS } from "@/lib/builtinPersonas";
 
 const languages = [
   { code: "en", label: "English", speechCode: "en-US" },
@@ -38,26 +39,39 @@ type CompanionOption = {
   name: string;
 };
 
-const companions: CompanionOption[] = [
-  { id: "atlas", name: "Atlas" },
-  { id: "nova", name: "Nova" },
-  { id: "luna", name: "Luna" },
-  { id: "orion", name: "Orion" },
-  { id: "sage", name: "Sage" },
-  { id: "echo", name: "Echo" },
-  { id: "sol", name: "Sol" },
-  { id: "kai", name: "Kai" },
-];
+// Sync companions from the official builtin personas
+const companions: CompanionOption[] = BUILTIN_PERSONAS.map(p => ({
+  id: p.id,
+  name: p.name,
+}));
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 type TranscriptEntry = { role: "user" | "assistant"; text: string };
 
+// High-quality English voices allowed in the selector
+const ALLOWED_VOICES = new Set([
+  "samantha", "karen", "daniel", "moira", "alex", "victoria",
+  "tessa", "rishi", "fred", "kathy", "ralph",
+]);
+
+const isAllowedVoice = (v: SpeechSynthesisVoice): boolean => {
+  // Always allow Google / Microsoft premium voices
+  if (v.name.includes("Google") && v.lang.startsWith("en")) return true;
+  if (v.name.includes("Microsoft") && v.lang.startsWith("en")) return true;
+  // Allow specific high-quality local voices
+  const baseName = v.name.split(" ")[0].toLowerCase();
+  if (ALLOWED_VOICES.has(baseName) && v.lang.startsWith("en")) return true;
+  // Allow any premium/neural English voices
+  if (/natural|neural|premium|enhanced/i.test(v.name) && v.lang.startsWith("en")) return true;
+  return false;
+};
+
 const getVoiceCategory = (voiceName: string): string => {
   const v = voiceName.toLowerCase();
   if (/narrator|news|david/.test(v)) return "Narrator";
   if (/story|aria|samantha|daniel/.test(v)) return "Storyteller";
-  if (/calm|soft|serena|siri female/.test(v)) return "Calm Guide";
+  if (/calm|soft|serena|siri female|moira|karen/.test(v)) return "Calm Guide";
   if (/energetic|coach|motiv|guy|jenny/.test(v)) return "Motivational Coach";
   return "Friendly Companion";
 };
@@ -324,22 +338,25 @@ Never expose the English interpretation to the user — always reply fully in Ha
   const selectedVoiceUriRef = useRef(selectedVoiceUri);
   useEffect(() => { selectedVoiceUriRef.current = selectedVoiceUri; }, [selectedVoiceUri]);
 
-  // Categorize and sort voices for display
+  // Filter to only high-quality English voices and sort for display
   const categorizeVoices = useCallback((voices: SpeechSynthesisVoice[]) => {
-    const scored = voices.map(v => {
+    const filtered = voices.filter(isAllowedVoice);
+    const scored = filtered.map(v => {
       let score = 0;
+      // Prioritise Samantha as default
+      if (v.name.toLowerCase().startsWith("samantha")) score += 200;
       if (v.name.includes("Google")) score += 100;
       if (v.name.includes("Microsoft")) score += 80;
       if (/natural|neural|premium|enhanced/i.test(v.name)) score += 60;
       if (v.lang.startsWith("en")) score += 40;
-      if (!v.localService) score += 20; // network voices are usually better
+      if (!v.localService) score += 20;
       return { voice: v, score };
     });
     scored.sort((a, b) => b.score - a.score);
     return scored.map(s => s.voice);
   }, []);
 
-  // Pick the best voice from available list
+  // Pick the best voice from available list — prefer Samantha
   const pickBest = useCallback((voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null => {
     if (!voices.length) return null;
 
@@ -350,24 +367,27 @@ Never expose the English interpretation to the user — always reply fully in Ha
       if (userPick) return userPick;
     }
 
-    // Priority: Google English > Microsoft English (not David) > network English > local English > any English > first voice
-    const googleEn = voices.find(v => v.name.includes("Google") && v.lang.startsWith("en"));
+    // Only consider allowed voices
+    const allowed = voices.filter(isAllowedVoice);
+    if (!allowed.length) {
+      // Fallback: any English voice
+      return voices.find(v => v.lang.startsWith("en")) || voices[0];
+    }
+
+    // Priority: Samantha > Google English > Karen > Daniel > Moira > first allowed
+    const samantha = allowed.find(v => v.name.toLowerCase().startsWith("samantha"));
+    if (samantha) return samantha;
+
+    const googleEn = allowed.find(v => v.name.includes("Google") && v.lang.startsWith("en"));
     if (googleEn) return googleEn;
 
-    const microsoftEn = voices.find(v => v.name.includes("Microsoft") && v.lang.startsWith("en") && !v.name.includes("David"));
-    if (microsoftEn) return microsoftEn;
+    const karen = allowed.find(v => v.name.toLowerCase().startsWith("karen"));
+    if (karen) return karen;
 
-    const networkEn = voices.find(v => v.lang.startsWith("en") && !v.localService);
-    if (networkEn) return networkEn;
+    const daniel = allowed.find(v => v.name.toLowerCase().startsWith("daniel"));
+    if (daniel) return daniel;
 
-    const localEn = voices.find(v => v.lang.startsWith("en") && v.localService);
-    if (localEn) return localEn;
-
-    const anyEn = voices.find(v => v.lang.startsWith("en"));
-    if (anyEn) return anyEn;
-
-    // Ultimate fallback: first available voice
-    return voices[0];
+    return allowed[0];
   }, []);
 
   // Load voices — returns a shared promise so multiple callers don't race
@@ -789,24 +809,41 @@ Never expose the English interpretation to the user — always reply fully in Ha
   }, [setupAudioAnalyser, speakText, setPhaseSync, clearTimer, loadBestVoice]);
 
   const endCall = useCallback(() => {
+    // Immediately mark inactive to prevent any further AI processing
     activeRef.current = false;
     clearTimer();
     killRecognition();
+
+    // Force-cancel all speech synthesis — call multiple times for reliability
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      // Some browsers need a second cancel after a tick
+      setTimeout(() => window.speechSynthesis?.cancel(), 50);
+      setTimeout(() => window.speechSynthesis?.cancel(), 200);
+    }
+
     killAudio();
+
+    // Stop microphone
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
+
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+
+    // Clear all conversation state
+    conversationRef.current = [];
 
     setCallActive(false);
     setMuted(false);
     mutedRef.current = false;
     setShowTranscript(false);
+    setShowTextInput(false);
     setPhaseSync("idle");
     setCurrentPartial("");
     setAudioLevel(0);
-
-    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
-      mediaStreamRef.current = null;
-    }
+    setTextInput("");
   }, [clearTimer, killRecognition, killAudio, setPhaseSync]);
 
   const toggleMute = useCallback(() => {
@@ -837,17 +874,23 @@ Never expose the English interpretation to the user — always reply fully in Ha
     processUtterance(text);
   }, [textInput, killRecognition, processUtterance]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount — aggressive shutdown
   useEffect(() => {
     return () => {
       activeRef.current = false;
       clearTimer();
-      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      conversationRef.current = [];
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        setTimeout(() => window.speechSynthesis?.cancel(), 100);
+      }
       if (recognitionRef.current) try { recognitionRef.current.abort(); } catch { try { recognitionRef.current.stop(); } catch {} }
+      recognitionRef.current = null;
       if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+        mediaStreamRef.current = null;
       }
     };
   }, [clearTimer]);

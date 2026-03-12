@@ -1275,8 +1275,12 @@ const Community = () => {
               </>
             ) : (
               <>
-                <p className="text-lg mb-1">No posts yet</p>
-                <p className="text-sm">Be the first to share something 💚</p>
+                <p className="text-lg mb-2">Start a conversation with the community</p>
+                <div className="flex flex-col items-center gap-1.5 text-sm text-white/50">
+                  <span>💚 Share something positive</span>
+                  <span>❓ Ask a question</span>
+                  <span>📖 Tell your story</span>
+                </div>
               </>
             )}
           </div>
