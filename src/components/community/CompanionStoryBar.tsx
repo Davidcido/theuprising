@@ -130,7 +130,7 @@ const CompanionStoryBar = () => {
     } catch { return new Set(); }
   });
 
-  const LOW_DEFAULT_VOLUME = 0.25;
+  const LOW_DEFAULT_VOLUME = 0.35;
 
   // Build stories with unique scenes per frame and reduced cross-persona repetition
   useEffect(() => {
@@ -243,10 +243,21 @@ const CompanionStoryBar = () => {
     }
   }, [paused]);
 
+  // Calculate frame duration based on text length
+  const getFrameDuration = useCallback((story: StoryItem) => {
+    const textLength = (story.title + story.message).length;
+    if (textLength > 180) return 14000;
+    if (textLength > 120) return 12000;
+    if (textLength > 80) return 10000;
+    return 8000;
+  }, []);
+
   // Auto-advance timer
   useEffect(() => {
     if (!activeStory || paused) return;
-    const duration = 8000;
+    const currentFrame = activeStory.stories[storyIndex];
+    if (!currentFrame) return;
+    const duration = getFrameDuration(currentFrame);
     const interval = 50;
     let elapsed = 0;
     const timer = setInterval(() => {
@@ -266,7 +277,7 @@ const CompanionStoryBar = () => {
       }
     }, interval);
     return () => clearInterval(timer);
-  }, [activeStory, storyIndex, paused]);
+  }, [activeStory, storyIndex, paused, getFrameDuration]);
 
   // Handle first user interaction — unmute & fade in audio
   const handleUserInteraction = useCallback(() => {

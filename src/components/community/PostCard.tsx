@@ -162,6 +162,8 @@ const PostCard = ({
     setEditMediaFiles(existing);
   };
 
+  const hasMedia = (post.media_urls && post.media_urls.length > 0) || (post._pendingMedia && post._pendingMedia.length > 0);
+
   const handleSaveEdit = async () => {
     const contentChanged = editContent.trim() !== post.content;
     const existingUrls = post.media_urls || [];
@@ -202,17 +204,17 @@ const PostCard = ({
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: post._optimistic ? 0.7 : 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className={`p-5 rounded-2xl backdrop-blur-xl border border-white/10 transition-colors hover:border-white/20 ${post._optimistic ? "animate-pulse" : ""}`}
-        style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)" }}
+        className={`rounded-2xl overflow-hidden backdrop-blur-xl border border-white/8 transition-all hover:border-white/15 shadow-lg shadow-black/10 ${post._optimistic ? "animate-pulse" : ""} ${hasMedia ? "" : "p-5"}`}
+        style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.015) 100%)" }}
       >
         {/* Optimistic indicator */}
         {post._optimistic && (
-          <div className="text-[10px] text-muted-foreground mb-2">Publishing...</div>
+          <div className={`text-[10px] text-muted-foreground mb-2 ${hasMedia ? "px-5 pt-3" : ""}`}>Publishing...</div>
         )}
 
         {/* Pinned label */}
         {isPinned && (
-          <div className="flex items-center gap-1.5 mb-2 text-amber-400/70 text-xs">
+          <div className={`flex items-center gap-1.5 mb-2 text-amber-400/70 text-xs ${hasMedia ? "px-5 pt-3" : ""}`}>
             <Pin className="w-3.5 h-3.5" />
             <span className="font-medium">Pinned post</span>
           </div>
@@ -220,14 +222,14 @@ const PostCard = ({
 
         {/* Repost label */}
         {post.reposted_by_name && (
-          <div className="flex items-center gap-1.5 mb-2 text-emerald-400/70 text-xs">
+          <div className={`flex items-center gap-1.5 mb-2 text-emerald-400/70 text-xs ${hasMedia ? "px-5 pt-2" : ""}`}>
             <Repeat2 className="w-3.5 h-3.5" />
             <span className="font-medium">{post.reposted_by_name} reposted</span>
           </div>
         )}
 
         {/* Post header */}
-        <div className="flex items-center justify-between mb-3">
+        <div className={`flex items-center justify-between mb-3 ${hasMedia ? "px-5 pt-3" : ""}`}>
           <div className="flex items-center gap-3">
             {(() => {
               const displayName = !post.is_anonymous && post.author_profile?.display_name ? post.author_profile.display_name : post.anonymous_name;
@@ -326,7 +328,28 @@ const PostCard = ({
           </div>
         </div>
 
+        {/* Media-first: show media above text for visual posts */}
+        {!editing && post.media_urls && post.media_urls.length > 0 && (
+          <div className={hasMedia ? "-mx-0 -mt-0" : ""}>
+            <MediaGallery
+              mediaUrls={post.media_urls}
+              postData={{
+                likesCount: post.likes_count,
+                commentsCount: post.comments_count,
+                sharesCount: post.shares_count,
+                viewsCount: post.views_count || 0,
+                isLiked: isLiked,
+                onToggleLike: () => onToggleLike(post.id),
+                onToggleComments: () => onToggleComments(post.id),
+                onShare: () => onShare(post),
+                onRepost: () => onRepost(post),
+              }}
+            />
+          </div>
+        )}
+
         {/* Content */}
+        <div className={hasMedia ? "px-5 pt-3" : ""}>
         {editing ? (
           <div className="mb-3">
             <textarea
@@ -355,24 +378,7 @@ const PostCard = ({
         ) : (
           <div className="text-foreground/90 text-sm leading-relaxed mb-3 whitespace-pre-wrap break-words"><HashtagText content={post.content} /></div>
         )}
-
-        {/* Media Gallery */}
-        {post.media_urls && post.media_urls.length > 0 && (
-          <MediaGallery
-            mediaUrls={post.media_urls}
-            postData={{
-              likesCount: post.likes_count,
-              commentsCount: post.comments_count,
-              sharesCount: post.shares_count,
-              viewsCount: post.views_count || 0,
-              isLiked: isLiked,
-              onToggleLike: () => onToggleLike(post.id),
-              onToggleComments: () => onToggleComments(post.id),
-              onShare: () => onShare(post),
-              onRepost: () => onRepost(post),
-            }}
-          />
-        )}
+        </div>
 
         {/* Pending media uploads */}
         {post._pendingMedia && post._pendingMedia.length > 0 && (
@@ -461,7 +467,7 @@ const PostCard = ({
         )}
 
         {/* Emoji Reactions */}
-        <div className="flex flex-wrap gap-1.5 mb-3">
+        <div className={`flex flex-wrap gap-1.5 mb-3 ${hasMedia ? "px-5" : ""}`}>
           {REACTION_EMOJIS.map(({ emoji, label }) => {
             const count = reactionCounts[emoji] || 0;
             const isMine = myReactions.has(`${post.id}:${emoji}`);
@@ -485,7 +491,7 @@ const PostCard = ({
         </div>
 
         {/* Engagement metrics bar */}
-        <div className="flex items-center gap-4 text-[10px] text-muted-foreground/50 mb-2 px-1">
+        <div className={`flex items-center gap-4 text-[10px] text-muted-foreground/50 mb-2 ${hasMedia ? "px-5" : "px-1"}`}>
           <span>💬 {formatCount(post.comments_count)} comments</span>
           <span>🔁 {formatCount(post.shares_count)} reposts</span>
           <button
@@ -498,7 +504,7 @@ const PostCard = ({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-1 border-t border-white/5 pt-3">
+        <div className={`flex items-center gap-1 border-t border-white/5 pt-3 ${hasMedia ? "px-5" : ""}`}>
           <div className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-sm">
             <motion.button
               onClick={() => onToggleLike(post.id)}
@@ -554,7 +560,7 @@ const PostCard = ({
               transition={{ duration: 0.2 }}
               className="overflow-hidden"
             >
-              <div className="mt-4 pt-3 border-t border-white/5 space-y-2.5">
+              <div className={`mt-4 pt-3 border-t border-white/5 space-y-2.5 ${hasMedia ? "px-5" : ""}`}>
                 {postComments.filter(c => !c.parent_comment_id).map((c) => (
                   <CommentCard
                     key={c.id}
@@ -616,6 +622,7 @@ const PostCard = ({
             </motion.div>
           )}
         </AnimatePresence>
+      {hasMedia && <div className="pb-5" />}
       </motion.div>
 
       {/* Likes modal */}
