@@ -610,7 +610,9 @@ const Community = () => {
   const handleRefresh = async () => {
     setRefreshing(true);
     setHasMore(true);
+    setNewPostsAvailable(0);
     cursorRef.current = null;
+    prefetchCacheRef.current = [];
     await fetchPosts(false);
     setRefreshing(false);
   };
