@@ -19,24 +19,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getCompanionAvatar, getCompanionEmoji } from "@/lib/companionAvatars";
 
 const languages = [
   { code: "en", label: "English", speechCode: "en-US" },
-  { code: "pcm", label: "Pidgin", speechCode: "en-NG" },
-  { code: "yo", label: "Yoruba", speechCode: "yo-NG" },
-  { code: "ha", label: "Hausa", speechCode: "ha-NG" },
-  { code: "ig", label: "Igbo", speechCode: "ig-NG" },
+  { code: "pcm", label: "Nigerian Pidgin", speechCode: "en-NG" },
 ];
 
 const modes = [
-  { id: "vent", label: "Vent Mode", desc: "I'll listen more than I speak" },
-  { id: "support", label: "Support Mode", desc: "Emotional guidance & coping tips" },
-  { id: "calm", label: "Calm Mode", desc: "Breathing & grounding exercises" },
+  { id: "vent", label: "Vent Mode", desc: "Speak freely. Your companion listens more than it speaks." },
+  { id: "support", label: "Support Mode", desc: "Emotional support and helpful guidance." },
+  { id: "calm", label: "Calm Mode", desc: "Breathing and grounding exercises." },
 ];
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+type CompanionOption = {
+  id: string;
+  name: string;
+};
 
-type TranscriptEntry = { role: "user" | "assistant"; text: string };
+const companions: CompanionOption[] = [
+  { id: "atlas", name: "Atlas" },
+  { id: "nova", name: "Nova" },
+  { id: "luna", name: "Luna" },
+  { id: "orion", name: "Orion" },
+  { id: "sage", name: "Sage" },
+  { id: "echo", name: "Echo" },
+  { id: "sol", name: "Sol" },
+  { id: "kai", name: "Kai" },
+];
 
 // Strict state machine: IDLE -> LISTENING -> PROCESSING -> SPEAKING -> COOLDOWN -> LISTENING
 type CallPhase = "idle" | "listening" | "processing" | "speaking" | "cooldown";
