@@ -56,7 +56,7 @@ const CommentCard = ({
   const navigate = useNavigate();
 
   const isOwner = currentUserId && comment.author_id === currentUserId;
-  const maxDepthIndent = Math.min(depth, 3);
+  const maxDepthIndent = Math.min(depth, 2);
 
   const handleSaveEdit = async () => {
     if (!editContent.trim()) return;
