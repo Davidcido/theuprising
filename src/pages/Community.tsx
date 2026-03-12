@@ -896,14 +896,16 @@ const Community = () => {
     if (currentUser) {
       insertData.author_id = currentUser.id;
     }
-    const { error } = await supabase.from("community_comments").insert(insertData);
-    if (!error) {
+    const { data: insertedComment, error } = await supabase.from("community_comments").insert(insertData).select("id").single();
+    if (!error && insertedComment) {
       await supabase.rpc("increment_comments", { post_id_input: postId });
       setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
       setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
       if (currentUser && post?.author_id && post.author_id !== currentUser.id) {
         createNotification(post.author_id, currentUser.id, "comment", "commented on your post", postId);
       }
+      // Trigger AI companion reply if @mentioned
+      triggerCompanionReply(postId, insertedComment.id, text);
     }
   };
 

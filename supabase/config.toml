@@ -17,3 +17,15 @@ verify_jwt = false
 
 [functions.get-turn-credentials]
 verify_jwt = false
+
+[functions.publish-feed-content]
+verify_jwt = false
+
+[functions.enrich-comments]
+verify_jwt = false
+
+[functions.reply-to-mention]
+verify_jwt = false
+
+[functions.backfill-feed]
+verify_jwt = false
