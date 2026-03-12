@@ -3,7 +3,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Pause, Play, Volume2, VolumeX, Volume1 } from "lucide-react";
 import { BUILTIN_PERSONAS, type BuiltinPersona } from "@/lib/builtinPersonas";
 import { useAudioPreferences, fadeAudio } from "@/hooks/useAudioPreferences";
-import { pickScenesForCompanion, getFallbackScene, type StoryScene } from "@/lib/storyScenes";
+import {
+  pickScenesForCompanion,
+  pickScenesForCompanions,
+  getFallbackScene,
+  type StoryScene,
+} from "@/lib/storyScenes";
 import { Slider } from "@/components/ui/slider";
 
 const STORY_COMPANIONS = ["seren", "sol", "atlas", "nova", "kai"];
@@ -58,7 +63,7 @@ const StoryVideo = ({
 }: {
   scene: StoryScene;
   storyIndex: number;
-  onFallback: (fallback: StoryScene) => void;
+  onFallback: (failedScene: StoryScene) => void;
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoReady, setVideoReady] = useState(false);
@@ -74,9 +79,7 @@ const StoryVideo = ({
   };
 
   const handleError = () => {
-    // Swap to a fallback scene if the video fails
-    const fallback = getFallbackScene(scene.id);
-    onFallback(fallback);
+    onFallback(scene);
   };
 
   return (
@@ -129,26 +132,49 @@ const CompanionStoryBar = () => {
 
   const LOW_DEFAULT_VOLUME = 0.25;
 
-  // Build stories with unique scenes per frame
+  // Build stories with unique scenes per frame and reduced cross-persona repetition
   useEffect(() => {
+    const maxFrames = Math.max(
+      2,
+      ...STORY_COMPANIONS.map((id) => STORY_TEMPLATES[id]?.length ?? 0)
+    );
+    const scenesByCompanion = pickScenesForCompanions(STORY_COMPANIONS, maxFrames);
+
     const stories = STORY_COMPANIONS.map(id => {
       const companion = BUILTIN_PERSONAS.find(p => p.id === id);
       if (!companion) return null;
+
       const templates = STORY_TEMPLATES[id] || [];
-      const scenes = pickScenesForCompanion(id, templates.length);
+      const plannedScenes = scenesByCompanion[id]?.slice(0, templates.length) ?? [];
+      const scenes =
+        plannedScenes.length === templates.length
+          ? plannedScenes
+          : pickScenesForCompanion(id, templates.length);
+
       const items: StoryItem[] = templates.map((t, i) => ({
         ...t,
-        scene: scenes[i % scenes.length],
+        scene: scenes[i],
       }));
+
       return { companion, stories: items, hasNew: !viewedCompanions.has(id) };
     }).filter(Boolean) as CompanionStory[];
+
     setCompanionStories(stories);
   }, [viewedCompanions]);
 
   // Handle video fallback — replace scene in active story
-  const handleVideoFallback = useCallback((fallback: StoryScene) => {
+  const handleVideoFallback = useCallback((failedScene: StoryScene) => {
     setActiveStory(prev => {
       if (!prev) return prev;
+
+      const otherScenes = prev.stories
+        .filter((_, index) => index !== storyIndex)
+        .map((story) => story.scene);
+
+      const fallback = getFallbackScene(failedScene, {
+        excludeVideoIds: otherScenes.map((scene) => scene.videoId),
+      });
+
       const updated = { ...prev, stories: [...prev.stories] };
       updated.stories[storyIndex] = { ...updated.stories[storyIndex], scene: fallback };
       return updated;
