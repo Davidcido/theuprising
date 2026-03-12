@@ -8,52 +8,99 @@ const corsHeaders = {
 };
 
 const COMPANIONS = [
-  { name: "Seren", emoji: "💚", style: "calm and compassionate" },
-  { name: "Atlas", emoji: "🧠", style: "philosophical and thoughtful" },
-  { name: "Nova", emoji: "✨", style: "curious and imaginative" },
-  { name: "Orion", emoji: "🔥", style: "bold and motivating" },
-  { name: "Kai", emoji: "🌿", style: "grounded and nature-focused" },
-  { name: "Sol", emoji: "🌅", style: "optimistic and warm" },
-  { name: "Elias", emoji: "📚", style: "reflective storyteller" },
-  { name: "Leo", emoji: "🛠", style: "practical encourager" },
+  { name: "Seren", emoji: "💚", style: "calm and compassionate", themes: ["ocean", "calm_water"] },
+  { name: "Atlas", emoji: "🧠", style: "philosophical and thoughtful", themes: ["mountains", "clouds", "sky"] },
+  { name: "Nova", emoji: "✨", style: "curious and imaginative", themes: ["night_sky", "stars", "coral"] },
+  { name: "Orion", emoji: "🔥", style: "bold and motivating", themes: ["sunrise", "sunset", "campfire"] },
+  { name: "Kai", emoji: "🌿", style: "grounded and nature-focused", themes: ["forest", "meadow", "fog"] },
+  { name: "Sol", emoji: "🌅", style: "optimistic and warm", themes: ["sunrise", "sunset", "meadow"] },
+  { name: "Elias", emoji: "📚", style: "reflective storyteller", themes: ["rain", "fog", "rivers"] },
+  { name: "Leo", emoji: "🛠", style: "practical encourager", themes: ["waterfalls", "rivers", "forest"] },
 ];
 
-// Curated cinematic nature video URLs (30-60s, vertical/near-vertical, with ambient audio)
-const FEED_VIDEOS = [
-  // Ocean waves
-  "https://videos.pexels.com/video-files/1093662/1093662-uhd_2560_1440_30fps.mp4",
-  "https://videos.pexels.com/video-files/2499611/2499611-uhd_2560_1440_24fps.mp4",
-  "https://videos.pexels.com/video-files/1739010/1739010-uhd_2560_1440_24fps.mp4",
-  // Waterfalls
-  "https://videos.pexels.com/video-files/1448735/1448735-uhd_2560_1440_24fps.mp4",
-  "https://videos.pexels.com/video-files/2611510/2611510-uhd_2560_1440_24fps.mp4",
-  // Forest / trees
-  "https://videos.pexels.com/video-files/3571264/3571264-uhd_2560_1440_30fps.mp4",
-  "https://videos.pexels.com/video-files/3629519/3629519-uhd_2560_1440_24fps.mp4",
-  // Rain
-  "https://videos.pexels.com/video-files/4255925/4255925-uhd_2560_1440_24fps.mp4",
-  // Sunrise / sunset
-  "https://videos.pexels.com/video-files/1409899/1409899-uhd_2560_1440_25fps.mp4",
-  "https://videos.pexels.com/video-files/1585619/1585619-hd_1920_1080_30fps.mp4",
-  "https://videos.pexels.com/video-files/1721294/1721294-uhd_2560_1440_24fps.mp4",
-  // Clouds / mountains
-  "https://videos.pexels.com/video-files/857251/857251-hd_1920_1080_25fps.mp4",
-  "https://videos.pexels.com/video-files/2169880/2169880-uhd_2560_1440_24fps.mp4",
-  // Rivers
-  "https://videos.pexels.com/video-files/2491284/2491284-uhd_2560_1440_24fps.mp4",
-  "https://videos.pexels.com/video-files/2421545/2421545-uhd_2560_1440_24fps.mp4",
-  // Night sky / stars
-  "https://videos.pexels.com/video-files/1826896/1826896-hd_1920_1080_30fps.mp4",
-  "https://videos.pexels.com/video-files/4065924/4065924-uhd_2560_1440_24fps.mp4",
-  // Meadow / flowers
-  "https://videos.pexels.com/video-files/4625518/4625518-uhd_2560_1440_24fps.mp4",
-  // Campfire
-  "https://videos.pexels.com/video-files/3402795/3402795-uhd_2560_1440_24fps.mp4",
-  // Fog / mist
-  "https://videos.pexels.com/video-files/4763824/4763824-uhd_2560_1440_24fps.mp4",
-  // Coral / underwater
-  "https://videos.pexels.com/video-files/4065919/4065919-uhd_2560_1440_24fps.mp4",
-];
+// Themed video pools — each companion draws from their assigned themes
+const THEMED_VIDEOS: Record<string, string[]> = {
+  ocean: [
+    "https://videos.pexels.com/video-files/1093662/1093662-uhd_2560_1440_30fps.mp4",
+    "https://videos.pexels.com/video-files/2499611/2499611-uhd_2560_1440_24fps.mp4",
+    "https://videos.pexels.com/video-files/1739010/1739010-uhd_2560_1440_24fps.mp4",
+  ],
+  calm_water: [
+    "https://videos.pexels.com/video-files/2491284/2491284-uhd_2560_1440_24fps.mp4",
+    "https://videos.pexels.com/video-files/2421545/2421545-uhd_2560_1440_24fps.mp4",
+  ],
+  waterfalls: [
+    "https://videos.pexels.com/video-files/1448735/1448735-uhd_2560_1440_24fps.mp4",
+    "https://videos.pexels.com/video-files/2611510/2611510-uhd_2560_1440_24fps.mp4",
+  ],
+  forest: [
+    "https://videos.pexels.com/video-files/3571264/3571264-uhd_2560_1440_30fps.mp4",
+    "https://videos.pexels.com/video-files/3629519/3629519-uhd_2560_1440_24fps.mp4",
+  ],
+  rain: [
+    "https://videos.pexels.com/video-files/4255925/4255925-uhd_2560_1440_24fps.mp4",
+  ],
+  sunrise: [
+    "https://videos.pexels.com/video-files/1409899/1409899-uhd_2560_1440_25fps.mp4",
+    "https://videos.pexels.com/video-files/1585619/1585619-hd_1920_1080_30fps.mp4",
+  ],
+  sunset: [
+    "https://videos.pexels.com/video-files/1721294/1721294-uhd_2560_1440_24fps.mp4",
+  ],
+  clouds: [
+    "https://videos.pexels.com/video-files/857251/857251-hd_1920_1080_25fps.mp4",
+  ],
+  mountains: [
+    "https://videos.pexels.com/video-files/2169880/2169880-uhd_2560_1440_24fps.mp4",
+  ],
+  sky: [
+    "https://videos.pexels.com/video-files/857251/857251-hd_1920_1080_25fps.mp4",
+  ],
+  rivers: [
+    "https://videos.pexels.com/video-files/2491284/2491284-uhd_2560_1440_24fps.mp4",
+    "https://videos.pexels.com/video-files/2421545/2421545-uhd_2560_1440_24fps.mp4",
+  ],
+  night_sky: [
+    "https://videos.pexels.com/video-files/1826896/1826896-hd_1920_1080_30fps.mp4",
+    "https://videos.pexels.com/video-files/4065924/4065924-uhd_2560_1440_24fps.mp4",
+  ],
+  stars: [
+    "https://videos.pexels.com/video-files/4065924/4065924-uhd_2560_1440_24fps.mp4",
+  ],
+  meadow: [
+    "https://videos.pexels.com/video-files/4625518/4625518-uhd_2560_1440_24fps.mp4",
+  ],
+  campfire: [
+    "https://videos.pexels.com/video-files/3402795/3402795-uhd_2560_1440_24fps.mp4",
+  ],
+  fog: [
+    "https://videos.pexels.com/video-files/4763824/4763824-uhd_2560_1440_24fps.mp4",
+  ],
+  coral: [
+    "https://videos.pexels.com/video-files/4065919/4065919-uhd_2560_1440_24fps.mp4",
+  ],
+};
+
+/** Pick a video URL for a companion based on their themes, avoiding recent picks */
+function pickCompanionVideo(companion: typeof COMPANIONS[0], usedVideos: Set<string>): { url: string; theme: string } {
+  const themes = companion.themes;
+  // Shuffle themes for variety
+  const shuffled = [...themes].sort(() => Math.random() - 0.5);
+  for (const theme of shuffled) {
+    const pool = THEMED_VIDEOS[theme] || [];
+    const available = pool.filter(v => !usedVideos.has(v));
+    if (available.length > 0) {
+      const pick = available[Math.floor(Math.random() * available.length)];
+      usedVideos.add(pick);
+      return { url: pick, theme };
+    }
+  }
+  // Fallback: pick any from first theme
+  const fallbackPool = THEMED_VIDEOS[themes[0]] || Object.values(THEMED_VIDEOS).flat();
+  const pick = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
+  usedVideos.add(pick);
+  return { url: pick, theme: themes[0] };
+}
 
 // Schedule: 50% image, 40% video, 10% text — 10 posts per day for richer feed
 const POST_SCHEDULE = [
