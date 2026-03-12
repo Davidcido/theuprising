@@ -502,12 +502,23 @@ Never expose the English interpretation to the user — always reply fully in Ha
   const selectedVoiceUriRef = useRef(selectedVoiceUri);
   useEffect(() => { selectedVoiceUriRef.current = selectedVoiceUri; }, [selectedVoiceUri]);
 
-  // Filter to only high-quality English voices and sort for display
+  // Filter to only high-quality English voices, deduplicate, and sort for display
   const categorizeVoices = useCallback((voices: SpeechSynthesisVoice[]) => {
     const filtered = voices.filter(v => isAllowedVoice(v) && isStableVoice(v));
-    const scored = filtered.map(v => {
+    
+    // Deduplicate by display name (category + lang + region)
+    const seen = new Map<string, SpeechSynthesisVoice>();
+    for (const v of filtered) {
+      const langParts = v.lang.split("-");
+      const regionMap: Record<string, string> = { US: "United States", GB: "United Kingdom", AU: "Australia", IN: "India", CA: "Canada", IE: "Ireland", ZA: "South Africa", NZ: "New Zealand", NG: "Nigeria", SG: "Singapore", HK: "Hong Kong" };
+      const accent = regionMap[langParts[1]] || langParts[1] || "";
+      const key = `${getVoiceCategory(v.name)}|${accent}`;
+      if (!seen.has(key)) seen.set(key, v);
+    }
+    const unique = Array.from(seen.values());
+    
+    const scored = unique.map(v => {
       let score = 0;
-      // Prioritise Samantha as default
       if (v.name.toLowerCase().startsWith("samantha")) score += 200;
       if (v.name.includes("Google")) score += 100;
       if (v.name.includes("Microsoft")) score += 80;
