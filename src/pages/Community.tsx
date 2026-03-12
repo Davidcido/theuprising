@@ -364,38 +364,52 @@ const Community = () => {
     if (allPosts.length > 0) fetchReactions();
   }, [allPosts.length]);
 
-  // Lazy comment loading: only fetch comments when a post's comment section is expanded
-  // This prevents firing queries for every post with comments_count > 0 on mount
-  const fetchCommentsForPost = useCallback(async (postId: string) => {
-    if (!postId || postId.startsWith("optimistic-")) return;
+  const resolveCommentTargetPostId = useCallback((uiPostId: string) => {
+    const post = allPosts.find(p => p.id === uiPostId);
+    if (!post) return uiPostId;
+    if (!uiPostId.startsWith("repost-")) return uiPostId;
+    return ((post as Post & { source_post_id?: string }).source_post_id || post.original_post?.id || post.original_post_id || uiPostId);
+  }, [allPosts]);
 
-    // If we have cached comments, show them immediately
-    const cached = comments[postId];
+  // Lazy comment loading: fetch comments only when a thread is expanded.
+  const fetchCommentsForPost = useCallback(async (uiPostId: string, targetPostId?: string) => {
+    const queryPostId = targetPostId || uiPostId;
+    if (!uiPostId || !queryPostId || uiPostId.startsWith("optimistic-") || queryPostId.startsWith("optimistic-")) return;
 
-    // Always fetch fresh from DB (cache-then-refresh)
-    const { data } = await supabase
+    console.log("[Community][comments] fetch start", {
+      uiPostId,
+      queryPostId,
+      cachedCount: (comments[uiPostId] || []).length,
+    });
+
+    const { data, error } = await supabase
       .from("community_comments")
       .select("*")
-      .eq("post_id", postId)
+      .eq("post_id", queryPostId)
       .order("created_at", { ascending: true })
       .limit(200);
 
-    if (data) {
-      const allComments = data as Comment[];
-      setComments(prev => {
-        // Merge with any optimistic comments already in state
-        const existing = prev[postId] || [];
-        const optimistic = existing.filter(c => c.id.startsWith("optimistic-"));
-        const dbIds = new Set(allComments.map(c => c.id));
-        // Keep optimistic comments that haven't been confirmed yet
-        const unconfirmedOptimistic = optimistic.filter(c => !dbIds.has(c.id));
-        return { ...prev, [postId]: [...allComments, ...unconfirmedOptimistic] };
-      });
-      // Sync comment count
-      setAllPosts(prev => prev.map(p =>
-        p.id === postId ? { ...p, comments_count: Math.max(p.comments_count, allComments.length) } : p
-      ));
+    if (error) {
+      console.error("[Community][comments] fetch failed", { uiPostId, queryPostId, error: error.message });
+      return;
     }
+
+    const dbComments = (data || []) as Comment[];
+    setComments(prev => {
+      const existing = prev[uiPostId] || [];
+      const optimistic = existing.filter(c => c.id.startsWith("optimistic-"));
+      const merged = [...dbComments, ...optimistic];
+      const deduped = Array.from(new Map(merged.map(c => [c.id, c])).values());
+      return { ...prev, [uiPostId]: deduped };
+    });
+
+    setAllPosts(prev => prev.map(p =>
+      p.id === uiPostId || p.id === queryPostId
+        ? { ...p, comments_count: Math.max(p.comments_count, dbComments.length) }
+        : p
+    ));
+
+    console.log("[Community][comments] fetch end", { uiPostId, queryPostId, count: dbComments.length });
   }, [comments]);
 
   // Load comment reactions when comments are expanded
