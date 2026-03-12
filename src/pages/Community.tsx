@@ -336,8 +336,12 @@ const Community = () => {
   // Lazy comment loading: only fetch comments when a post's comment section is expanded
   // This prevents firing queries for every post with comments_count > 0 on mount
   const fetchCommentsForPost = useCallback(async (postId: string) => {
-    if (comments[postId]) return; // already loaded
-    // Fetch ALL comments for the post (both root and replies) in one query
+    if (!postId || postId.startsWith("optimistic-")) return;
+
+    // If we have cached comments, show them immediately
+    const cached = comments[postId];
+
+    // Always fetch fresh from DB (cache-then-refresh)
     const { data } = await supabase
       .from("community_comments")
       .select("*")
