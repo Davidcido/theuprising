@@ -21,6 +21,7 @@ import WelcomePrompt from "@/components/community/WelcomePrompt";
 import ActivityBanner from "@/components/community/ActivityBanner";
 import AuthModal from "@/components/auth/AuthModal";
 import { Button } from "@/components/ui/button";
+import CompanionStoryBar from "@/components/community/CompanionStoryBar";
 
 import { usePostViewTracker } from "@/hooks/usePostViewTracker";
 import PostViewObserver from "@/components/community/PostViewObserver";
