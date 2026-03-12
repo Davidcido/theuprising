@@ -553,38 +553,51 @@ const Community = () => {
     return () => observer.disconnect();
   }, [hasMore, prefetchNextBatch, activeTab]);
 
-  // Bottom sentinel — triggers actual load (uses prefetched data if available)
+  // Bottom sentinel — triggers actual load with debounce (uses prefetched data if available)
+  const scrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting && hasMore && !loadingMore && !fetchingRef.current && activeTab === "foryou") {
-          if (prefetchCacheRef.current.length > 0) {
-            // Use prefetched data instantly
-            const prefetched = prefetchCacheRef.current;
-            prefetchCacheRef.current = [];
-            // Update main cursor from prefetch cursor
-            if (prefetchCursorRef.current) {
-              cursorRef.current = prefetchCursorRef.current;
-              prefetchCursorRef.current = null;
+          // Debounce: only fire once per SCROLL_DEBOUNCE_MS
+          if (scrollDebounceRef.current) return;
+          scrollDebounceRef.current = setTimeout(() => {
+            scrollDebounceRef.current = null;
+            if (fetchingRef.current || loadingMore) return; // re-check after debounce
+
+            if (prefetchCacheRef.current.length > 0) {
+              // Use prefetched data instantly
+              const prefetched = prefetchCacheRef.current;
+              prefetchCacheRef.current = [];
+              if (prefetchCursorRef.current) {
+                cursorRef.current = prefetchCursorRef.current;
+                prefetchCursorRef.current = null;
+              }
+              setAllPosts(prev => {
+                const existingIds = new Set(prev.map(p => p.id));
+                const newPosts = prefetched.filter(p => !existingIds.has(p.id));
+                return [...prev, ...newPosts];
+              });
+              setHasMore(prefetched.length >= PREFETCH_BATCH);
+              prefetchTriggered.current = false;
+            } else {
+              fetchPosts(true);
             }
-            setAllPosts(prev => {
-              const existingIds = new Set(prev.map(p => p.id));
-              const newPosts = prefetched.filter(p => !existingIds.has(p.id));
-              return [...prev, ...newPosts];
-            });
-            setHasMore(prefetched.length >= PREFETCH_BATCH);
-            prefetchTriggered.current = false;
-          } else {
-            fetchPosts(true);
-          }
+          }, SCROLL_DEBOUNCE_MS);
         }
       },
-      { rootMargin: "800px" }
+      { rootMargin: "600px" }
     );
     observer.observe(sentinel);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (scrollDebounceRef.current) {
+        clearTimeout(scrollDebounceRef.current);
+        scrollDebounceRef.current = null;
+      }
+    };
   }, [hasMore, loadingMore, fetchPosts, activeTab]);
 
   // Update cache whenever posts change
