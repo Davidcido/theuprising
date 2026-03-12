@@ -529,8 +529,8 @@ Never expose the English interpretation to the user — always reply fully in Ha
       if (userPick) return userPick;
     }
 
-    // Only consider allowed voices
-    const allowed = voices.filter(isAllowedVoice);
+    // Only consider allowed + stable voices
+    const allowed = voices.filter(v => isAllowedVoice(v) && isStableVoice(v));
     if (!allowed.length) {
       // Fallback: any English voice
       return voices.find(v => v.lang.startsWith("en")) || voices[0];
