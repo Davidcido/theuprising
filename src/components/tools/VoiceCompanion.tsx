@@ -921,12 +921,14 @@ Never expose the English interpretation to the user — always reply fully in Ha
                   const isMicrosoft = v.name.includes("Microsoft");
                   const isNatural = /natural|neural|premium|enhanced/i.test(v.name);
                   const badge = isGoogle ? "⭐" : isMicrosoft ? "⭐" : isNatural ? "✨" : "";
-                  // Parse language and accent from lang code
+
                   const langParts = v.lang.split("-");
-                  const langName = langParts[0] === "en" ? "English" : langParts[0] === "es" ? "Spanish" : langParts[0] === "fr" ? "French" : langParts[0] === "de" ? "German" : langParts[0];
+                  const langName = langParts[0] === "en" ? "English" : langParts[0];
                   const regionMap: Record<string, string> = { US: "United States", GB: "United Kingdom", AU: "Australia", IN: "India", CA: "Canada", IE: "Ireland", ZA: "South Africa", NZ: "New Zealand", NG: "Nigeria", SG: "Singapore", HK: "Hong Kong" };
                   const accent = regionMap[langParts[1]] || langParts[1] || "";
-                  const displayName = `${v.name} — ${langName}${accent ? ` — ${accent}` : ""}`;
+                  const voiceCategory = getVoiceCategory(v.name);
+                  const displayName = `${voiceCategory} — ${langName}${accent ? ` — ${accent}` : ""}`;
+
                   return (
                     <SelectItem
                       key={v.voiceURI}
