@@ -1124,7 +1124,7 @@ const Community = () => {
         ...prev,
         [postId]: (prev[postId] || []).map(c => c.id === optimisticId ? { ...c, id: insertedReply.id } : c),
       }));
-      supabase.rpc("increment_comments", { post_id_input: postId }).catch(() => {});
+      supabase.rpc("increment_comments", { post_id_input: postId }).then(() => {});
       if (currentUser && parentAuthorId && parentAuthorId !== currentUser.id) {
         createNotification(parentAuthorId, currentUser.id, "reply", "replied to your comment", postId);
       }
