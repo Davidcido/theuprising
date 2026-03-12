@@ -265,7 +265,11 @@ const MediaGallery = ({ mediaUrls, compact, postData }: MediaGalleryProps) => {
               <img
                 src={url}
                 alt=""
-                className={`w-full object-cover cursor-pointer ${validUrls.length === 1 ? "max-h-[700px]" : compact ? "h-40" : "h-56"}`}
+                className={`w-full object-cover cursor-pointer ${
+                  validUrls.length === 1
+                    ? "aspect-[4/5] max-h-[700px]"
+                    : compact ? "h-40" : "h-56"
+                }`}
                 style={{ display: "block", width: "100%" }}
                 loading="lazy"
                 onClick={() => handleMediaClick(url, i)}
