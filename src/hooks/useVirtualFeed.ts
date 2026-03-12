@@ -34,8 +34,8 @@ export function useVirtualFeed<T extends { id: string }>(
       if (rafRef.current) return; // already scheduled
       rafRef.current = requestAnimationFrame(() => {
         const st = window.scrollY || document.documentElement.scrollTop;
-        // Only update if scrolled more than 50px to reduce renders
-        if (Math.abs(st - lastScrollRef.current) > 50) {
+        // Only update if scrolled more than 100px to reduce renders further
+        if (Math.abs(st - lastScrollRef.current) > 100) {
           lastScrollRef.current = st;
           setScrollTop(st);
         }
