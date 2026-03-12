@@ -105,10 +105,21 @@ const NotificationBell = ({ userId }: NotificationBellProps) => {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-white/90">
-                          <span className="font-semibold">
-                            {n.actor_profile?.display_name || "Someone"}
-                          </span>{" "}
-                          {n.content}
+                          {n.type === "companion_checkin" ? (
+                            <>
+                              <span className="font-semibold">
+                                {n.reference_id ? n.reference_id.charAt(0).toUpperCase() + n.reference_id.slice(1) : "Companion"}
+                              </span>{" "}
+                              {n.content}
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-semibold">
+                                {n.actor_profile?.display_name || "Someone"}
+                              </span>{" "}
+                              {n.content}
+                            </>
+                          )}
                         </p>
                         <p className="text-xs text-white/40 mt-0.5">
                           {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
