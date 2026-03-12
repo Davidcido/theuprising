@@ -505,25 +505,29 @@ const Community = () => {
   }, [allPosts.length]);
 
   // Background prefetch — loads next PREFETCH_BATCH posts into cache before user reaches bottom
+  // Uses a separate cursor to avoid conflicting with main pagination
+  const prefetchCursorRef = useRef<string | null>(null);
   const prefetchNextBatch = useCallback(async () => {
     if (prefetchTriggered.current || !hasMore || fetchingRef.current) return;
     prefetchTriggered.current = true;
     
+    // Use the main cursor as prefetch starting point
+    const prefetchCursor = cursorRef.current;
+    if (!prefetchCursor) return;
+    
     try {
-      let query = supabase
+      const { data } = await supabase
         .from("community_posts")
         .select("id, content, anonymous_name, author_id, is_anonymous, likes_count, comments_count, shares_count, views_count, created_at, media_urls, original_post_id, reposted_by_name, engagement_score")
         .order("created_at", { ascending: false })
+        .lt("created_at", prefetchCursor)
         .limit(PREFETCH_BATCH);
 
-      if (cursorRef.current) {
-        query = query.lt("created_at", cursorRef.current);
-      }
-
-      const { data } = await query;
       if (data && data.length > 0) {
         const enriched = await enrichPosts(data);
         prefetchCacheRef.current = enriched;
+        // Store the cursor for when this batch gets consumed
+        prefetchCursorRef.current = data[data.length - 1].created_at;
       }
     } catch {}
   }, [hasMore, enrichPosts]);
