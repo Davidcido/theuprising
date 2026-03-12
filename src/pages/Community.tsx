@@ -346,6 +346,45 @@ const Community = () => {
     if (allPosts.length > 0) fetchReactions();
   }, [allPosts.length]);
 
+  // Auto-fetch comments for all posts that have comments_count > 0
+  // This ensures comments are always available when the section is expanded
+  const fetchCommentsForPosts = useCallback(async (posts: Post[]) => {
+    const postsNeedingComments = posts.filter(
+      p => p.comments_count > 0 && !comments[p.id] && !p.id.startsWith("repost-") && !p.id.startsWith("optimistic-")
+    );
+    if (postsNeedingComments.length === 0) return;
+    
+    const postIds = postsNeedingComments.map(p => p.id);
+    const { data } = await supabase
+      .from("community_comments")
+      .select("*")
+      .in("post_id", postIds)
+      .order("created_at", { ascending: true });
+    
+    if (data && data.length > 0) {
+      const grouped: Record<string, Comment[]> = {};
+      for (const c of data) {
+        if (!grouped[c.post_id]) grouped[c.post_id] = [];
+        grouped[c.post_id].push(c as Comment);
+      }
+      setComments(prev => ({ ...prev, ...grouped }));
+      
+      // Sync comment counts with actual DB data
+      setAllPosts(prev => prev.map(p => {
+        const actual = grouped[p.id];
+        if (actual && actual.length !== p.comments_count) {
+          return { ...p, comments_count: actual.length };
+        }
+        return p;
+      }));
+    }
+  }, [comments]);
+
+  // Trigger auto-fetch whenever allPosts changes
+  useEffect(() => {
+    if (allPosts.length > 0) fetchCommentsForPosts(allPosts);
+  }, [allPosts.length]);
+
   // Load comment reactions when comments are expanded
   useEffect(() => {
     if (expandedComments.size > 0) fetchCommentReactions();
@@ -893,13 +932,19 @@ const Community = () => {
       setExpandedComments((prev) => { const n = new Set(prev); n.delete(postId); return n; });
     } else {
       setExpandedComments((prev) => new Set(prev).add(postId));
-      // Always fetch comments to ensure sync with DB count
+      // Always refetch comments to ensure sync with DB count
       const { data } = await supabase
         .from("community_comments")
         .select("*")
         .eq("post_id", postId)
         .order("created_at", { ascending: true });
-      if (data) setComments((prev) => ({ ...prev, [postId]: data as Comment[] }));
+      if (data) {
+        setComments((prev) => ({ ...prev, [postId]: data as Comment[] }));
+        // Sync the comment count displayed on the post
+        setAllPosts(prev => prev.map(p => 
+          p.id === postId ? { ...p, comments_count: data.length } : p
+        ));
+      }
     }
   };
 
