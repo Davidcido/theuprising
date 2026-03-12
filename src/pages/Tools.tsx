@@ -224,13 +224,13 @@ const Tools = () => {
         >
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 mb-4">
             <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-xs text-white/70 font-medium">AI-powered</span>
+            <span className="text-xs text-white/70 font-medium">Healing Space</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-display font-bold text-white mb-2">
-            AI Hub
+            Companion Hub
           </h1>
           <p className="text-white/50 text-sm max-w-xs mx-auto leading-relaxed">
-            Your companions and AI tools, all in one place.
+            Your companions and tools for reflection, guidance, and growth.
           </p>
         </motion.div>
 
