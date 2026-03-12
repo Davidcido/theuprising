@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Shield, Eye, EyeOff, Sparkles, Users, TrendingUp, RefreshCw, Bookmark, FileText, AlertCircle } from "lucide-react";
+import { Send, Shield, Eye, EyeOff, Sparkles, Users, TrendingUp, RefreshCw, Bookmark, FileText, AlertCircle, ArrowUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import UserAvatar from "@/components/UserAvatar";
 import { toast } from "@/hooks/use-toast";
@@ -29,6 +29,8 @@ import FirstPostCelebration from "@/components/community/FirstPostCelebration";
 import { extractMentions } from "@/components/community/HashtagText";
 import MentionDropdown from "@/components/community/MentionDropdown";
 import { useAuthReady } from "@/hooks/useAuthReady";
+import { useFeedCache } from "@/hooks/useFeedCache";
+import { useVirtualFeed } from "@/hooks/useVirtualFeed";
 
 type FeedTab = "foryou" | "following" | "trending";
 
@@ -38,7 +40,8 @@ const FEED_TABS: { key: FeedTab; label: string; icon: typeof Sparkles }[] = [
   { key: "trending", label: "Trending", icon: TrendingUp },
 ];
 
-const POSTS_PER_PAGE = 15;
+const POSTS_PER_PAGE = 25;
+const PREFETCH_BATCH = 30;
 
 const getSessionId = () => {
   let id = localStorage.getItem("uprising_session_id");
@@ -47,27 +50,6 @@ const getSessionId = () => {
     localStorage.setItem("uprising_session_id", id);
   }
   return id;
-};
-
-const CACHE_KEY = "uprising_community_cache";
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-const getCachedPosts = (): Post[] | null => {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    if (!raw) return null;
-    const { posts, ts } = JSON.parse(raw);
-    if (Date.now() - ts > CACHE_TTL) return null;
-    return posts;
-  } catch { return null; }
-};
-
-const setCachedPosts = (posts: Post[]) => {
-  try {
-    // Only cache first page worth of posts (lightweight)
-    const toCache = posts.filter(p => !p._optimistic && !p.id.startsWith("repost-")).slice(0, POSTS_PER_PAGE);
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ posts: toCache, ts: Date.now() }));
-  } catch {}
 };
 
 const Community = () => {
