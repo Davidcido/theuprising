@@ -493,6 +493,14 @@ const Community = () => {
     };
   }, [authReady]);
 
+  // Prefetch: start loading next batch when user is halfway through current posts
+  const prefetchTriggered = useRef(false);
+  useEffect(() => {
+    if (!hasMore || loadingMore || fetchingRef.current) return;
+    // Reset prefetch flag when new posts arrive
+    prefetchTriggered.current = false;
+  }, [allPosts.length]);
+
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
@@ -502,7 +510,7 @@ const Community = () => {
           fetchPosts(true);
         }
       },
-      { rootMargin: "300px" }
+      { rootMargin: "600px" }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
