@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import EmojiPicker from "@/components/EmojiPicker";
 import CommentReactions from "@/components/community/CommentReactions";
 import MediaGallery from "@/components/community/MediaGallery";
+import CompanionInteractionMenu from "@/components/community/CompanionInteractionMenu";
 
 export type Comment = {
   id: string;
