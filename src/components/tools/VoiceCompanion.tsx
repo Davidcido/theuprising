@@ -37,12 +37,18 @@ const modes = [
 type CompanionOption = {
   id: string;
   name: string;
+  roleTitle: string;
+  tagline: string;
+  color: string;
 };
 
 // Sync companions from the official builtin personas
 const companions: CompanionOption[] = BUILTIN_PERSONAS.map(p => ({
   id: p.id,
   name: p.name,
+  roleTitle: p.roleTitle,
+  tagline: p.tagline,
+  color: p.color,
 }));
 
 // Per-companion voice personality: system prompt, speech params, and greetings
