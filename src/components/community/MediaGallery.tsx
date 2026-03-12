@@ -206,7 +206,7 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
   return (
     <div
       ref={containerRef}
-      className={containerClass}
+      className="relative cursor-pointer group w-full"
       onClick={(e) => {
         // Desktop click — tap to unmute
         if ('ontouchstart' in window) return;
