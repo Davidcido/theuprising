@@ -168,34 +168,53 @@ const Community = () => {
   }, []);
 
   const fetchPosts = useCallback(async (loadMore = false, retryCount = 0) => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     if (loadMore) setLoadingMore(true);
     setFetchError(null);
-    const from = loadMore ? allPosts.length : 0;
-    const to = from + POSTS_PER_PAGE - 1;
 
     try {
-      // Direct query without aggressive timeout — let Supabase handle it
-      console.log("[Community] Fetching posts, range:", from, "-", to);
-      const { data, error } = await supabase
+      let query = supabase
         .from("community_posts")
         .select("*")
         .order("created_at", { ascending: false })
-        .range(from, to);
+        .limit(POSTS_PER_PAGE);
+
+      // Cursor-based pagination: use created_at of last post
+      if (loadMore && cursorRef.current) {
+        query = query.lt("created_at", cursorRef.current);
+      }
+
+      console.log("[Community] Fetching posts, cursor:", loadMore ? cursorRef.current : "initial");
+      const { data, error } = await query;
 
       if (error) {
-        console.error("[Community] Supabase query error:", error.message, error.code, error.details);
+        console.error("[Community] Supabase query error:", error.message);
         throw error;
       }
-      if (!data) {
-        console.error("[Community] Query returned null data");
-        throw new Error("No data");
+      if (!data) throw new Error("No data");
+      console.log("[Community] Fetched", data.length, "posts");
+
+      // Update cursor to last post's created_at
+      if (data.length > 0) {
+        cursorRef.current = data[data.length - 1].created_at;
       }
-      console.log("[Community] Fetched", data.length, "posts successfully");
 
       const enriched = await enrichPosts(data);
       if (loadMore) {
-        setAllPosts(prev => [...prev, ...enriched]);
+        setAllPosts(prev => {
+          const existingIds = new Set(prev.map(p => p.id));
+          const newPosts = enriched.filter(p => !existingIds.has(p.id));
+          return [...prev, ...newPosts];
+        });
       } else {
+        // Reset cursor for fresh load
+        if (data.length > 0) {
+          cursorRef.current = data[data.length - 1].created_at;
+        } else {
+          cursorRef.current = null;
+        }
+
         let directRepostPosts: Post[] = [];
         try {
           const { data: reposts } = await supabase
@@ -239,7 +258,6 @@ const Community = () => {
         setAllPosts(prev => {
           const pendingPosts = prev.filter(p => p._pendingMedia && p._pendingMedia.length > 0);
           const mergedIds = new Set(merged.map(p => p.id));
-          // For posts with pending uploads, merge DB data but keep _pendingMedia state
           const result = merged.map(p => {
             const pending = pendingPosts.find(pp => pp.id === p.id);
             if (pending) {
@@ -247,7 +265,6 @@ const Community = () => {
             }
             return p;
           });
-          // Add any pending posts not yet in DB results
           for (const pp of pendingPosts) {
             if (!mergedIds.has(pp.id)) result.unshift(pp);
           }
@@ -258,16 +275,13 @@ const Community = () => {
       setHasMore(data.length === POSTS_PER_PAGE);
     } catch (err: any) {
       console.error("[Community] fetchPosts failed:", err?.message);
-      // Auto-retry once before showing error
       if (retryCount < 1) {
-        console.log("[Community] Retrying fetch...");
+        fetchingRef.current = false;
         return fetchPosts(loadMore, retryCount + 1);
       }
-      // Fall back to cached posts if available
       if (!loadMore && allPosts.length === 0) {
         const cached = getCachedPosts();
         if (cached && cached.length > 0) {
-          console.log("[Community] Using cached posts as fallback");
           setAllPosts(cached);
         } else {
           setFetchError("Could not load posts. Tap to retry.");
@@ -276,8 +290,9 @@ const Community = () => {
     } finally {
       setLoading(false);
       setLoadingMore(false);
+      fetchingRef.current = false;
     }
-  }, [enrichPosts, allPosts.length]);
+  }, [enrichPosts]);
 
   const fetchLikedPosts = useCallback(async () => {
     const { data } = await supabase
