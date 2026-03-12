@@ -336,31 +336,25 @@ const Community = () => {
   // This prevents firing queries for every post with comments_count > 0 on mount
   const fetchCommentsForPost = useCallback(async (postId: string) => {
     if (comments[postId]) return; // already loaded
+    // Fetch ALL comments for the post (both root and replies) in one query
     const { data } = await supabase
       .from("community_comments")
       .select("*")
       .eq("post_id", postId)
-      .is("parent_comment_id", null) // top-level comments only
       .order("created_at", { ascending: true })
-      .limit(30);
+      .limit(200);
 
     if (data) {
-      // Also load replies for these top-level comments
-      const topIds = data.map(c => c.id);
-      let allComments = data as Comment[];
-
-      if (topIds.length > 0) {
-        const { data: replies } = await supabase
-          .from("community_comments")
-          .select("*")
-          .in("parent_comment_id", topIds)
-          .order("created_at", { ascending: true });
-        if (replies) {
-          allComments = [...allComments, ...(replies as Comment[])];
-        }
-      }
-
-      setComments(prev => ({ ...prev, [postId]: allComments }));
+      const allComments = data as Comment[];
+      setComments(prev => {
+        // Merge with any optimistic comments already in state
+        const existing = prev[postId] || [];
+        const optimistic = existing.filter(c => c.id.startsWith("optimistic-"));
+        const dbIds = new Set(allComments.map(c => c.id));
+        // Keep optimistic comments that haven't been confirmed yet
+        const unconfirmedOptimistic = optimistic.filter(c => !dbIds.has(c.id));
+        return { ...prev, [postId]: [...allComments, ...unconfirmedOptimistic] };
+      });
       // Sync comment count
       setAllPosts(prev => prev.map(p =>
         p.id === postId ? { ...p, comments_count: Math.max(p.comments_count, allComments.length) } : p
