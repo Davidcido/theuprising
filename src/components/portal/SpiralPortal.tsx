@@ -141,7 +141,7 @@ const SpiralPortal = ({ onEnter }: Props) => {
 
   const handleEnter = () => {
     onEnter();
-    navigate("/daily-rise");
+    navigate("/");
   };
 
   return (
