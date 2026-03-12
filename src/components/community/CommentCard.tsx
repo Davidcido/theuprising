@@ -102,9 +102,9 @@ const CommentCard = ({
   const handleReplySubmit = () => {
     if (!replyContent.trim()) return;
     onReply(comment.post_id, replyContent.trim(), comment.id, comment.author_id);
-    setReplyContent("");
-    setReplying(false);
+    setReplyContent(`@${comment.anonymous_name} `);
     setShowReplies(true);
+    // Keep replying=true so user can send multiple replies
   };
 
   const startReply = () => {
