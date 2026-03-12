@@ -19,24 +19,48 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getCompanionAvatar, getCompanionEmoji } from "@/lib/companionAvatars";
 
 const languages = [
   { code: "en", label: "English", speechCode: "en-US" },
-  { code: "pcm", label: "Pidgin", speechCode: "en-NG" },
-  { code: "yo", label: "Yoruba", speechCode: "yo-NG" },
-  { code: "ha", label: "Hausa", speechCode: "ha-NG" },
-  { code: "ig", label: "Igbo", speechCode: "ig-NG" },
+  { code: "pcm", label: "Nigerian Pidgin", speechCode: "en-NG" },
 ];
 
 const modes = [
-  { id: "vent", label: "Vent Mode", desc: "I'll listen more than I speak" },
-  { id: "support", label: "Support Mode", desc: "Emotional guidance & coping tips" },
-  { id: "calm", label: "Calm Mode", desc: "Breathing & grounding exercises" },
+  { id: "vent", label: "Vent Mode", desc: "Speak freely. Your companion listens more than it speaks." },
+  { id: "support", label: "Support Mode", desc: "Emotional support and helpful guidance." },
+  { id: "calm", label: "Calm Mode", desc: "Breathing and grounding exercises." },
+];
+
+type CompanionOption = {
+  id: string;
+  name: string;
+};
+
+const companions: CompanionOption[] = [
+  { id: "atlas", name: "Atlas" },
+  { id: "nova", name: "Nova" },
+  { id: "luna", name: "Luna" },
+  { id: "orion", name: "Orion" },
+  { id: "sage", name: "Sage" },
+  { id: "echo", name: "Echo" },
+  { id: "sol", name: "Sol" },
+  { id: "kai", name: "Kai" },
 ];
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 type TranscriptEntry = { role: "user" | "assistant"; text: string };
+
+const getVoiceCategory = (voiceName: string): string => {
+  const v = voiceName.toLowerCase();
+  if (/narrator|news|david/.test(v)) return "Narrator";
+  if (/story|aria|samantha|daniel/.test(v)) return "Storyteller";
+  if (/calm|soft|serena|siri female/.test(v)) return "Calm Guide";
+  if (/energetic|coach|motiv|guy|jenny/.test(v)) return "Motivational Coach";
+  return "Friendly Companion";
+};
 
 // Strict state machine: IDLE -> LISTENING -> PROCESSING -> SPEAKING -> COOLDOWN -> LISTENING
 type CallPhase = "idle" | "listening" | "processing" | "speaking" | "cooldown";
@@ -55,6 +79,7 @@ const VoiceCompanion = () => {
   const [showTextInput, setShowTextInput] = useState(false);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceUri, setSelectedVoiceUri] = useState<string>("");
+  const [selectedCompanion, setSelectedCompanion] = useState<CompanionOption>(companions[0]);
 
   const phaseRef = useRef<CallPhase>("idle");
   const activeRef = useRef(false);
@@ -69,6 +94,7 @@ const VoiceCompanion = () => {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedLangRef = useRef(selectedLang);
   const selectedModeRef = useRef(selectedMode);
+  const selectedCompanionRef = useRef(selectedCompanion);
 
   const setPhaseSync = useCallback((p: CallPhase) => {
     phaseRef.current = p;
@@ -78,6 +104,7 @@ const VoiceCompanion = () => {
   useEffect(() => { mutedRef.current = muted; }, [muted]);
   useEffect(() => { selectedLangRef.current = selectedLang; }, [selectedLang]);
   useEffect(() => { selectedModeRef.current = selectedMode; }, [selectedMode]);
+  useEffect(() => { selectedCompanionRef.current = selectedCompanion; }, [selectedCompanion]);
 
   useEffect(() => {
     if (transcriptEndRef.current) {
@@ -733,12 +760,13 @@ Never expose the English interpretation to the user — always reply fully in Ha
     await setupAudioAnalyser();
 
     const mode = selectedModeRef.current;
+    const companionName = selectedCompanionRef.current.name;
     const greeting =
       mode === "vent"
-        ? "Hi, this is your Uprising Companion. I'm here to listen. Take your time, and say whatever's on your mind."
+        ? `Hi, this is ${companionName}. I'm here to listen. Take your time, and say whatever's on your mind.`
         : mode === "calm"
-        ? "Hi, this is your Uprising Companion. Let's take a moment to breathe and find some calm together. I'm right here with you."
-        : "Hi, this is your Uprising Companion. I'm here with you. How are you doing today?";
+        ? `Hi, this is ${companionName}. Let's take a moment to breathe and find some calm together. I'm right here with you.`
+        : `Hi, this is ${companionName}. I'm here with you. How are you doing today?`;
 
     setTranscript([{ role: "assistant", text: greeting }]);
     conversationRef.current.push({ role: "assistant", content: greeting });
@@ -831,6 +859,41 @@ Never expose the English interpretation to the user — always reply fully in Ha
   if (!callActive) {
     return (
       <div className="space-y-6 py-2">
+        {/* Companion selection */}
+        <div className="space-y-2">
+          <p className="text-white/70 text-xs font-medium uppercase tracking-wider">
+            Companion
+          </p>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {companions.map((companion) => {
+              const avatar = getCompanionAvatar(companion.name);
+              const isActive = selectedCompanion.id === companion.id;
+              return (
+                <button
+                  key={companion.id}
+                  type="button"
+                  onClick={() => setSelectedCompanion(companion)}
+                  className={`shrink-0 min-w-[88px] px-2 py-2 rounded-xl border transition-all flex flex-col items-center gap-1.5 ${
+                    isActive
+                      ? "border-white/40 bg-white/20"
+                      : "border-white/10 bg-white/5"
+                  }`}
+                >
+                  <Avatar className="h-10 w-10 border border-white/20">
+                    {avatar?.avatarUrl ? (
+                      <AvatarImage src={avatar.avatarUrl} alt={companion.name} />
+                    ) : null}
+                    <AvatarFallback className="text-sm bg-white/10 text-white">
+                      {getCompanionEmoji(companion.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-[11px] text-white/85 font-medium">{companion.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Mode selection */}
         <div className="space-y-2">
           <p className="text-white/70 text-xs font-medium uppercase tracking-wider">
@@ -893,12 +956,14 @@ Never expose the English interpretation to the user — always reply fully in Ha
                   const isMicrosoft = v.name.includes("Microsoft");
                   const isNatural = /natural|neural|premium|enhanced/i.test(v.name);
                   const badge = isGoogle ? "⭐" : isMicrosoft ? "⭐" : isNatural ? "✨" : "";
-                  // Parse language and accent from lang code
+
                   const langParts = v.lang.split("-");
-                  const langName = langParts[0] === "en" ? "English" : langParts[0] === "es" ? "Spanish" : langParts[0] === "fr" ? "French" : langParts[0] === "de" ? "German" : langParts[0];
+                  const langName = langParts[0] === "en" ? "English" : langParts[0];
                   const regionMap: Record<string, string> = { US: "United States", GB: "United Kingdom", AU: "Australia", IN: "India", CA: "Canada", IE: "Ireland", ZA: "South Africa", NZ: "New Zealand", NG: "Nigeria", SG: "Singapore", HK: "Hong Kong" };
                   const accent = regionMap[langParts[1]] || langParts[1] || "";
-                  const displayName = `${v.name} — ${langName}${accent ? ` — ${accent}` : ""}`;
+                  const voiceCategory = getVoiceCategory(v.name);
+                  const displayName = `${voiceCategory} — ${langName}${accent ? ` — ${accent}` : ""}`;
+
                   return (
                     <SelectItem
                       key={v.voiceURI}
@@ -917,6 +982,15 @@ Never expose the English interpretation to the user — always reply fully in Ha
           </div>
         )}
 
+        {/* Daily check-in */}
+        <button
+          type="button"
+          onClick={() => startCall()}
+          className="w-full text-left p-3 rounded-xl backdrop-blur-md border border-white/15 bg-white/5 hover:bg-white/10 transition-colors"
+        >
+          <p className="text-xs text-white/60 uppercase tracking-wider mb-1">Daily Companion Check-In</p>
+          <p className="text-sm text-white/90 font-medium">{selectedCompanion.name} has a reflection for you today.</p>
+        </button>
 
         <motion.button
           whileHover={{ scale: 1.03 }}
@@ -1016,7 +1090,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
         </div>
 
         <p className="text-white font-display font-bold text-lg">
-          Uprising Companion
+          {selectedCompanion.name}
         </p>
         <p className="text-white/50 text-sm">{statusText}</p>
         <p className="text-white/30 text-xs">
