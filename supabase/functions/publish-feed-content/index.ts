@@ -118,10 +118,11 @@ serve(async (req) => {
     // Build video public URLs
     const storageBase = `${supabaseUrl}/storage/v1/object/public/community-media/`;
 
+    // Build video public URLs — use direct CDN links
     let postsCreated = 0;
-    let videoIndex = 0;
+    let videoIndex = Math.floor(Math.random() * FEED_VIDEOS.length); // randomize starting video
 
-    for (let i = 0; i < Math.min(textContent.length, 6); i++) {
+    for (let i = 0; i < Math.min(textContent.length, POST_SCHEDULE.length); i++) {
       const post = textContent[i];
       const schedule = POST_SCHEDULE[i];
       const createdAt = `${targetDate}T${String(schedule.hour).padStart(2, "0")}:00:00+00:00`;
