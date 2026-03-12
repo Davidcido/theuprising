@@ -13,6 +13,7 @@ const ICON_MAP: Record<string, typeof Bell> = {
   message: Mail,
   repost: Repeat2,
   reaction: Sparkles,
+  companion_checkin: Sparkles,
 };
 
 interface NotificationBellProps {
