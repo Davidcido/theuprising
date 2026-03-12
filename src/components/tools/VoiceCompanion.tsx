@@ -213,6 +213,8 @@ const isAllowedVoice = (v: SpeechSynthesisVoice): boolean => {
   if (ALLOWED_VOICES.has(baseName) && v.lang.startsWith("en")) return true;
   // Allow any premium/neural English voices
   if (/natural|neural|premium|enhanced/i.test(v.name) && v.lang.startsWith("en")) return true;
+  // Allow any en-ZA (South African) voice
+  if (v.lang === "en-ZA" || v.lang.startsWith("en-ZA")) return true;
   return false;
 };
 
@@ -220,7 +222,7 @@ const getVoiceCategory = (voiceName: string): string => {
   const v = voiceName.toLowerCase();
   if (/narrator|news|david/.test(v)) return "Clear Narrator";
   if (/story|aria|samantha|daniel/.test(v)) return "Storyteller";
-  if (/calm|soft|serena|siri female|moira|karen/.test(v)) return "Calm Guide";
+  if (/calm|soft|serena|siri female|moira|karen|tessa/.test(v)) return "Calm Guide";
   if (/energetic|coach|motiv|guy|jenny/.test(v)) return "Motivational Coach";
   return "Natural Voice";
 };
@@ -248,7 +250,9 @@ const VoiceCompanion = () => {
   const [textInput, setTextInput] = useState("");
   const [showTextInput, setShowTextInput] = useState(false);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [selectedVoiceUri, setSelectedVoiceUri] = useState<string>("");
+  const [selectedVoiceUri, setSelectedVoiceUri] = useState<string>(() => {
+    try { return localStorage.getItem("uprising_voice_uri") || ""; } catch { return ""; }
+  });
   const [selectedCompanion, setSelectedCompanion] = useState<CompanionOption>(companions[0]);
 
   const phaseRef = useRef<CallPhase>("idle");
@@ -498,14 +502,28 @@ Never expose the English interpretation to the user — always reply fully in Ha
   const voicesLoadedRef = useRef(false);
   const voiceLoadPromiseRef = useRef<Promise<SpeechSynthesisVoice | null> | null>(null);
   const selectedVoiceUriRef = useRef(selectedVoiceUri);
-  useEffect(() => { selectedVoiceUriRef.current = selectedVoiceUri; }, [selectedVoiceUri]);
+  useEffect(() => {
+    selectedVoiceUriRef.current = selectedVoiceUri;
+    try { localStorage.setItem("uprising_voice_uri", selectedVoiceUri); } catch {}
+  }, [selectedVoiceUri]);
 
-  // Filter to only high-quality English voices and sort for display
+  // Filter to only high-quality English voices, deduplicate, and sort for display
   const categorizeVoices = useCallback((voices: SpeechSynthesisVoice[]) => {
     const filtered = voices.filter(v => isAllowedVoice(v) && isStableVoice(v));
-    const scored = filtered.map(v => {
+    
+    // Deduplicate by display name (category + lang + region)
+    const seen = new Map<string, SpeechSynthesisVoice>();
+    for (const v of filtered) {
+      const langParts = v.lang.split("-");
+      const regionMap: Record<string, string> = { US: "United States", GB: "United Kingdom", AU: "Australia", IN: "India", CA: "Canada", IE: "Ireland", ZA: "South Africa", NZ: "New Zealand", NG: "Nigeria", SG: "Singapore", HK: "Hong Kong" };
+      const accent = regionMap[langParts[1]] || langParts[1] || "";
+      const key = `${getVoiceCategory(v.name)}|${accent}`;
+      if (!seen.has(key)) seen.set(key, v);
+    }
+    const unique = Array.from(seen.values());
+    
+    const scored = unique.map(v => {
       let score = 0;
-      // Prioritise Samantha as default
       if (v.name.toLowerCase().startsWith("samantha")) score += 200;
       if (v.name.includes("Google")) score += 100;
       if (v.name.includes("Microsoft")) score += 80;
