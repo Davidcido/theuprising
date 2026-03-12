@@ -128,6 +128,15 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
     );
   }
 
+  // Tap toggles mute; dedicated button opens full-screen
+  const toggleMute = () => {
+    const v = videoRef.current;
+    if (v) {
+      v.muted = !v.muted;
+      setIsMuted(v.muted);
+    }
+  };
+
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartYRef.current = e.touches[0].clientY;
   };
@@ -136,7 +145,7 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
     if (touchStartYRef.current === null) return;
     const delta = Math.abs(e.changedTouches[0].clientY - touchStartYRef.current);
     if (delta < 10) {
-      onTap();
+      toggleMute();
     }
     touchStartYRef.current = null;
   };
@@ -146,9 +155,9 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
       ref={containerRef}
       className={containerClass}
       onClick={(e) => {
-        // Desktop click — mobile handled by touch events
+        // Desktop click — tap to unmute
         if ('ontouchstart' in window) return;
-        onTap();
+        toggleMute();
       }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
@@ -159,11 +168,10 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
         key={retryCount}
         src={url}
         crossOrigin="anonymous"
-        className="w-full rounded-xl"
+        className="w-full h-full rounded-xl"
         style={{
           width: "100%",
-          height: isSingle ? "auto" : "100%",
-          maxHeight: isSingle ? `${MAX_FEED_VIDEO_HEIGHT}px` : undefined,
+          height: "100%",
           objectFit: "cover",
           display: "block",
           touchAction: "pan-y",
@@ -178,26 +186,18 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
         onLoadedMetadata={handleMetadata}
         onError={handleError}
       />
-      {/* Mute/unmute button — tappable */}
+      {/* Mute/unmute indicator */}
       {isPlaying && (
         <button
           className="absolute bottom-2 right-2 p-2 rounded-full bg-black/50 backdrop-blur-sm z-10"
           onClick={(e) => {
             e.stopPropagation();
-            const v = videoRef.current;
-            if (v) {
-              v.muted = !v.muted;
-              setIsMuted(v.muted);
-            }
+            toggleMute();
           }}
           onTouchEnd={(e) => {
             e.stopPropagation();
             e.preventDefault();
-            const v = videoRef.current;
-            if (v) {
-              v.muted = !v.muted;
-              setIsMuted(v.muted);
-            }
+            toggleMute();
           }}
         >
           {isMuted ? (
@@ -205,6 +205,23 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
           ) : (
             <Volume2 className="w-4 h-4 text-white/80" />
           )}
+        </button>
+      )}
+      {/* Expand to full-screen button */}
+      {isPlaying && (
+        <button
+          className="absolute bottom-2 left-2 p-2 rounded-full bg-black/50 backdrop-blur-sm z-10"
+          onClick={(e) => {
+            e.stopPropagation();
+            onTap();
+          }}
+          onTouchEnd={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onTap();
+          }}
+        >
+          <Maximize className="w-4 h-4 text-white/80" />
         </button>
       )}
       {/* Play icon when paused */}
