@@ -253,7 +253,7 @@ const Community = () => {
           }
           return result;
         });
-        setCachedPosts(enriched);
+        feedCache.updateCache(enriched);
       }
       // Only stop loading more when we get fewer results than requested
       setHasMore(data.length >= POSTS_PER_PAGE);
