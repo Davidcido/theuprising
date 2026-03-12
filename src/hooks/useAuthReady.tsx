@@ -23,8 +23,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     // 2. Force-refresh session from server (not just local cache) for PWA reliability
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setState(prev => prev.isReady ? prev : { user: session?.user ?? null, session, isReady: true });
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      // If there's an error or no session, ensure we mark as logged out
+      const user = (!error && session?.user) ? session.user : null;
+      const validSession = user ? session : null;
+      setState(prev => prev.isReady ? prev : { user, session: validSession, isReady: true });
     });
 
     // 3. Safety timeout for Safari edge cases
