@@ -14,7 +14,7 @@ const REASONS = [
 ];
 
 const FEATURES = [
-  { icon: MessageCircle, title: "Start Talking", desc: "Chat with the AI companion and share how you're feeling." },
+  { icon: MessageCircle, title: "Start Talking", desc: "Chat with your companion and share how you're feeling." },
   { icon: Sparkles, title: "Explore Tools", desc: "Access emotional wellness tools and support resources." },
   { icon: Users, title: "Connect with the Community", desc: "Discover and interact with people who are part of the Uprising community." },
   { icon: Pencil, title: "Express Yourself", desc: "Share posts, thoughts, and creativity in a supportive space." },
