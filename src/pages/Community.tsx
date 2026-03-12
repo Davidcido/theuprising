@@ -1557,10 +1557,6 @@ const Community = () => {
                     onDeletePost={handleDeletePost}
                     onEditPost={handleEditPost}
                   />
-                  {/* Prefetch sentinel halfway through the feed */}
-                  {idx === Math.floor(visiblePosts.length / 2) && (
-                    <div ref={prefetchSentinelRef} aria-hidden />
-                  )}
                 </PostViewObserver>
               ))}
             </AnimatePresence>
