@@ -41,8 +41,12 @@ const FEED_TABS: { key: FeedTab; label: string; icon: typeof Sparkles }[] = [
 ];
 
 const POSTS_PER_PAGE = 15;
-const PREFETCH_BATCH = 15;
 const SCROLL_DEBOUNCE_MS = 300;
+
+type PaginationCursor = {
+  createdAt: string;
+  id: string;
+};
 
 const getSessionId = () => {
   let id = localStorage.getItem("uprising_session_id");
@@ -89,12 +93,12 @@ const Community = () => {
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const prefetchSentinelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  // Cursor for pagination — stores created_at of the last loaded post
-  const cursorRef = useRef<string | null>(null);
-  const prefetchCacheRef = useRef<Post[]>([]);
+  // Cursor for pagination — stores created_at + id of the last loaded post
+  const cursorRef = useRef<PaginationCursor | null>(null);
   const fetchingRef = useRef(false);
+  const [isFetchingPosts, setIsFetchingPosts] = useState(false);
+  const lastCursorLogRef = useRef<string | null>(null);
 
   const { isBookmarked, toggleBookmark } = useBookmarks(currentUser?.id);
   const { saveDraft } = useDrafts(currentUser?.id);
@@ -155,120 +159,139 @@ const Community = () => {
   }, []);
 
   const fetchPosts = useCallback(async (loadMore = false, retryCount = 0) => {
-    if (fetchingRef.current) return;
+    if (fetchingRef.current || isFetchingPosts) {
+      console.log("[Community][feed] fetch skipped (lock active)", {
+        loadMore,
+        isFetchingPosts,
+      });
+      return;
+    }
+
     fetchingRef.current = true;
+    setIsFetchingPosts(true);
     if (loadMore) setLoadingMore(true);
     setFetchError(null);
+
+    console.log("[Community][feed] fetch start", {
+      mode: loadMore ? "scroll" : "initial",
+      cursor: cursorRef.current,
+    });
 
     try {
       let query = supabase
         .from("community_posts")
         .select("id, content, anonymous_name, author_id, is_anonymous, likes_count, comments_count, shares_count, views_count, created_at, media_urls, original_post_id, reposted_by_name, engagement_score")
         .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
         .limit(POSTS_PER_PAGE);
 
-      // Cursor-based pagination: use created_at of last post
       if (loadMore && cursorRef.current) {
-        query = query.lt("created_at", cursorRef.current);
+        const { createdAt, id } = cursorRef.current;
+        query = query.or(`created_at.lt.${createdAt},and(created_at.eq.${createdAt},id.lt.${id})`);
       }
 
-      console.log("[Community] Fetching posts, cursor:", loadMore ? cursorRef.current : "initial");
       const { data, error } = await query;
+      if (error) throw error;
 
-      if (error) {
-        console.error("[Community] Supabase query error:", error.message);
-        throw error;
+      const rows = data || [];
+      console.log("[Community][feed] fetch end", {
+        mode: loadMore ? "scroll" : "initial",
+        count: rows.length,
+      });
+
+      if (rows.length === 0) {
+        setHasMore(false);
+        return;
       }
-      if (!data) throw new Error("No data");
-      console.log("[Community] Fetched", data.length, "posts");
 
-      // Update cursor to last post's created_at
-      if (data.length > 0) {
-        cursorRef.current = data[data.length - 1].created_at;
+      setHasMore(true);
+      const last = rows[rows.length - 1] as { created_at: string; id: string };
+      const nextCursor: PaginationCursor = {
+        createdAt: new Date(last.created_at).toISOString(),
+        id: String(last.id),
+      };
+      cursorRef.current = nextCursor;
+      const cursorKey = `${nextCursor.createdAt}|${nextCursor.id}`;
+      if (lastCursorLogRef.current !== cursorKey) {
+        console.log("[Community][feed] cursor updated", nextCursor);
+        lastCursorLogRef.current = cursorKey;
       }
 
-      const enriched = await enrichPosts(data);
+      const enriched = await enrichPosts(rows);
+
       if (loadMore) {
         setAllPosts(prev => {
           const existingIds = new Set(prev.map(p => p.id));
           const newPosts = enriched.filter(p => !existingIds.has(p.id));
           return [...prev, ...newPosts];
         });
-      } else {
-        // Reset cursor for fresh load
-        if (data.length > 0) {
-          cursorRef.current = data[data.length - 1].created_at;
-        } else {
-          cursorRef.current = null;
-        }
+        return;
+      }
 
-        let directRepostPosts: Post[] = [];
-        try {
-          const { data: reposts } = await supabase
-            .from("community_reposts")
-            .select("*")
-            .is("quote_content", null)
-            .order("created_at", { ascending: false })
-            .limit(50);
+      let directRepostPosts: Post[] = [];
+      try {
+        const { data: reposts } = await supabase
+          .from("community_reposts")
+          .select("*")
+          .is("quote_content", null)
+          .order("created_at", { ascending: false })
+          .limit(50);
 
-          if (reposts && reposts.length > 0) {
-            const postsMap: Record<string, any> = {};
-            for (const p of enriched) postsMap[p.id] = p;
-            const reposterIds = [...new Set(reposts.map(r => r.user_id))];
-            let reposterProfiles: Record<string, string> = {};
-            if (reposterIds.length > 0) {
-              const { data: rProfiles } = await supabase
-                .from("profiles")
-                .select("user_id, display_name")
-                .in("user_id", reposterIds);
-              if (rProfiles) {
-                for (const rp of rProfiles) reposterProfiles[rp.user_id] = rp.display_name || "Someone";
-              }
-            }
-            for (const r of reposts) {
-              const original = postsMap[r.original_post_id];
-              if (original) {
-                directRepostPosts.push({
-                  ...original,
-                  id: `repost-${r.id}`,
-                  created_at: r.created_at,
-                  reposted_by_name: reposterProfiles[r.user_id] || "Someone",
-                });
-              }
+        if (reposts && reposts.length > 0) {
+          const postsMap: Record<string, any> = {};
+          for (const p of enriched) postsMap[p.id] = p;
+          const reposterIds = [...new Set(reposts.map(r => r.user_id))];
+          let reposterProfiles: Record<string, string> = {};
+          if (reposterIds.length > 0) {
+            const { data: rProfiles } = await supabase
+              .from("profiles")
+              .select("user_id, display_name")
+              .in("user_id", reposterIds);
+            if (rProfiles) {
+              for (const rp of rProfiles) reposterProfiles[rp.user_id] = rp.display_name || "Someone";
             }
           }
-        } catch {
-          // Reposts failed — still show main posts
-        }
-        const merged = [...enriched, ...directRepostPosts];
-        // Preserve posts with active pending media uploads
-        setAllPosts(prev => {
-          const pendingPosts = prev.filter(p => p._pendingMedia && p._pendingMedia.length > 0);
-          const mergedIds = new Set(merged.map(p => p.id));
-          const result = merged.map(p => {
-            const pending = pendingPosts.find(pp => pp.id === p.id);
-            if (pending) {
-              return { ...p, _pendingMedia: pending._pendingMedia, _onCancelUpload: pending._onCancelUpload, _onRetryUpload: pending._onRetryUpload };
+          for (const r of reposts) {
+            const original = postsMap[r.original_post_id];
+            if (original) {
+              directRepostPosts.push({
+                ...original,
+                id: `repost-${r.id}`,
+                created_at: r.created_at,
+                reposted_by_name: reposterProfiles[r.user_id] || "Someone",
+                original_post: original,
+                source_post_id: original.id,
+              } as Post);
             }
-            return p;
-          });
-          for (const pp of pendingPosts) {
-            if (!mergedIds.has(pp.id)) result.unshift(pp);
           }
-          return result;
+        }
+      } catch {
+        // Reposts failed — still show main posts
+      }
+
+      const merged = [...enriched, ...directRepostPosts];
+      setAllPosts(prev => {
+        const pendingPosts = prev.filter(p => p._pendingMedia && p._pendingMedia.length > 0);
+        const mergedIds = new Set(merged.map(p => p.id));
+        const result = merged.map(p => {
+          const pending = pendingPosts.find(pp => pp.id === p.id);
+          if (pending) {
+            return { ...p, _pendingMedia: pending._pendingMedia, _onCancelUpload: pending._onCancelUpload, _onRetryUpload: pending._onRetryUpload };
+          }
+          return p;
         });
-        feedCache.updateCache(enriched);
-      }
-      // Only stop pagination when DB returns zero posts
-      if (data.length === 0) {
-        setHasMore(false);
-      } else {
-        setHasMore(true);
-      }
+        for (const pp of pendingPosts) {
+          if (!mergedIds.has(pp.id)) result.unshift(pp);
+        }
+        return result;
+      });
+
+      feedCache.updateCache(enriched);
     } catch (err: any) {
-      console.error("[Community] fetchPosts failed:", err?.message);
+      console.error("[Community][feed] fetch failed", err?.message || err);
       if (retryCount < 1) {
         fetchingRef.current = false;
+        setIsFetchingPosts(false);
         return fetchPosts(loadMore, retryCount + 1);
       }
       if (!loadMore && allPosts.length === 0) {
@@ -283,8 +306,12 @@ const Community = () => {
       setLoading(false);
       setLoadingMore(false);
       fetchingRef.current = false;
+      setIsFetchingPosts(false);
+      console.log("[Community][feed] fetch lock released", {
+        mode: loadMore ? "scroll" : "initial",
+      });
     }
-  }, [enrichPosts]);
+  }, [allPosts.length, enrichPosts, feedCache, isFetchingPosts]);
 
   const fetchLikedPosts = useCallback(async () => {
     const { data } = await supabase
@@ -337,38 +364,52 @@ const Community = () => {
     if (allPosts.length > 0) fetchReactions();
   }, [allPosts.length]);
 
-  // Lazy comment loading: only fetch comments when a post's comment section is expanded
-  // This prevents firing queries for every post with comments_count > 0 on mount
-  const fetchCommentsForPost = useCallback(async (postId: string) => {
-    if (!postId || postId.startsWith("optimistic-")) return;
+  const resolveCommentTargetPostId = useCallback((uiPostId: string) => {
+    const post = allPosts.find(p => p.id === uiPostId);
+    if (!post) return uiPostId;
+    if (!uiPostId.startsWith("repost-")) return uiPostId;
+    return ((post as Post & { source_post_id?: string }).source_post_id || post.original_post?.id || post.original_post_id || uiPostId);
+  }, [allPosts]);
 
-    // If we have cached comments, show them immediately
-    const cached = comments[postId];
+  // Lazy comment loading: fetch comments only when a thread is expanded.
+  const fetchCommentsForPost = useCallback(async (uiPostId: string, targetPostId?: string) => {
+    const queryPostId = targetPostId || uiPostId;
+    if (!uiPostId || !queryPostId || uiPostId.startsWith("optimistic-") || queryPostId.startsWith("optimistic-")) return;
 
-    // Always fetch fresh from DB (cache-then-refresh)
-    const { data } = await supabase
+    console.log("[Community][comments] fetch start", {
+      uiPostId,
+      queryPostId,
+      cachedCount: (comments[uiPostId] || []).length,
+    });
+
+    const { data, error } = await supabase
       .from("community_comments")
       .select("*")
-      .eq("post_id", postId)
+      .eq("post_id", queryPostId)
       .order("created_at", { ascending: true })
       .limit(200);
 
-    if (data) {
-      const allComments = data as Comment[];
-      setComments(prev => {
-        // Merge with any optimistic comments already in state
-        const existing = prev[postId] || [];
-        const optimistic = existing.filter(c => c.id.startsWith("optimistic-"));
-        const dbIds = new Set(allComments.map(c => c.id));
-        // Keep optimistic comments that haven't been confirmed yet
-        const unconfirmedOptimistic = optimistic.filter(c => !dbIds.has(c.id));
-        return { ...prev, [postId]: [...allComments, ...unconfirmedOptimistic] };
-      });
-      // Sync comment count
-      setAllPosts(prev => prev.map(p =>
-        p.id === postId ? { ...p, comments_count: Math.max(p.comments_count, allComments.length) } : p
-      ));
+    if (error) {
+      console.error("[Community][comments] fetch failed", { uiPostId, queryPostId, error: error.message });
+      return;
     }
+
+    const dbComments = (data || []) as Comment[];
+    setComments(prev => {
+      const existing = prev[uiPostId] || [];
+      const optimistic = existing.filter(c => c.id.startsWith("optimistic-"));
+      const merged = [...dbComments, ...optimistic];
+      const deduped = Array.from(new Map(merged.map(c => [c.id, c])).values());
+      return { ...prev, [uiPostId]: deduped };
+    });
+
+    setAllPosts(prev => prev.map(p =>
+      p.id === uiPostId || p.id === queryPostId
+        ? { ...p, comments_count: Math.max(p.comments_count, dbComments.length) }
+        : p
+    ));
+
+    console.log("[Community][comments] fetch end", { uiPostId, queryPostId, count: dbComments.length });
   }, [comments]);
 
   // Load comment reactions when comments are expanded
@@ -494,97 +535,42 @@ const Community = () => {
     };
   }, [authReady]);
 
-  // Prefetch next batch in background when user scrolls halfway
-  const prefetchTriggered = useRef(false);
-  useEffect(() => {
-    if (!hasMore || loadingMore || fetchingRef.current) return;
-    prefetchTriggered.current = false;
-  }, [allPosts.length]);
-
-  // Background prefetch — loads next PREFETCH_BATCH posts into cache before user reaches bottom
-  // Uses a separate cursor to avoid conflicting with main pagination
-  const prefetchCursorRef = useRef<string | null>(null);
-  const prefetchNextBatch = useCallback(async () => {
-    if (prefetchTriggered.current || !hasMore || fetchingRef.current) return;
-    prefetchTriggered.current = true;
-    
-    // Use the main cursor as prefetch starting point
-    const prefetchCursor = cursorRef.current;
-    if (!prefetchCursor) return;
-    
-    try {
-      const { data } = await supabase
-        .from("community_posts")
-        .select("id, content, anonymous_name, author_id, is_anonymous, likes_count, comments_count, shares_count, views_count, created_at, media_urls, original_post_id, reposted_by_name, engagement_score")
-        .order("created_at", { ascending: false })
-        .lt("created_at", prefetchCursor)
-        .limit(PREFETCH_BATCH);
-
-      if (data && data.length > 0) {
-        const enriched = await enrichPosts(data);
-        prefetchCacheRef.current = enriched;
-        // Store the cursor for when this batch gets consumed
-        prefetchCursorRef.current = data[data.length - 1].created_at;
-      }
-    } catch {}
-  }, [hasMore, enrichPosts]);
-
-  // Prefetch sentinel — halfway through feed triggers background prefetch
-  useEffect(() => {
-    const sentinel = prefetchSentinelRef.current;
-    if (!sentinel) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && hasMore && !fetchingRef.current && activeTab === "foryou") {
-          prefetchNextBatch();
-        }
-      },
-      { rootMargin: "200px" }
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [hasMore, prefetchNextBatch, activeTab]);
-
-  // Bottom sentinel — triggers actual load with debounce (uses prefetched data if available)
   const scrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastScrollTriggerRef = useRef(0);
+
+  const scheduleLoadMore = useCallback((reason: string) => {
+    if (activeTab !== "foryou" || !hasMore) return;
+    if (scrollDebounceRef.current) return;
+
+    const elapsed = Date.now() - lastScrollTriggerRef.current;
+    const delay = elapsed >= SCROLL_DEBOUNCE_MS ? 0 : SCROLL_DEBOUNCE_MS - elapsed;
+
+    scrollDebounceRef.current = setTimeout(() => {
+      scrollDebounceRef.current = null;
+      if (activeTab !== "foryou" || !hasMore) return;
+      if (fetchingRef.current || isFetchingPosts || loadingMore) {
+        console.log("[Community][feed] load-more blocked", { reason, isFetchingPosts, loadingMore });
+        return;
+      }
+      lastScrollTriggerRef.current = Date.now();
+      console.log("[Community][feed] load-more trigger", { reason, cursor: cursorRef.current });
+      fetchPosts(true);
+    }, delay);
+  }, [activeTab, fetchPosts, hasMore, isFetchingPosts, loadingMore]);
+
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
+
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && hasMore && !loadingMore && !fetchingRef.current && activeTab === "foryou") {
-          // Debounce: only fire once per SCROLL_DEBOUNCE_MS
-          if (scrollDebounceRef.current) return;
-          scrollDebounceRef.current = setTimeout(() => {
-            scrollDebounceRef.current = null;
-            if (fetchingRef.current || loadingMore) return; // re-check after debounce
-
-            if (prefetchCacheRef.current.length > 0) {
-              // Use prefetched data instantly
-              const prefetched = prefetchCacheRef.current;
-              prefetchCacheRef.current = [];
-              if (prefetchCursorRef.current) {
-                cursorRef.current = prefetchCursorRef.current;
-                prefetchCursorRef.current = null;
-              }
-              setAllPosts(prev => {
-                const existingIds = new Set(prev.map(p => p.id));
-                const newPosts = prefetched.filter(p => !existingIds.has(p.id));
-                return [...prev, ...newPosts];
-              });
-              // Only mark finished if prefetch returned zero; otherwise keep paginating
-              if (prefetched.length === 0) {
-                setHasMore(false);
-              }
-              prefetchTriggered.current = false;
-            } else {
-              fetchPosts(true);
-            }
-          }, SCROLL_DEBOUNCE_MS);
+        if (entry.isIntersecting) {
+          scheduleLoadMore("sentinel-intersect");
         }
       },
       { rootMargin: "600px" }
     );
+
     observer.observe(sentinel);
     return () => {
       observer.disconnect();
@@ -593,7 +579,18 @@ const Community = () => {
         scrollDebounceRef.current = null;
       }
     };
-  }, [hasMore, loadingMore, fetchPosts, activeTab]);
+  }, [scheduleLoadMore]);
+
+  // If the sentinel is still visible after append, keep paginating until DB is exhausted.
+  useEffect(() => {
+    if (activeTab !== "foryou" || !hasMore || loadingMore || fetchingRef.current || isFetchingPosts) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const rect = sentinel.getBoundingClientRect();
+    if (rect.top <= window.innerHeight + 600) {
+      scheduleLoadMore("catch-up-after-append");
+    }
+  }, [activeTab, allPosts.length, hasMore, isFetchingPosts, loadingMore, scheduleLoadMore]);
 
   // Update cache whenever posts change
   useEffect(() => {
@@ -644,7 +641,8 @@ const Community = () => {
     setHasMore(true);
     setNewPostsAvailable(0);
     cursorRef.current = null;
-    prefetchCacheRef.current = [];
+    lastCursorLogRef.current = null;
+    console.log("[Community][feed] manual refresh");
     await fetchPosts(false);
     setRefreshing(false);
   };
@@ -1044,23 +1042,28 @@ const Community = () => {
   };
 
   const toggleComments = async (postId: string) => {
+    if (!postId) return;
     const isExpanded = expandedComments.has(postId);
     if (isExpanded) {
       setExpandedComments((prev) => { const n = new Set(prev); n.delete(postId); return n; });
-    } else {
-      setExpandedComments((prev) => new Set(prev).add(postId));
-      // Lazy-load comments only when expanded
-      await fetchCommentsForPost(postId);
+      return;
     }
+
+    setExpandedComments((prev) => new Set(prev).add(postId));
+    const targetPostId = resolveCommentTargetPostId(postId);
+    console.log("[Community][comments] thread opened", { postId, targetPostId });
+    await fetchCommentsForPost(postId, targetPostId);
   };
 
   const addComment = async (postId: string) => {
     const text = commentInputs[postId]?.trim();
     if (!text) return;
+    const targetPostId = resolveCommentTargetPostId(postId);
+    if (!targetPostId) return;
     const commentName = currentUser ? currentUser.displayName : sessionId;
     const post = allPosts.find(p => p.id === postId);
     const insertData: any = {
-      post_id: postId,
+      post_id: targetPostId,
       content: text.slice(0, 5000),
       anonymous_name: commentName,
     };
@@ -1096,11 +1099,11 @@ const Community = () => {
           c.id === optimisticId ? { ...c, id: insertedComment.id } : c
         ),
       }));
-      await supabase.rpc("increment_comments", { post_id_input: postId });
+      await supabase.rpc("increment_comments", { post_id_input: targetPostId });
       if (currentUser && post?.author_id && post.author_id !== currentUser.id) {
-        createNotification(post.author_id, currentUser.id, "comment", "commented on your post", postId);
+        createNotification(post.author_id, currentUser.id, "comment", "commented on your post", targetPostId);
       }
-      triggerCompanionReply(postId, insertedComment.id, text);
+      triggerCompanionReply(targetPostId, insertedComment.id, text);
     } else {
       // Rollback optimistic
       setComments(prev => ({
@@ -1573,10 +1576,6 @@ const Community = () => {
                     onDeletePost={handleDeletePost}
                     onEditPost={handleEditPost}
                   />
-                  {/* Prefetch sentinel halfway through the feed */}
-                  {idx === Math.floor(visiblePosts.length / 2) && (
-                    <div ref={prefetchSentinelRef} aria-hidden />
-                  )}
                 </PostViewObserver>
               ))}
             </AnimatePresence>

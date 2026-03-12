@@ -101,9 +101,11 @@ const CommentCard = ({
 
   const handleReplySubmit = () => {
     if (!replyContent.trim()) return;
+    console.log("[CommentCard][reply] submit", { commentId: comment.id, parentCommentId: comment.id });
     onReply(comment.post_id, replyContent.trim(), comment.id, comment.author_id);
     setReplyContent(`@${comment.anonymous_name} `);
     setShowReplies(true);
+    console.log("[CommentCard][reply] input reset", { commentId: comment.id });
     // Keep replying=true so user can send multiple replies
   };
 
