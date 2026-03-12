@@ -873,14 +873,13 @@ const Community = () => {
       setExpandedComments((prev) => { const n = new Set(prev); n.delete(postId); return n; });
     } else {
       setExpandedComments((prev) => new Set(prev).add(postId));
-      if (!comments[postId]) {
-        const { data } = await supabase
-          .from("community_comments")
-          .select("*")
-          .eq("post_id", postId)
-          .order("created_at", { ascending: true });
-        if (data) setComments((prev) => ({ ...prev, [postId]: data as Comment[] }));
-      }
+      // Always fetch comments to ensure sync with DB count
+      const { data } = await supabase
+        .from("community_comments")
+        .select("*")
+        .eq("post_id", postId)
+        .order("created_at", { ascending: true });
+      if (data) setComments((prev) => ({ ...prev, [postId]: data as Comment[] }));
     }
   };
 

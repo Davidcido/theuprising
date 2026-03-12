@@ -431,9 +431,9 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
           )}
         </AnimatePresence>
 
-        {/* Close button always visible on error */}
-        {showError && (
-          <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors z-10">
+        {/* Close button always visible */}
+        {(!showControls || showError) && (
+          <button onClick={onClose} className="absolute top-4 left-4 p-2 rounded-full bg-black/40 hover:bg-white/20 transition-colors z-10">
             <X className="w-5 h-5 text-white" />
           </button>
         )}
