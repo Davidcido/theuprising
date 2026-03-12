@@ -1058,10 +1058,12 @@ const Community = () => {
   const addComment = async (postId: string) => {
     const text = commentInputs[postId]?.trim();
     if (!text) return;
+    const targetPostId = resolveCommentTargetPostId(postId);
+    if (!targetPostId) return;
     const commentName = currentUser ? currentUser.displayName : sessionId;
     const post = allPosts.find(p => p.id === postId);
     const insertData: any = {
-      post_id: postId,
+      post_id: targetPostId,
       content: text.slice(0, 5000),
       anonymous_name: commentName,
     };
