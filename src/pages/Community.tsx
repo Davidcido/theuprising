@@ -264,7 +264,7 @@ const Community = () => {
         return fetchPosts(loadMore, retryCount + 1);
       }
       if (!loadMore && allPosts.length === 0) {
-        const cached = getCachedPosts();
+        const cached = feedCache.getCached();
         if (cached && cached.length > 0) {
           setAllPosts(cached);
         } else {
