@@ -40,8 +40,9 @@ const FEED_TABS: { key: FeedTab; label: string; icon: typeof Sparkles }[] = [
   { key: "trending", label: "Trending", icon: TrendingUp },
 ];
 
-const POSTS_PER_PAGE = 40;
-const PREFETCH_BATCH = 40;
+const POSTS_PER_PAGE = 15;
+const PREFETCH_BATCH = 15;
+const SCROLL_DEBOUNCE_MS = 300;
 
 const getSessionId = () => {
   let id = localStorage.getItem("uprising_session_id");
@@ -335,8 +336,12 @@ const Community = () => {
   // Lazy comment loading: only fetch comments when a post's comment section is expanded
   // This prevents firing queries for every post with comments_count > 0 on mount
   const fetchCommentsForPost = useCallback(async (postId: string) => {
-    if (comments[postId]) return; // already loaded
-    // Fetch ALL comments for the post (both root and replies) in one query
+    if (!postId || postId.startsWith("optimistic-")) return;
+
+    // If we have cached comments, show them immediately
+    const cached = comments[postId];
+
+    // Always fetch fresh from DB (cache-then-refresh)
     const { data } = await supabase
       .from("community_comments")
       .select("*")
@@ -548,38 +553,51 @@ const Community = () => {
     return () => observer.disconnect();
   }, [hasMore, prefetchNextBatch, activeTab]);
 
-  // Bottom sentinel — triggers actual load (uses prefetched data if available)
+  // Bottom sentinel — triggers actual load with debounce (uses prefetched data if available)
+  const scrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting && hasMore && !loadingMore && !fetchingRef.current && activeTab === "foryou") {
-          if (prefetchCacheRef.current.length > 0) {
-            // Use prefetched data instantly
-            const prefetched = prefetchCacheRef.current;
-            prefetchCacheRef.current = [];
-            // Update main cursor from prefetch cursor
-            if (prefetchCursorRef.current) {
-              cursorRef.current = prefetchCursorRef.current;
-              prefetchCursorRef.current = null;
+          // Debounce: only fire once per SCROLL_DEBOUNCE_MS
+          if (scrollDebounceRef.current) return;
+          scrollDebounceRef.current = setTimeout(() => {
+            scrollDebounceRef.current = null;
+            if (fetchingRef.current || loadingMore) return; // re-check after debounce
+
+            if (prefetchCacheRef.current.length > 0) {
+              // Use prefetched data instantly
+              const prefetched = prefetchCacheRef.current;
+              prefetchCacheRef.current = [];
+              if (prefetchCursorRef.current) {
+                cursorRef.current = prefetchCursorRef.current;
+                prefetchCursorRef.current = null;
+              }
+              setAllPosts(prev => {
+                const existingIds = new Set(prev.map(p => p.id));
+                const newPosts = prefetched.filter(p => !existingIds.has(p.id));
+                return [...prev, ...newPosts];
+              });
+              setHasMore(prefetched.length >= PREFETCH_BATCH);
+              prefetchTriggered.current = false;
+            } else {
+              fetchPosts(true);
             }
-            setAllPosts(prev => {
-              const existingIds = new Set(prev.map(p => p.id));
-              const newPosts = prefetched.filter(p => !existingIds.has(p.id));
-              return [...prev, ...newPosts];
-            });
-            setHasMore(prefetched.length >= PREFETCH_BATCH);
-            prefetchTriggered.current = false;
-          } else {
-            fetchPosts(true);
-          }
+          }, SCROLL_DEBOUNCE_MS);
         }
       },
-      { rootMargin: "800px" }
+      { rootMargin: "600px" }
     );
     observer.observe(sentinel);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (scrollDebounceRef.current) {
+        clearTimeout(scrollDebounceRef.current);
+        scrollDebounceRef.current = null;
+      }
+    };
   }, [hasMore, loadingMore, fetchPosts, activeTab]);
 
   // Update cache whenever posts change
