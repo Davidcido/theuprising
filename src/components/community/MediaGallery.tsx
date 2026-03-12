@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { X, Play, ChevronLeft, ChevronRight, VolumeX, Volume2, AlertCircle, RefreshCw } from "lucide-react";
+import { X, Play, ChevronLeft, ChevronRight, VolumeX, Volume2, AlertCircle, RefreshCw, Maximize } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import VideoPlayer from "./VideoPlayer";
 
