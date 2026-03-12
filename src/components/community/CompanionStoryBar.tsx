@@ -130,7 +130,7 @@ const CompanionStoryBar = () => {
     } catch { return new Set(); }
   });
 
-  const LOW_DEFAULT_VOLUME = 0.25;
+  const LOW_DEFAULT_VOLUME = 0.35;
 
   // Build stories with unique scenes per frame and reduced cross-persona repetition
   useEffect(() => {
