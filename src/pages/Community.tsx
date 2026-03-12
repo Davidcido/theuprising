@@ -41,8 +41,12 @@ const FEED_TABS: { key: FeedTab; label: string; icon: typeof Sparkles }[] = [
 ];
 
 const POSTS_PER_PAGE = 15;
-const PREFETCH_BATCH = 15;
 const SCROLL_DEBOUNCE_MS = 300;
+
+type PaginationCursor = {
+  createdAt: string;
+  id: string;
+};
 
 const getSessionId = () => {
   let id = localStorage.getItem("uprising_session_id");
