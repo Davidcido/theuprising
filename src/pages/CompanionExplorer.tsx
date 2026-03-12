@@ -58,11 +58,14 @@ const CompanionExplorer = () => {
                     >
                       <img src={p.avatar_image} alt={p.name} className="w-full h-full object-cover" />
                     </div>
-                    <p className="text-sm font-semibold text-foreground flex items-center gap-1">
-                      {p.avatar_emoji} {p.name}
+                    <p className="text-sm font-semibold text-foreground">
+                      {p.name}
                     </p>
-                    <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2 leading-tight">
-                      {p.description}
+                    <p className="text-[11px] font-medium mt-0.5" style={{ color: p.color }}>
+                      {p.roleTitle}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-1 leading-tight italic">
+                      "{p.tagline}"
                     </p>
                   </motion.button>
                 ))}
