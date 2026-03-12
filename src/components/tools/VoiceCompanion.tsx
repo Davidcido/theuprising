@@ -222,7 +222,7 @@ const getVoiceCategory = (voiceName: string): string => {
   const v = voiceName.toLowerCase();
   if (/narrator|news|david/.test(v)) return "Clear Narrator";
   if (/story|aria|samantha|daniel/.test(v)) return "Storyteller";
-  if (/calm|soft|serena|siri female|moira|karen/.test(v)) return "Calm Guide";
+  if (/calm|soft|serena|siri female|moira|karen|tessa/.test(v)) return "Calm Guide";
   if (/energetic|coach|motiv|guy|jenny/.test(v)) return "Motivational Coach";
   return "Natural Voice";
 };
