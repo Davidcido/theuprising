@@ -13,6 +13,7 @@ const ICON_MAP: Record<string, typeof Bell> = {
   message: Mail,
   repost: Repeat2,
   reaction: Sparkles,
+  companion_checkin: Sparkles,
 };
 
 interface NotificationBellProps {
@@ -28,7 +29,9 @@ const NotificationBell = ({ userId }: NotificationBellProps) => {
   const handleNotificationClick = (n: any) => {
     if (!n.read) markAsRead(n.id);
     // Navigate based on notification type
-    if (n.type === "follow" && n.actor_id) {
+    if (n.type === "companion_checkin") {
+      navigate("/tools");
+    } else if (n.type === "follow" && n.actor_id) {
       navigate(`/profile/${n.actor_id}`);
     } else if ((n.type === "like" || n.type === "comment" || n.type === "reaction") && n.reference_id) {
       navigate("/community");
@@ -102,10 +105,21 @@ const NotificationBell = ({ userId }: NotificationBellProps) => {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-white/90">
-                          <span className="font-semibold">
-                            {n.actor_profile?.display_name || "Someone"}
-                          </span>{" "}
-                          {n.content}
+                          {n.type === "companion_checkin" ? (
+                            <>
+                              <span className="font-semibold">
+                                {n.reference_id ? n.reference_id.charAt(0).toUpperCase() + n.reference_id.slice(1) : "Companion"}
+                              </span>{" "}
+                              {n.content}
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-semibold">
+                                {n.actor_profile?.display_name || "Someone"}
+                              </span>{" "}
+                              {n.content}
+                            </>
+                          )}
                         </p>
                         <p className="text-xs text-white/40 mt-0.5">
                           {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}

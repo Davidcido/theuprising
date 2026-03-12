@@ -37,12 +37,18 @@ const modes = [
 type CompanionOption = {
   id: string;
   name: string;
+  roleTitle: string;
+  tagline: string;
+  color: string;
 };
 
 // Sync companions from the official builtin personas
 const companions: CompanionOption[] = BUILTIN_PERSONAS.map(p => ({
   id: p.id,
   name: p.name,
+  roleTitle: p.roleTitle,
+  tagline: p.tagline,
+  color: p.color,
 }));
 
 // Per-companion voice personality: system prompt, speech params, and greetings
@@ -1064,7 +1070,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
                   key={companion.id}
                   type="button"
                   onClick={() => setSelectedCompanion(companion)}
-                  className={`shrink-0 min-w-[88px] px-2 py-2 rounded-xl border transition-all flex flex-col items-center gap-1.5 ${
+                  className={`shrink-0 min-w-[92px] px-2 py-2.5 rounded-xl border transition-all flex flex-col items-center gap-1 ${
                     isActive
                       ? "border-white/40 bg-white/20"
                       : "border-white/10 bg-white/5"
@@ -1079,6 +1085,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
                     </AvatarFallback>
                   </Avatar>
                   <span className="text-[11px] text-white/85 font-medium">{companion.name}</span>
+                  <span className="text-[9px] font-medium" style={{ color: companion.color }}>{companion.roleTitle}</span>
                 </button>
               );
             })}
