@@ -130,6 +130,28 @@ const formatCount = (n: number) => {
   return String(n);
 };
 
+const MAX_CAPTION_LENGTH = 150;
+
+const ContentWithReadMore = ({ content, hasMedia }: { content: string; hasMedia: boolean }) => {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = content.length > MAX_CAPTION_LENGTH;
+  const displayText = !expanded && isLong ? content.slice(0, MAX_CAPTION_LENGTH) + "…" : content;
+
+  return (
+    <div className={`text-foreground/90 text-sm leading-relaxed mb-3 whitespace-pre-wrap break-words ${hasMedia ? "line-clamp-none" : ""}`}>
+      <HashtagText content={displayText} />
+      {isLong && !expanded && (
+        <button
+          onClick={() => setExpanded(true)}
+          className="text-emerald-400/80 hover:text-emerald-400 text-xs ml-1 font-medium"
+        >
+          Read more
+        </button>
+      )}
+    </div>
+  );
+};
+
 const PostCard = ({
   post, isLiked, isExpanded, postComments, reactionCounts, myReactions,
   commentInput, currentUserId, currentUserName, communityOpen, reportMenuPost,
@@ -376,7 +398,7 @@ const PostCard = ({
             </div>
           </div>
         ) : (
-          <div className="text-foreground/90 text-sm leading-relaxed mb-3 whitespace-pre-wrap break-words"><HashtagText content={post.content} /></div>
+          <ContentWithReadMore content={post.content} hasMedia={!!hasMedia} />
         )}
         </div>
 

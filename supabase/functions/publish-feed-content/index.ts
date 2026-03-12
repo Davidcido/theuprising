@@ -29,11 +29,11 @@ const FEED_VIDEOS = [
 ];
 
 const POST_SCHEDULE = [
-  { slot: "morning", hour: 7, mediaType: "video" as const },
+  { slot: "morning", hour: 7, mediaType: "image" as const },
   { slot: "late_morning", hour: 10, mediaType: "video" as const },
   { slot: "afternoon", hour: 13, mediaType: "image" as const },
   { slot: "late_afternoon", hour: 16, mediaType: "video" as const },
-  { slot: "evening", hour: 19, mediaType: "video" as const },
+  { slot: "evening", hour: 19, mediaType: "image" as const },
   { slot: "night", hour: 22, mediaType: "discussion" as const },
 ];
 
@@ -174,13 +174,13 @@ async function generateDayContent(apiKey: string, date: string) {
 
   const prompt = `Generate 6 social media posts for the Uprising community feed for ${dayName}, ${date}.
 
-Schedule (70% visual, 30% text):
+Schedule (50% image, 40% video, 10% text):
 1. Morning (7AM) - 🖼️ IMAGE POST: Calm/Inspirational Visual with cinematic image
-2. Late Morning (10AM) - 💬 DISCUSSION POST (text-only): Start a community discussion with a thought-provoking question that invites users to share their experiences
-3. Afternoon (1PM) - 🎥 VIDEO POST: Reflective post paired with cinematic nature video
-4. Late Afternoon (4PM) - 🖼️ IMAGE POST: Motivational/Healing Message with striking visual
+2. Late Morning (10AM) - 🎥 VIDEO POST: Reflective post paired with cinematic nature video
+3. Afternoon (1PM) - 🖼️ IMAGE POST: Motivational/Healing Message with striking visual
+4. Late Afternoon (4PM) - 🎥 VIDEO POST: Nature timelapse or calming scene paired with motivational text
 5. Evening (7PM) - 🖼️ IMAGE POST: AI Companion Reflection with dreamy visual
-6. Night (10PM) - 🎥 VIDEO POST: Meditation/Calm post paired with peaceful video
+6. Night (10PM) - 💬 DISCUSSION POST (text-only): Start a community discussion with a thought-provoking question
 
 Discussion post examples (slot 2):
 - "What small moment made your day better today?"
