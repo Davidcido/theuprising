@@ -65,6 +65,9 @@ const AppContent = () => {
     trackVisit();
   }, []);
 
+  // Warm up feed cache in background so community loads instantly
+  useFeedWarmup();
+
   // Show spiral portal after sign-in (once per session)
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
