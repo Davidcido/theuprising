@@ -256,9 +256,18 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
           {isMuted ? (
             <VolumeX className="w-4 h-4 text-white/80" />
           ) : (
-            <Volume2 className="w-4 h-4 text-white/80" />
+            <Volume2 className="w-4 h-4 text-emerald-400" />
           )}
         </button>
+      )}
+      {/* Ambient sound indicator */}
+      {soundOn && isPlaying && (
+        <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-full bg-black/50 backdrop-blur-sm z-10">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="w-0.5 bg-emerald-400 rounded-full animate-pulse" style={{ height: `${6 + i * 3}px`, animationDelay: `${i * 0.15}s` }} />
+          ))}
+          <span className="text-[9px] text-white/60 ml-1">♪</span>
+        </div>
       )}
       {/* Expand to full-screen button */}
       {isPlaying && (
