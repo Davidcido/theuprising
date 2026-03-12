@@ -237,6 +237,7 @@ const isStableVoice = (v: SpeechSynthesisVoice): boolean => {
 // Strict state machine: IDLE -> LISTENING -> PROCESSING -> SPEAKING -> COOLDOWN -> LISTENING
 type CallPhase = "idle" | "listening" | "processing" | "speaking" | "cooldown";
 
+/* Voice companion component — stabilized */
 const VoiceCompanion = () => {
   const [callActive, setCallActive] = useState(false);
   const [muted, setMuted] = useState(false);

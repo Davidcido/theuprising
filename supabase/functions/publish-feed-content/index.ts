@@ -221,19 +221,30 @@ serve(async (req) => {
 
       postsCreated++;
 
-      // Add AI companion comment matching video theme
-      if (insertedPost && post.companion_comment) {
-        const commentText = videoTheme
-          ? `${companion.emoji} ${getThemeComment(videoTheme, companion.name)}`
-          : `${companion.emoji} ${post.companion_comment}`;
+      // Add 1-3 AI companion comments per post
+      if (insertedPost) {
+        const numComments = 1 + Math.floor(Math.random() * 3); // 1 to 3 comments
+        const shuffledCompanions = [...COMPANIONS].sort(() => Math.random() - 0.5);
+        let commentsAdded = 0;
 
-        await supabase.from("community_comments").insert({
-          post_id: insertedPost.id,
-          content: commentText,
-          anonymous_name: companion.name,
-        });
+        for (let c = 0; c < numComments && c < shuffledCompanions.length; c++) {
+          const commenter = shuffledCompanions[c];
+          const commentText = videoTheme
+            ? `${commenter.emoji} ${getThemeComment(videoTheme, commenter.name)}`
+            : `${commenter.emoji} ${post.companion_comment || "This is truly beautiful."}`;
 
-        await supabase.rpc("increment_comments", { post_id_input: insertedPost.id });
+          await supabase.from("community_comments").insert({
+            post_id: insertedPost.id,
+            content: commentText,
+            anonymous_name: commenter.name,
+          });
+          commentsAdded++;
+        }
+
+        // Increment comments_count to match actual inserted comments
+        for (let c = 0; c < commentsAdded; c++) {
+          await supabase.rpc("increment_comments", { post_id_input: insertedPost.id });
+        }
       }
     }
 

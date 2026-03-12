@@ -38,15 +38,18 @@ const FALLBACK_VIDEOS = [
   "https://videos.pexels.com/video-files/1826896/1826896-hd_1920_1080_30fps.mp4",
 ];
 
-// Community-specific ambient sounds (different from story audio)
+// Community-specific ambient sounds — separate pool from story audio
 const COMMUNITY_AMBIENT_SOUNDS = [
-  "https://cdn.pixabay.com/audio/2022/10/30/audio_452ade9a6c.mp3", // fireplace
+  "https://cdn.pixabay.com/audio/2022/10/30/audio_452ade9a6c.mp3", // fireplace crackling
   "https://cdn.pixabay.com/audio/2024/11/03/audio_7bb484a87d.mp3", // cafe ambience
   "https://cdn.pixabay.com/audio/2022/06/07/audio_4f43600e20.mp3", // distant thunder
   "https://cdn.pixabay.com/audio/2022/08/31/audio_419263a458.mp3", // evening wind
   "https://cdn.pixabay.com/audio/2024/09/27/audio_371a053c55.mp3", // nature ambience
   "https://cdn.pixabay.com/audio/2022/01/31/audio_46eb6a9029.mp3", // river flowing
   "https://cdn.pixabay.com/audio/2022/08/02/audio_884fe92c21.mp3", // ocean deep
+  "https://cdn.pixabay.com/audio/2022/03/15/audio_8a8b398647.mp3", // gentle rain
+  "https://cdn.pixabay.com/audio/2021/08/09/audio_882b4e45b6.mp3", // calm piano
+  "https://cdn.pixabay.com/audio/2022/05/16/audio_ded27e32f1.mp3", // night ambience
 ];
 
 const getRandomFallbackVideo = () => FALLBACK_VIDEOS[Math.floor(Math.random() * FALLBACK_VIDEOS.length)];
