@@ -27,7 +27,7 @@ let currentlyPlayingFeedVideo: HTMLVideoElement | null = null;
 
 const MAX_FEED_VIDEO_HEIGHT = 700;
 
-/** Feed video — autoplays muted when 60% visible, tapping opens full-screen player */
+/** Feed video — autoplays muted when 60% visible, tap to unmute, expand button for full-screen */
 const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: boolean; onTap: () => void; isSingle?: boolean }) => {
   
   const containerRef = useRef<HTMLDivElement>(null);
