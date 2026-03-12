@@ -110,10 +110,12 @@ const CommentCard = ({
     setReplyContent(`@${comment.anonymous_name} `);
   };
 
+  const MAX_REPLY_DEPTH = 4;
   const directReplies = allComments.filter(c => c.parent_comment_id === comment.id);
+  const canReply = depth < MAX_REPLY_DEPTH;
 
   return (
-    <div style={{ marginLeft: maxDepthIndent > 0 ? `${maxDepthIndent * 16}px` : undefined }}>
+    <div style={{ marginLeft: maxDepthIndent > 0 ? `${Math.min(maxDepthIndent, 3) * 16}px` : undefined }} className="max-w-full overflow-hidden">
       <div className="flex gap-2.5 group relative">
         {depth > 0 && (
           <div className="absolute -left-3 top-0 bottom-0 w-px bg-white/10" />
@@ -229,7 +231,7 @@ const CommentCard = ({
           />
 
           {/* Reply button */}
-          {communityOpen && !editing && (
+          {communityOpen && !editing && canReply && (
             <div className="flex items-center gap-3 mt-1 ml-1">
               <button
                 onClick={startReply}
