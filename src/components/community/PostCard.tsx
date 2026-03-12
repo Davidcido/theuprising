@@ -328,7 +328,28 @@ const PostCard = ({
           </div>
         </div>
 
+        {/* Media-first: show media above text for visual posts */}
+        {!editing && post.media_urls && post.media_urls.length > 0 && (
+          <div className={hasMedia ? "-mx-0 -mt-0" : ""}>
+            <MediaGallery
+              mediaUrls={post.media_urls}
+              postData={{
+                likesCount: post.likes_count,
+                commentsCount: post.comments_count,
+                sharesCount: post.shares_count,
+                viewsCount: post.views_count || 0,
+                isLiked: isLiked,
+                onToggleLike: () => onToggleLike(post.id),
+                onToggleComments: () => onToggleComments(post.id),
+                onShare: () => onShare(post),
+                onRepost: () => onRepost(post),
+              }}
+            />
+          </div>
+        )}
+
         {/* Content */}
+        <div className={hasMedia ? "px-5 pt-3" : ""}>
         {editing ? (
           <div className="mb-3">
             <textarea
@@ -357,24 +378,7 @@ const PostCard = ({
         ) : (
           <div className="text-foreground/90 text-sm leading-relaxed mb-3 whitespace-pre-wrap break-words"><HashtagText content={post.content} /></div>
         )}
-
-        {/* Media Gallery */}
-        {post.media_urls && post.media_urls.length > 0 && (
-          <MediaGallery
-            mediaUrls={post.media_urls}
-            postData={{
-              likesCount: post.likes_count,
-              commentsCount: post.comments_count,
-              sharesCount: post.shares_count,
-              viewsCount: post.views_count || 0,
-              isLiked: isLiked,
-              onToggleLike: () => onToggleLike(post.id),
-              onToggleComments: () => onToggleComments(post.id),
-              onShare: () => onShare(post),
-              onRepost: () => onRepost(post),
-            }}
-          />
-        )}
+        </div>
 
         {/* Pending media uploads */}
         {post._pendingMedia && post._pendingMedia.length > 0 && (
