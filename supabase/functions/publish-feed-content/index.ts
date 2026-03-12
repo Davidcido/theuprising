@@ -130,9 +130,8 @@ serve(async (req) => {
       let mediaUrls: string[] = [];
 
       if (schedule.mediaType === "video") {
-        // Assign a pre-uploaded video
-        const videoPath = FEED_VIDEOS[videoIndex % FEED_VIDEOS.length];
-        mediaUrls = [`${storageBase}${videoPath}`];
+        // Assign a curated cinematic video URL directly
+        mediaUrls = [FEED_VIDEOS[videoIndex % FEED_VIDEOS.length]];
         videoIndex++;
       } else if (schedule.mediaType === "image") {
         // Generate AI image
