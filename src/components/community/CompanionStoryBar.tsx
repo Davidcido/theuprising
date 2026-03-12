@@ -57,6 +57,7 @@ const CompanionStoryBar = () => {
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState(0);
   const [showVolumeControl, setShowVolumeControl] = useState(false);
+  const [hasInteracted, setHasInteracted] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { volume, muted, setVolume, toggleMute } = useAudioPreferences();
@@ -68,6 +69,8 @@ const CompanionStoryBar = () => {
       return new Set(parsed[today] || []);
     } catch { return new Set(); }
   });
+
+  const LOW_DEFAULT_VOLUME = 0.3;
 
   // Build stories with unique scenes per frame
   useEffect(() => {
@@ -85,7 +88,7 @@ const CompanionStoryBar = () => {
     setCompanionStories(stories);
   }, [viewedCompanions]);
 
-  // Manage ambient audio per frame
+  // Start/crossfade ambient audio when frame changes
   useEffect(() => {
     if (!activeStory) {
       if (audioRef.current) {
@@ -107,30 +110,35 @@ const CompanionStoryBar = () => {
     }
 
     const audio = audioRef.current;
-    const currentSrc = audio.src;
+    const audioFileName = currentScene.audio.split("/").pop() || "___";
+    const isSameTrack = audio.src && audio.src.includes(audioFileName);
 
-    if (!currentSrc.includes(currentScene.audio.split("/").pop() || "___")) {
-      fadeAudio(audio, 0, 300);
+    if (!isSameTrack) {
+      // Crossfade to new track
+      fadeAudio(audio, 0, 250);
       setTimeout(() => {
         audio.src = currentScene.audio;
         audio.volume = 0;
-        audio.muted = muted;
+        // Start muted until user interacts (browser autoplay policy)
+        audio.muted = !hasInteracted;
         audio.play().then(() => {
-          if (!muted) fadeAudio(audio, volume, 1000);
+          if (hasInteracted && !muted) {
+            fadeAudio(audio, volume || LOW_DEFAULT_VOLUME, 800);
+          }
         }).catch(() => {});
-      }, 350);
-    } else {
+      }, 300);
+    } else if (hasInteracted) {
       audio.muted = muted;
-      if (!muted) audio.volume = volume;
+      if (!muted) audio.volume = volume || LOW_DEFAULT_VOLUME;
     }
-  }, [activeStory, storyIndex]);
+  }, [activeStory, storyIndex, hasInteracted]);
 
-  // Sync volume/mute
+  // Sync volume/mute preferences to active audio
   useEffect(() => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || !hasInteracted) return;
     audioRef.current.muted = muted;
-    if (!muted) audioRef.current.volume = volume;
-  }, [volume, muted]);
+    if (!muted) audioRef.current.volume = volume || LOW_DEFAULT_VOLUME;
+  }, [volume, muted, hasInteracted]);
 
   // Pause/resume audio
   useEffect(() => {
@@ -140,7 +148,7 @@ const CompanionStoryBar = () => {
       setTimeout(() => audioRef.current?.pause(), 350);
     } else {
       audioRef.current.play().catch(() => {});
-      if (!muted) fadeAudio(audioRef.current, volume, 500);
+      if (hasInteracted && !muted) fadeAudio(audioRef.current, volume || LOW_DEFAULT_VOLUME, 500);
     }
   }, [paused]);
 
@@ -154,7 +162,7 @@ const CompanionStoryBar = () => {
   // Auto-advance timer
   useEffect(() => {
     if (!activeStory || paused) return;
-    const duration = 8000; // slightly longer for video enjoyment
+    const duration = 8000;
     const interval = 50;
     let elapsed = 0;
     const timer = setInterval(() => {
@@ -169,17 +177,29 @@ const CompanionStoryBar = () => {
           setActiveStory(null);
           setStoryIndex(0);
           setProgress(0);
+          setHasInteracted(false);
         }
       }
     }, interval);
     return () => clearInterval(timer);
   }, [activeStory, storyIndex, paused]);
 
+  // Handle first user interaction — unmute & fade in audio
+  const handleUserInteraction = useCallback(() => {
+    if (hasInteracted) return;
+    setHasInteracted(true);
+    if (audioRef.current) {
+      audioRef.current.muted = false;
+      fadeAudio(audioRef.current, volume || LOW_DEFAULT_VOLUME, 800);
+    }
+  }, [hasInteracted, volume]);
+
   const openStory = (cs: CompanionStory) => {
     setActiveStory(cs);
     setStoryIndex(0);
     setProgress(0);
     setPaused(false);
+    setHasInteracted(false);
     const newViewed = new Set(viewedCompanions).add(cs.companion.id);
     setViewedCompanions(newViewed);
     try {
@@ -192,18 +212,23 @@ const CompanionStoryBar = () => {
 
   const goNext = () => {
     if (!activeStory) return;
+    handleUserInteraction();
     if (storyIndex < activeStory.stories.length - 1) {
       setStoryIndex(prev => prev + 1);
       setProgress(0);
     } else {
       const idx = companionStories.findIndex(cs => cs.companion.id === activeStory.companion.id);
       if (idx < companionStories.length - 1) openStory(companionStories[idx + 1]);
-      else setActiveStory(null);
+      else {
+        setActiveStory(null);
+        setHasInteracted(false);
+      }
     }
   };
 
   const goPrev = () => {
     if (!activeStory) return;
+    handleUserInteraction();
     if (storyIndex > 0) {
       setStoryIndex(prev => prev - 1);
       setProgress(0);
@@ -211,11 +236,12 @@ const CompanionStoryBar = () => {
   };
 
   const handleToggleMute = () => {
+    handleUserInteraction();
     toggleMute();
     if (audioRef.current) {
       if (muted) {
         audioRef.current.muted = false;
-        fadeAudio(audioRef.current, volume, 400);
+        fadeAudio(audioRef.current, volume || LOW_DEFAULT_VOLUME, 400);
       } else {
         fadeAudio(audioRef.current, 0, 200);
         setTimeout(() => { if (audioRef.current) audioRef.current.muted = true; }, 250);
@@ -223,7 +249,14 @@ const CompanionStoryBar = () => {
     }
   };
 
-  const handleVolumeChange = (value: number[]) => setVolume(value[0]);
+  const handleVolumeChange = (value: number[]) => {
+    handleUserInteraction();
+    setVolume(value[0]);
+  };
+
+  const handleStoryAreaClick = () => {
+    handleUserInteraction();
+  };
 
   if (companionStories.length === 0) return null;
 
@@ -267,34 +300,50 @@ const CompanionStoryBar = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
             className="fixed inset-0 z-[100] bg-black flex items-center justify-center"
-            onClick={(e) => { if (e.target === e.currentTarget) setActiveStory(null); }}
+            onClick={(e) => { if (e.target === e.currentTarget) { setActiveStory(null); setHasInteracted(false); } }}
           >
-            <div className="relative w-full max-w-md h-[85vh] max-h-[700px] rounded-2xl overflow-hidden">
-              {/* Video Background */}
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={`${storyIndex}-${currentStory.scene.id}`}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.6 }}
-                  className="absolute inset-0"
-                >
-                  <video
-                    ref={videoRef}
-                    key={currentStory.scene.video + storyIndex}
-                    src={currentStory.scene.video}
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    className="absolute inset-0 w-full h-full object-cover"
-                  />
-                  {/* Overlay for readability */}
-                  <div className={`absolute inset-0 bg-gradient-to-br ${currentStory.scene.gradient} mix-blend-multiply`} />
-                  <div className="absolute inset-0 bg-black/30" />
-                </motion.div>
+            <div
+              className="relative w-full max-w-md h-[85vh] max-h-[700px] rounded-2xl overflow-hidden"
+              onClick={handleStoryAreaClick}
+            >
+              {/* Video Background — no AnimatePresence delay, instant swap */}
+              <div className="absolute inset-0" key={`bg-${storyIndex}-${currentStory.scene.id}`}>
+                {/* Gradient fallback shows instantly */}
+                <div className={`absolute inset-0 bg-gradient-to-br ${currentStory.scene.gradient}`} />
+                <video
+                  ref={videoRef}
+                  key={currentStory.scene.video + storyIndex}
+                  src={currentStory.scene.video}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="absolute inset-0 w-full h-full object-cover"
+                  style={{ opacity: 1 }}
+                />
+                {/* Overlay for readability */}
+                <div className={`absolute inset-0 bg-gradient-to-br ${currentStory.scene.gradient} mix-blend-multiply opacity-60`} />
+                <div className="absolute inset-0 bg-black/25" />
+              </div>
+
+              {/* "Tap for sound" hint — shown before first interaction */}
+              <AnimatePresence>
+                {!hasInteracted && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="absolute bottom-20 left-0 right-0 z-30 flex justify-center pointer-events-none"
+                  >
+                    <div className="bg-black/50 backdrop-blur-sm rounded-full px-4 py-2 flex items-center gap-2">
+                      <Volume2 className="w-3.5 h-3.5 text-white/70" />
+                      <span className="text-white/70 text-xs">Tap for sound</span>
+                    </div>
+                  </motion.div>
+                )}
               </AnimatePresence>
 
               {/* Progress bars */}
@@ -302,7 +351,7 @@ const CompanionStoryBar = () => {
                 {activeStory.stories.map((_, i) => (
                   <div key={i} className="flex-1 h-[3px] rounded-full bg-white/20 overflow-hidden">
                     <div
-                      className="h-full bg-white rounded-full transition-all"
+                      className="h-full bg-white rounded-full transition-all duration-100"
                       style={{ width: i < storyIndex ? "100%" : i === storyIndex ? `${progress}%` : "0%" }}
                     />
                   </div>
@@ -323,7 +372,7 @@ const CompanionStoryBar = () => {
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1 relative">
                     <button onClick={handleToggleMute} onTouchStart={() => setShowVolumeControl(!showVolumeControl)} className="p-1.5 rounded-full bg-white/10 hover:bg-white/20">
-                      <VolumeIcon muted={muted} volume={volume} />
+                      <VolumeIcon muted={!hasInteracted || muted} volume={volume} />
                     </button>
                     <AnimatePresence>
                       {showVolumeControl && (
@@ -350,7 +399,7 @@ const CompanionStoryBar = () => {
                   <button onClick={() => setPaused(!paused)} className="p-1.5 rounded-full bg-white/10 hover:bg-white/20">
                     {paused ? <Play className="w-3.5 h-3.5 text-white" /> : <Pause className="w-3.5 h-3.5 text-white" />}
                   </button>
-                  <button onClick={() => setActiveStory(null)} className="p-1.5 rounded-full bg-white/10 hover:bg-white/20">
+                  <button onClick={() => { setActiveStory(null); setHasInteracted(false); }} className="p-1.5 rounded-full bg-white/10 hover:bg-white/20">
                     <X className="w-4 h-4 text-white" />
                   </button>
                 </div>
@@ -379,7 +428,7 @@ const CompanionStoryBar = () => {
                   </p>
 
                   {/* Audio visualizer */}
-                  {!muted && (
+                  {hasInteracted && !muted && (
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}

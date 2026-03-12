@@ -34,9 +34,10 @@ const AUDIO_POOL = {
 const VIDEO_BASE = "/videos/stories";
 
 /**
- * All available scenes – video + matched audio
+ * All available scenes – video + matched audio.
+ * Each scene guarantees a unique video+audio pairing.
  */
-export const STORY_SCENES: StoryScene[] = [
+export const ALL_SCENES: StoryScene[] = [
   {
     id: "forest",
     label: "Misty Forest",
@@ -72,35 +73,101 @@ export const STORY_SCENES: StoryScene[] = [
     audio: AUDIO_POOL.piano,
     gradient: "from-orange-900/90 via-amber-900/80 to-rose-900/90",
   },
+  // Extra scenes with reused videos but different audio pairings
+  {
+    id: "stream",
+    label: "Gentle Stream",
+    video: `${VIDEO_BASE}/forest.mp4`,
+    audio: AUDIO_POOL.stream,
+    gradient: "from-emerald-900/90 via-teal-900/80 to-green-900/90",
+  },
+  {
+    id: "campfire",
+    label: "Campfire Glow",
+    video: `${VIDEO_BASE}/nightsky.mp4`,
+    audio: AUDIO_POOL.campfire,
+    gradient: "from-orange-950/90 via-amber-950/80 to-red-950/90",
+  },
+  {
+    id: "wind",
+    label: "Wind Through Trees",
+    video: `${VIDEO_BASE}/forest.mp4`,
+    audio: AUDIO_POOL.wind,
+    gradient: "from-green-900/90 via-emerald-900/80 to-teal-900/90",
+  },
+  {
+    id: "chimes",
+    label: "Meditation Chimes",
+    video: `${VIDEO_BASE}/sunrise.mp4`,
+    audio: AUDIO_POOL.chimes,
+    gradient: "from-amber-900/90 via-yellow-900/80 to-orange-900/90",
+  },
+  {
+    id: "birds",
+    label: "Morning Birds",
+    video: `${VIDEO_BASE}/sunrise.mp4`,
+    audio: AUDIO_POOL.birds,
+    gradient: "from-sky-900/90 via-blue-900/80 to-cyan-900/90",
+  },
+  {
+    id: "thunder",
+    label: "Distant Thunder",
+    video: `${VIDEO_BASE}/rain.mp4`,
+    audio: AUDIO_POOL.thunder,
+    gradient: "from-gray-950/90 via-slate-950/80 to-zinc-950/90",
+  },
+  {
+    id: "bowls",
+    label: "Singing Bowls",
+    video: `${VIDEO_BASE}/nightsky.mp4`,
+    audio: AUDIO_POOL.bowls,
+    gradient: "from-violet-950/90 via-purple-950/80 to-indigo-950/90",
+  },
+  {
+    id: "synth",
+    label: "Soft Synth Pads",
+    video: `${VIDEO_BASE}/nightsky.mp4`,
+    audio: AUDIO_POOL.synth,
+    gradient: "from-fuchsia-950/90 via-pink-950/80 to-purple-950/90",
+  },
 ];
-
-// Extra audio-only scenes for variety (use with gradient fallback)
-export const EXTRA_AUDIO_SCENES: StoryScene[] = [
-  { id: "stream", label: "Gentle Stream", video: `${VIDEO_BASE}/forest.mp4`, audio: AUDIO_POOL.stream, gradient: "from-emerald-900/90 via-teal-900/80 to-green-900/90" },
-  { id: "campfire", label: "Campfire", video: `${VIDEO_BASE}/nightsky.mp4`, audio: AUDIO_POOL.campfire, gradient: "from-orange-950/90 via-amber-950/80 to-red-950/90" },
-  { id: "wind", label: "Wind Through Trees", video: `${VIDEO_BASE}/forest.mp4`, audio: AUDIO_POOL.wind, gradient: "from-green-900/90 via-emerald-900/80 to-teal-900/90" },
-  { id: "chimes", label: "Meditation Chimes", video: `${VIDEO_BASE}/sunrise.mp4`, audio: AUDIO_POOL.chimes, gradient: "from-amber-900/90 via-yellow-900/80 to-orange-900/90" },
-  { id: "birds", label: "Morning Birds", video: `${VIDEO_BASE}/sunrise.mp4`, audio: AUDIO_POOL.birds, gradient: "from-sky-900/90 via-blue-900/80 to-cyan-900/90" },
-  { id: "thunder", label: "Distant Thunder", video: `${VIDEO_BASE}/rain.mp4`, audio: AUDIO_POOL.thunder, gradient: "from-gray-950/90 via-slate-950/80 to-zinc-950/90" },
-  { id: "bowls", label: "Singing Bowls", video: `${VIDEO_BASE}/nightsky.mp4`, audio: AUDIO_POOL.bowls, gradient: "from-violet-950/90 via-purple-950/80 to-indigo-950/90" },
-  { id: "synth", label: "Soft Synth Pads", video: `${VIDEO_BASE}/nightsky.mp4`, audio: AUDIO_POOL.synth, gradient: "from-fuchsia-950/90 via-pink-950/80 to-purple-950/90" },
-];
-
-const ALL_SCENES = [...STORY_SCENES, ...EXTRA_AUDIO_SCENES];
 
 /**
- * Pick N unique scenes from the pool, avoiding repeats within a set.
- * Uses a seeded shuffle based on companion id + date for daily rotation.
+ * Pick N unique scenes for a companion, ensuring no two frames share
+ * the same video OR audio track. Uses a seeded shuffle based on
+ * companion id + date for daily rotation.
  */
 export function pickScenesForCompanion(companionId: string, count: number): StoryScene[] {
   const today = new Date().toDateString();
   const seed = hashString(`${companionId}-${today}`);
   const shuffled = [...ALL_SCENES].sort((a, b) => {
-    const ha = hashString(`${seed}-${a.id}`) % 1000;
-    const hb = hashString(`${seed}-${b.id}`) % 1000;
+    const ha = hashString(`${seed}-${a.id}`) % 10000;
+    const hb = hashString(`${seed}-${b.id}`) % 10000;
     return ha - hb;
   });
-  return shuffled.slice(0, count);
+
+  // Greedily pick scenes with no duplicate video or audio
+  const picked: StoryScene[] = [];
+  const usedVideos = new Set<string>();
+  const usedAudio = new Set<string>();
+
+  for (const scene of shuffled) {
+    if (picked.length >= count) break;
+    if (usedVideos.has(scene.video) || usedAudio.has(scene.audio)) continue;
+    picked.push(scene);
+    usedVideos.add(scene.video);
+    usedAudio.add(scene.audio);
+  }
+
+  // Fallback if not enough unique combos (shouldn't happen with 5 videos × 15 audio)
+  if (picked.length < count) {
+    for (const scene of shuffled) {
+      if (picked.length >= count) break;
+      if (!picked.includes(scene)) picked.push(scene);
+    }
+  }
+
+  return picked;
 }
 
 function hashString(str: string): number {
