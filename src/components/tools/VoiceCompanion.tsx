@@ -213,6 +213,8 @@ const isAllowedVoice = (v: SpeechSynthesisVoice): boolean => {
   if (ALLOWED_VOICES.has(baseName) && v.lang.startsWith("en")) return true;
   // Allow any premium/neural English voices
   if (/natural|neural|premium|enhanced/i.test(v.name) && v.lang.startsWith("en")) return true;
+  // Allow any en-ZA (South African) voice
+  if (v.lang === "en-ZA" || v.lang.startsWith("en-ZA")) return true;
   return false;
 };
 
