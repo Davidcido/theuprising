@@ -164,21 +164,27 @@ serve(async (req) => {
 
     // Build video public URLs — use direct CDN links
     let postsCreated = 0;
-    let videoIndex = Math.floor(Math.random() * FEED_VIDEOS.length); // randomize starting video
+    const usedVideos = new Set<string>();
 
     for (let i = 0; i < Math.min(textContent.length, POST_SCHEDULE.length); i++) {
       const post = textContent[i];
       const schedule = POST_SCHEDULE[i];
       const createdAt = `${targetDate}T${String(schedule.hour).padStart(2, "0")}:00:00+00:00`;
 
+      // Assign companion for this post
+      const companion = COMPANIONS.find(
+        (c) => c.name.toLowerCase() === post.companion_name?.toLowerCase()
+      ) || COMPANIONS[i % COMPANIONS.length];
+
       let mediaUrls: string[] = [];
+      let videoTheme = "";
 
       if (schedule.mediaType === "video") {
-        // Assign a curated cinematic video URL directly
-        mediaUrls = [FEED_VIDEOS[videoIndex % FEED_VIDEOS.length]];
-        videoIndex++;
+        // Pick a theme-appropriate video for the assigned companion
+        const pick = pickCompanionVideo(companion, usedVideos);
+        mediaUrls = [pick.url];
+        videoTheme = pick.theme;
       } else if (schedule.mediaType === "image") {
-        // Generate AI image
         try {
           const imageUrl = await generateAndUploadImage(
             LOVABLE_API_KEY,
@@ -191,9 +197,10 @@ serve(async (req) => {
           console.error(`Image gen failed for ${schedule.slot}:`, imgErr);
         }
       }
-      // "discussion" type = text-only (no media)
 
-      const fullContent = `**${post.title}**\n\n${post.message}\n\n${post.caption}\n\n#${post.emotion_tag} #uprising #dailyrise`;
+      // Build caption that matches the video theme
+      const themeCaption = videoTheme ? getThemeCaption(videoTheme) : "";
+      const fullContent = `**${post.title}**\n\n${post.message}\n\n${themeCaption || post.caption}\n\n#${post.emotion_tag} #uprising #dailyrise`;
 
       const { data: insertedPost, error: postError } = await supabase
         .from("community_posts")
