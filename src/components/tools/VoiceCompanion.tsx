@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone,
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getCompanionAvatar, getCompanionEmoji } from "@/lib/companionAvatars";
+import { BUILTIN_PERSONAS } from "@/lib/builtinPersonas";
 
 const languages = [
   { code: "en", label: "English", speechCode: "en-US" },
@@ -38,16 +39,11 @@ type CompanionOption = {
   name: string;
 };
 
-const companions: CompanionOption[] = [
-  { id: "atlas", name: "Atlas" },
-  { id: "nova", name: "Nova" },
-  { id: "luna", name: "Luna" },
-  { id: "orion", name: "Orion" },
-  { id: "sage", name: "Sage" },
-  { id: "echo", name: "Echo" },
-  { id: "sol", name: "Sol" },
-  { id: "kai", name: "Kai" },
-];
+// Sync companions from the official builtin personas
+const companions: CompanionOption[] = BUILTIN_PERSONAS.map(p => ({
+  id: p.id,
+  name: p.name,
+}));
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
