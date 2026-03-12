@@ -970,22 +970,26 @@ Never expose the English interpretation to the user — always reply fully in Ha
   }, [setupAudioAnalyser, speakText, setPhaseSync, clearTimer, loadBestVoice]);
 
   const endCall = useCallback(() => {
-    // Immediately mark inactive to prevent any further AI processing
+    // Immediately mark inactive to prevent any further AI processing or re-listening
     activeRef.current = false;
     clearTimer();
     killRecognition();
 
-    // Force-cancel all speech synthesis — call multiple times for reliability
+    // Force-cancel all speech synthesis — aggressive multi-pass to ensure nothing lingers
     if (window.speechSynthesis) {
       window.speechSynthesis.cancel();
-      // Some browsers need a second cancel after a tick
-      setTimeout(() => window.speechSynthesis?.cancel(), 50);
-      setTimeout(() => window.speechSynthesis?.cancel(), 200);
+      // Some browsers queue speech internally; cancel repeatedly across frames
+      setTimeout(() => window.speechSynthesis?.cancel(), 30);
+      setTimeout(() => window.speechSynthesis?.cancel(), 100);
+      setTimeout(() => window.speechSynthesis?.cancel(), 250);
+      setTimeout(() => window.speechSynthesis?.cancel(), 500);
+      // Final safety sweep after a full second
+      setTimeout(() => window.speechSynthesis?.cancel(), 1000);
     }
 
     killAudio();
 
-    // Stop microphone
+    // Stop microphone tracks immediately
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((t) => t.stop());
       mediaStreamRef.current = null;
@@ -993,8 +997,11 @@ Never expose the English interpretation to the user — always reply fully in Ha
 
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
 
-    // Clear all conversation state
+    // Clear all conversation state to prevent replays
     conversationRef.current = [];
+
+    // Reset voice cache so stale utterances can't replay
+    voiceLoadPromiseRef.current = null;
 
     setCallActive(false);
     setMuted(false);

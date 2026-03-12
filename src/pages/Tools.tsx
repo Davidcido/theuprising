@@ -301,7 +301,7 @@ const Tools = () => {
               {/* ── Section 2: Quick AI Tools ── */}
               <section>
                 <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-3">
-                  Quick AI Tools
+                  Companion Tools
                 </h2>
                 <div className="grid grid-cols-2 gap-2.5">
                   {quickTools.map((tool, i) => (
