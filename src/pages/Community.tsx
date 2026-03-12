@@ -506,6 +506,7 @@ const Community = () => {
   const handleRefresh = async () => {
     setRefreshing(true);
     setHasMore(true);
+    cursorRef.current = null;
     await fetchPosts(false);
     setRefreshing(false);
   };
