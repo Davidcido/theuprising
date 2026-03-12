@@ -298,7 +298,7 @@ const Tools = () => {
                 </div>
               </section>
 
-              {/* ── Section 2: Quick AI Tools ── */}
+              {/* ── Section 2: Companion Tools ── */}
               <section>
                 <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-3">
                   Companion Tools

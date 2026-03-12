@@ -96,7 +96,7 @@ const OnboardingFlow = ({ onComplete }: Props) => {
               </div>
               <h1 className="font-display text-3xl font-bold text-white">Rise Together</h1>
               <p className="text-white/70 text-base leading-relaxed max-w-xs">
-                Uprising Companion is your AI-powered emotional support friend and community space. Talk freely, share your story, connect with others, and grow in a place built on empathy, creativity, and positive energy.
+                Uprising Companion is your emotional support friend and community space. Talk freely, share your story, connect with others, and grow in a place built on empathy, creativity, and positive energy.
               </p>
               <Button variant="hero" size="lg" onClick={next} className="mt-4 w-full max-w-xs">
                 Next <ArrowRight className="w-4 h-4 ml-1" />
