@@ -35,18 +35,18 @@ const Navbar = () => {
     // 1. Preserve anonymous session id
     const sessionIdBackup = localStorage.getItem("uprising_session_id");
 
-    // 2. Sign out from Supabase – try global first, fall back to local
+    // 2. Sign out from auth provider – destroy the session
     try {
       await supabase.auth.signOut({ scope: 'global' });
     } catch {
       try {
         await supabase.auth.signOut({ scope: 'local' });
       } catch {
-        // Force-clear Supabase storage keys manually
+        // Continue with manual cleanup
       }
     }
 
-    // 3. Aggressively clear ALL local storage (Supabase stores tokens here)
+    // 3. Clear ALL storage (Supabase stores tokens in localStorage)
     localStorage.clear();
     sessionStorage.clear();
     if (sessionIdBackup) localStorage.setItem("uprising_session_id", sessionIdBackup);
@@ -56,7 +56,10 @@ const Navbar = () => {
       document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
     });
 
-    // 5. Hard redirect – forces full page reload so AuthProvider re-initializes with no session
+    // 5. Set logout flag AFTER clearing storage so AuthProvider forces null state on reload
+    markLoggedOut();
+
+    // 6. Hard redirect – full page reload forces AuthProvider to re-initialize
     window.location.replace("/");
   };
 
