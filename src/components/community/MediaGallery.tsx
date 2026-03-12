@@ -24,8 +24,38 @@ const isValidMediaUrl = (url: string) => url && !url.startsWith("blob:") && (url
 
 // Global tracker: only one video autoplays at a time
 let currentlyPlayingFeedVideo: HTMLVideoElement | null = null;
+// Global tracker: only one community audio at a time
+let currentCommunityAudio: HTMLAudioElement | null = null;
 
 const MAX_FEED_VIDEO_HEIGHT = 700;
+
+// Fallback ambient videos when a post video fails to load
+const FALLBACK_VIDEOS = [
+  "https://videos.pexels.com/video-files/1093662/1093662-uhd_2560_1440_30fps.mp4",
+  "https://videos.pexels.com/video-files/3571264/3571264-uhd_2560_1440_30fps.mp4",
+  "https://videos.pexels.com/video-files/1409899/1409899-uhd_2560_1440_25fps.mp4",
+  "https://videos.pexels.com/video-files/4255925/4255925-uhd_2560_1440_24fps.mp4",
+  "https://videos.pexels.com/video-files/1826896/1826896-hd_1920_1080_30fps.mp4",
+];
+
+// Community-specific ambient sounds (different from story audio)
+const COMMUNITY_AMBIENT_SOUNDS = [
+  "https://cdn.pixabay.com/audio/2022/10/30/audio_452ade9a6c.mp3", // fireplace
+  "https://cdn.pixabay.com/audio/2024/11/03/audio_7bb484a87d.mp3", // cafe ambience
+  "https://cdn.pixabay.com/audio/2022/06/07/audio_4f43600e20.mp3", // distant thunder
+  "https://cdn.pixabay.com/audio/2022/08/31/audio_419263a458.mp3", // evening wind
+  "https://cdn.pixabay.com/audio/2024/09/27/audio_371a053c55.mp3", // nature ambience
+  "https://cdn.pixabay.com/audio/2022/01/31/audio_46eb6a9029.mp3", // river flowing
+  "https://cdn.pixabay.com/audio/2022/08/02/audio_884fe92c21.mp3", // ocean deep
+];
+
+const getRandomFallbackVideo = () => FALLBACK_VIDEOS[Math.floor(Math.random() * FALLBACK_VIDEOS.length)];
+const getCommunityAmbient = (url: string) => {
+  // Deterministic pick based on url hash so same post gets same sound
+  let hash = 0;
+  for (let i = 0; i < url.length; i++) hash = ((hash << 5) - hash + url.charCodeAt(i)) | 0;
+  return COMMUNITY_AMBIENT_SOUNDS[Math.abs(hash) % COMMUNITY_AMBIENT_SOUNDS.length];
+};
 
 /** Feed video — autoplays muted when 60% visible, tap to unmute, expand button for full-screen */
 const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: boolean; onTap: () => void; isSingle?: boolean }) => {
