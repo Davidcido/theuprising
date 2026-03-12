@@ -50,6 +50,7 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
   const [error, setError] = useState(false);
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+  const touchStartRef = useRef<{ y: number; time: number } | null>(null);
 
   const { volume, muted, setVolume, toggleMute } = useAudioPreferences();
 
@@ -267,6 +268,14 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[200] bg-black flex items-center justify-center"
         onClick={resetHideTimer}
+        onTouchStart={(e) => { touchStartRef.current = { y: e.touches[0].clientY, time: Date.now() }; }}
+        onTouchEnd={(e) => {
+          if (!touchStartRef.current) return;
+          const deltaY = e.changedTouches[0].clientY - touchStartRef.current.y;
+          const deltaTime = Date.now() - touchStartRef.current.time;
+          touchStartRef.current = null;
+          if (deltaY > 80 && deltaTime < 500) onClose();
+        }}
       >
         {/* Video */}
         <video
@@ -431,9 +440,9 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
           )}
         </AnimatePresence>
 
-        {/* Close button always visible on error */}
-        {showError && (
-          <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors z-10">
+        {/* Close button always visible */}
+        {(!showControls || showError) && (
+          <button onClick={onClose} className="absolute top-4 left-4 p-2 rounded-full bg-black/40 hover:bg-white/20 transition-colors z-10">
             <X className="w-5 h-5 text-white" />
           </button>
         )}

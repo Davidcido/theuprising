@@ -230,7 +230,7 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
           touchAction: "pan-y",
           pointerEvents: "none",
         }}
-        muted
+        muted={isMuted}
         playsInline
         // @ts-ignore webkit attribute for iOS
         webkit-playsinline=""

@@ -8,52 +8,99 @@ const corsHeaders = {
 };
 
 const COMPANIONS = [
-  { name: "Seren", emoji: "💚", style: "calm and compassionate" },
-  { name: "Atlas", emoji: "🧠", style: "philosophical and thoughtful" },
-  { name: "Nova", emoji: "✨", style: "curious and imaginative" },
-  { name: "Orion", emoji: "🔥", style: "bold and motivating" },
-  { name: "Kai", emoji: "🌿", style: "grounded and nature-focused" },
-  { name: "Sol", emoji: "🌅", style: "optimistic and warm" },
-  { name: "Elias", emoji: "📚", style: "reflective storyteller" },
-  { name: "Leo", emoji: "🛠", style: "practical encourager" },
+  { name: "Seren", emoji: "💚", style: "calm and compassionate", themes: ["ocean", "calm_water"] },
+  { name: "Atlas", emoji: "🧠", style: "philosophical and thoughtful", themes: ["mountains", "clouds", "sky"] },
+  { name: "Nova", emoji: "✨", style: "curious and imaginative", themes: ["night_sky", "stars", "coral"] },
+  { name: "Orion", emoji: "🔥", style: "bold and motivating", themes: ["sunrise", "sunset", "campfire"] },
+  { name: "Kai", emoji: "🌿", style: "grounded and nature-focused", themes: ["forest", "meadow", "fog"] },
+  { name: "Sol", emoji: "🌅", style: "optimistic and warm", themes: ["sunrise", "sunset", "meadow"] },
+  { name: "Elias", emoji: "📚", style: "reflective storyteller", themes: ["rain", "fog", "rivers"] },
+  { name: "Leo", emoji: "🛠", style: "practical encourager", themes: ["waterfalls", "rivers", "forest"] },
 ];
 
-// Curated cinematic nature video URLs (30-60s, vertical/near-vertical, with ambient audio)
-const FEED_VIDEOS = [
-  // Ocean waves
-  "https://videos.pexels.com/video-files/1093662/1093662-uhd_2560_1440_30fps.mp4",
-  "https://videos.pexels.com/video-files/2499611/2499611-uhd_2560_1440_24fps.mp4",
-  "https://videos.pexels.com/video-files/1739010/1739010-uhd_2560_1440_24fps.mp4",
-  // Waterfalls
-  "https://videos.pexels.com/video-files/1448735/1448735-uhd_2560_1440_24fps.mp4",
-  "https://videos.pexels.com/video-files/2611510/2611510-uhd_2560_1440_24fps.mp4",
-  // Forest / trees
-  "https://videos.pexels.com/video-files/3571264/3571264-uhd_2560_1440_30fps.mp4",
-  "https://videos.pexels.com/video-files/3629519/3629519-uhd_2560_1440_24fps.mp4",
-  // Rain
-  "https://videos.pexels.com/video-files/4255925/4255925-uhd_2560_1440_24fps.mp4",
-  // Sunrise / sunset
-  "https://videos.pexels.com/video-files/1409899/1409899-uhd_2560_1440_25fps.mp4",
-  "https://videos.pexels.com/video-files/1585619/1585619-hd_1920_1080_30fps.mp4",
-  "https://videos.pexels.com/video-files/1721294/1721294-uhd_2560_1440_24fps.mp4",
-  // Clouds / mountains
-  "https://videos.pexels.com/video-files/857251/857251-hd_1920_1080_25fps.mp4",
-  "https://videos.pexels.com/video-files/2169880/2169880-uhd_2560_1440_24fps.mp4",
-  // Rivers
-  "https://videos.pexels.com/video-files/2491284/2491284-uhd_2560_1440_24fps.mp4",
-  "https://videos.pexels.com/video-files/2421545/2421545-uhd_2560_1440_24fps.mp4",
-  // Night sky / stars
-  "https://videos.pexels.com/video-files/1826896/1826896-hd_1920_1080_30fps.mp4",
-  "https://videos.pexels.com/video-files/4065924/4065924-uhd_2560_1440_24fps.mp4",
-  // Meadow / flowers
-  "https://videos.pexels.com/video-files/4625518/4625518-uhd_2560_1440_24fps.mp4",
-  // Campfire
-  "https://videos.pexels.com/video-files/3402795/3402795-uhd_2560_1440_24fps.mp4",
-  // Fog / mist
-  "https://videos.pexels.com/video-files/4763824/4763824-uhd_2560_1440_24fps.mp4",
-  // Coral / underwater
-  "https://videos.pexels.com/video-files/4065919/4065919-uhd_2560_1440_24fps.mp4",
-];
+// Themed video pools — each companion draws from their assigned themes
+const THEMED_VIDEOS: Record<string, string[]> = {
+  ocean: [
+    "https://videos.pexels.com/video-files/1093662/1093662-uhd_2560_1440_30fps.mp4",
+    "https://videos.pexels.com/video-files/2499611/2499611-uhd_2560_1440_24fps.mp4",
+    "https://videos.pexels.com/video-files/1739010/1739010-uhd_2560_1440_24fps.mp4",
+  ],
+  calm_water: [
+    "https://videos.pexels.com/video-files/2491284/2491284-uhd_2560_1440_24fps.mp4",
+    "https://videos.pexels.com/video-files/2421545/2421545-uhd_2560_1440_24fps.mp4",
+  ],
+  waterfalls: [
+    "https://videos.pexels.com/video-files/1448735/1448735-uhd_2560_1440_24fps.mp4",
+    "https://videos.pexels.com/video-files/2611510/2611510-uhd_2560_1440_24fps.mp4",
+  ],
+  forest: [
+    "https://videos.pexels.com/video-files/3571264/3571264-uhd_2560_1440_30fps.mp4",
+    "https://videos.pexels.com/video-files/3629519/3629519-uhd_2560_1440_24fps.mp4",
+  ],
+  rain: [
+    "https://videos.pexels.com/video-files/4255925/4255925-uhd_2560_1440_24fps.mp4",
+  ],
+  sunrise: [
+    "https://videos.pexels.com/video-files/1409899/1409899-uhd_2560_1440_25fps.mp4",
+    "https://videos.pexels.com/video-files/1585619/1585619-hd_1920_1080_30fps.mp4",
+  ],
+  sunset: [
+    "https://videos.pexels.com/video-files/1721294/1721294-uhd_2560_1440_24fps.mp4",
+  ],
+  clouds: [
+    "https://videos.pexels.com/video-files/857251/857251-hd_1920_1080_25fps.mp4",
+  ],
+  mountains: [
+    "https://videos.pexels.com/video-files/2169880/2169880-uhd_2560_1440_24fps.mp4",
+  ],
+  sky: [
+    "https://videos.pexels.com/video-files/857251/857251-hd_1920_1080_25fps.mp4",
+  ],
+  rivers: [
+    "https://videos.pexels.com/video-files/2491284/2491284-uhd_2560_1440_24fps.mp4",
+    "https://videos.pexels.com/video-files/2421545/2421545-uhd_2560_1440_24fps.mp4",
+  ],
+  night_sky: [
+    "https://videos.pexels.com/video-files/1826896/1826896-hd_1920_1080_30fps.mp4",
+    "https://videos.pexels.com/video-files/4065924/4065924-uhd_2560_1440_24fps.mp4",
+  ],
+  stars: [
+    "https://videos.pexels.com/video-files/4065924/4065924-uhd_2560_1440_24fps.mp4",
+  ],
+  meadow: [
+    "https://videos.pexels.com/video-files/4625518/4625518-uhd_2560_1440_24fps.mp4",
+  ],
+  campfire: [
+    "https://videos.pexels.com/video-files/3402795/3402795-uhd_2560_1440_24fps.mp4",
+  ],
+  fog: [
+    "https://videos.pexels.com/video-files/4763824/4763824-uhd_2560_1440_24fps.mp4",
+  ],
+  coral: [
+    "https://videos.pexels.com/video-files/4065919/4065919-uhd_2560_1440_24fps.mp4",
+  ],
+};
+
+/** Pick a video URL for a companion based on their themes, avoiding recent picks */
+function pickCompanionVideo(companion: typeof COMPANIONS[0], usedVideos: Set<string>): { url: string; theme: string } {
+  const themes = companion.themes;
+  // Shuffle themes for variety
+  const shuffled = [...themes].sort(() => Math.random() - 0.5);
+  for (const theme of shuffled) {
+    const pool = THEMED_VIDEOS[theme] || [];
+    const available = pool.filter(v => !usedVideos.has(v));
+    if (available.length > 0) {
+      const pick = available[Math.floor(Math.random() * available.length)];
+      usedVideos.add(pick);
+      return { url: pick, theme };
+    }
+  }
+  // Fallback: pick any from first theme
+  const fallbackPool = THEMED_VIDEOS[themes[0]] || Object.values(THEMED_VIDEOS).flat();
+  const pick = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
+  usedVideos.add(pick);
+  return { url: pick, theme: themes[0] };
+}
 
 // Schedule: 50% image, 40% video, 10% text — 10 posts per day for richer feed
 const POST_SCHEDULE = [
@@ -117,21 +164,27 @@ serve(async (req) => {
 
     // Build video public URLs — use direct CDN links
     let postsCreated = 0;
-    let videoIndex = Math.floor(Math.random() * FEED_VIDEOS.length); // randomize starting video
+    const usedVideos = new Set<string>();
 
     for (let i = 0; i < Math.min(textContent.length, POST_SCHEDULE.length); i++) {
       const post = textContent[i];
       const schedule = POST_SCHEDULE[i];
       const createdAt = `${targetDate}T${String(schedule.hour).padStart(2, "0")}:00:00+00:00`;
 
+      // Assign companion for this post
+      const companion = COMPANIONS.find(
+        (c) => c.name.toLowerCase() === post.companion_name?.toLowerCase()
+      ) || COMPANIONS[i % COMPANIONS.length];
+
       let mediaUrls: string[] = [];
+      let videoTheme = "";
 
       if (schedule.mediaType === "video") {
-        // Assign a curated cinematic video URL directly
-        mediaUrls = [FEED_VIDEOS[videoIndex % FEED_VIDEOS.length]];
-        videoIndex++;
+        // Pick a theme-appropriate video for the assigned companion
+        const pick = pickCompanionVideo(companion, usedVideos);
+        mediaUrls = [pick.url];
+        videoTheme = pick.theme;
       } else if (schedule.mediaType === "image") {
-        // Generate AI image
         try {
           const imageUrl = await generateAndUploadImage(
             LOVABLE_API_KEY,
@@ -144,9 +197,10 @@ serve(async (req) => {
           console.error(`Image gen failed for ${schedule.slot}:`, imgErr);
         }
       }
-      // "discussion" type = text-only (no media)
 
-      const fullContent = `**${post.title}**\n\n${post.message}\n\n${post.caption}\n\n#${post.emotion_tag} #uprising #dailyrise`;
+      // Build caption that matches the video theme
+      const themeCaption = videoTheme ? getThemeCaption(videoTheme) : "";
+      const fullContent = `**${post.title}**\n\n${post.message}\n\n${themeCaption || post.caption}\n\n#${post.emotion_tag} #uprising #dailyrise`;
 
       const { data: insertedPost, error: postError } = await supabase
         .from("community_posts")
@@ -167,15 +221,15 @@ serve(async (req) => {
 
       postsCreated++;
 
-      // Add AI companion comment
+      // Add AI companion comment matching video theme
       if (insertedPost && post.companion_comment) {
-        const companion = COMPANIONS.find(
-          (c) => c.name.toLowerCase() === post.companion_name?.toLowerCase()
-        ) || COMPANIONS[i % COMPANIONS.length];
+        const commentText = videoTheme
+          ? `${companion.emoji} ${getThemeComment(videoTheme, companion.name)}`
+          : `${companion.emoji} ${post.companion_comment}`;
 
         await supabase.from("community_comments").insert({
           post_id: insertedPost.id,
-          content: `${companion.emoji} ${post.companion_comment}`,
+          content: commentText,
           anonymous_name: companion.name,
         });
 
@@ -319,4 +373,54 @@ async function generateAndUploadImage(
 
   const { data: urlData } = supabase.storage.from("community-media").getPublicUrl(fileName);
   return urlData?.publicUrl || null;
+}
+
+/** Return a caption that matches the video theme */
+function getThemeCaption(theme: string): string {
+  const captions: Record<string, string[]> = {
+    ocean: ["🌊 The ocean reminds us to breathe and flow.", "🌊 Waves carry away what no longer serves us."],
+    calm_water: ["💧 Still waters run deep. So do you.", "💧 In calm waters, you find your reflection."],
+    waterfalls: ["💦 Like water, keep moving forward.", "💦 A waterfall never hesitates — neither should you."],
+    forest: ["🌿 The forest holds a quiet wisdom.", "🌿 Among the trees, you find yourself."],
+    rain: ["🌧 Let the rain wash away your worries.", "🌧 Rain reminds us that growth needs storms."],
+    sunrise: ["🌅 Every sunrise is a second chance.", "🌅 A new day, a new beginning."],
+    sunset: ["🌇 The sky paints itself just for you tonight.", "🌇 Even the sun knows when to rest."],
+    clouds: ["☁️ Above the clouds, the sky is always clear.", "☁️ Let your thoughts drift like clouds."],
+    mountains: ["⛰️ Mountains teach us patience and strength.", "⛰️ The view from the top is worth every step."],
+    sky: ["✨ Look up. The sky has no limits.", "✨ You are as vast as the sky above."],
+    rivers: ["🏞 The river doesn't fight the path — it flows.", "🏞 Like a river, find your way."],
+    night_sky: ["🌌 The stars remind us we're part of something bigger.", "🌌 Even in darkness, there is light."],
+    stars: ["⭐ You shine even when you don't see it.", "⭐ Count stars, not problems."],
+    meadow: ["🌸 In the meadow, everything blooms in its own time.", "🌸 Bloom where you are planted."],
+    campfire: ["🔥 The fire within you is brighter than any around you.", "🔥 Warmth comes from within."],
+    fog: ["🌫 Through the fog, clarity awaits.", "🌫 Not all who wander through the mist are lost."],
+    coral: ["🐠 Beneath the surface, beauty thrives.", "🐠 The ocean floor holds wonders unseen."],
+  };
+  const options = captions[theme] || ["✨ Take a moment to breathe and be present."];
+  return options[Math.floor(Math.random() * options.length)];
+}
+
+/** Return a companion comment matching the video theme */
+function getThemeComment(theme: string, companionName: string): string {
+  const comments: Record<string, string[]> = {
+    ocean: ["This feels incredibly peaceful.", "The ocean always reminds us to slow down.", "Listening to the waves is healing."],
+    calm_water: ["There's something deeply calming about this.", "Still water reflects the truth within."],
+    waterfalls: ["The power of flowing water is mesmerizing.", "Like water, keep moving forward."],
+    forest: ["The stillness here is beautiful.", "Nature has a quiet wisdom.", "Among trees, the mind finds peace."],
+    rain: ["The sound of rain soothes the soul.", "Let the rain be your meditation.", "Every drop carries a tiny blessing."],
+    sunrise: ["A new day, a new chance to begin again.", "Mornings are proof that we always get another try."],
+    sunset: ["This golden light reminds me to slow down.", "Sunsets are proof that endings can be beautiful too."],
+    clouds: ["There's beauty in letting go and drifting.", "Above the clouds, everything is clear."],
+    mountains: ["The mountain stands still — so can we.", "Strength isn't always loud."],
+    sky: ["Limitless, just like you.", "The sky holds all of us."],
+    rivers: ["Flow, don't force.", "The river always finds its way home."],
+    night_sky: ["Under these stars, we are all connected.", "The night sky reminds us of infinite possibility."],
+    stars: ["You are a star, even on cloudy nights.", "Stars don't compete — they just shine."],
+    meadow: ["Everything blooms in its own season.", "This is what patience looks like."],
+    campfire: ["Warmth doesn't have to be loud.", "This fire reminds me of inner strength."],
+    fog: ["The fog lifts. It always does.", "Clarity comes to those who wait."],
+    coral: ["Beauty exists in the depths too.", "The unseen world holds so much wonder."],
+  };
+  const options = comments[theme] || ["This is truly beautiful.", "Take a moment to appreciate this."];
+  return options[Math.floor(Math.random() * options.length)];
 }
