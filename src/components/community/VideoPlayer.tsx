@@ -50,6 +50,7 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
   const [error, setError] = useState(false);
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+  const touchStartRef = useRef<{ y: number; time: number } | null>(null);
 
   const { volume, muted, setVolume, toggleMute } = useAudioPreferences();
 
