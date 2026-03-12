@@ -627,7 +627,8 @@ const Community = () => {
     setHasMore(true);
     setNewPostsAvailable(0);
     cursorRef.current = null;
-    prefetchCacheRef.current = [];
+    lastCursorLogRef.current = null;
+    console.log("[Community][feed] manual refresh");
     await fetchPosts(false);
     setRefreshing(false);
   };
