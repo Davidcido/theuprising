@@ -594,9 +594,18 @@ const Community = () => {
     }
   }, [allPosts, activeTab, followingIds]);
 
-  const visiblePosts = displayPosts;
+  // Virtual feed — only render posts near viewport
+  const { virtualItems: visiblePosts, topSpacer, bottomSpacer } = useVirtualFeed(displayPosts, {
+    estimatedItemHeight: 350,
+    overscan: 8,
+    enabled: displayPosts.length > 30,
+  });
 
-  // View tracking is now handled per-post via PostViewObserver + usePostViewTracker
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setNewPostsAvailable(0);
+  }, []);
+
 
   const handleRefresh = async () => {
     setRefreshing(true);
