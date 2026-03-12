@@ -499,6 +499,15 @@ const CompanionStoryBar = () => {
                   transition={{ duration: 0.4 }}
                   className="absolute inset-0 z-10 flex flex-col items-center justify-center p-8 text-center"
                 >
+                  {/* Time-of-day greeting on first frame */}
+                  {storyIndex === 0 && (() => {
+                    const { greeting, emoji } = getTimeGreeting();
+                    return (
+                      <p className="text-white/50 text-xs mb-3 italic">
+                        {emoji} {greeting}
+                      </p>
+                    );
+                  })()}
                   <p className="text-white/60 text-xs font-semibold uppercase tracking-widest mb-4">
                     {currentStory.type === "breathing" ? "🌬 Breathing Exercise" :
                      currentStory.type === "reflection" ? "💭 Reflection" :
