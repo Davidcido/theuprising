@@ -18,22 +18,54 @@ const COMPANIONS = [
   { name: "Leo", emoji: "🛠", style: "practical encourager" },
 ];
 
-// Pre-uploaded cinematic video URLs in community-media bucket
+// Curated cinematic nature video URLs (30-60s, vertical/near-vertical, with ambient audio)
 const FEED_VIDEOS = [
-  "feed-videos/glowing-forest.mp4",
-  "feed-videos/sunrise-mountains.mp4",
-  "feed-videos/ocean-waves.mp4",
-  "feed-videos/glowing-orbs.mp4",
-  "feed-videos/breathing-meditation.mp4",
-  "feed-videos/bamboo-forest.mp4",
+  // Ocean waves
+  "https://videos.pexels.com/video-files/1093662/1093662-uhd_2560_1440_30fps.mp4",
+  "https://videos.pexels.com/video-files/2499611/2499611-uhd_2560_1440_24fps.mp4",
+  "https://videos.pexels.com/video-files/1739010/1739010-uhd_2560_1440_24fps.mp4",
+  // Waterfalls
+  "https://videos.pexels.com/video-files/1448735/1448735-uhd_2560_1440_24fps.mp4",
+  "https://videos.pexels.com/video-files/2611510/2611510-uhd_2560_1440_24fps.mp4",
+  // Forest / trees
+  "https://videos.pexels.com/video-files/3571264/3571264-uhd_2560_1440_30fps.mp4",
+  "https://videos.pexels.com/video-files/3629519/3629519-uhd_2560_1440_24fps.mp4",
+  // Rain
+  "https://videos.pexels.com/video-files/4255925/4255925-uhd_2560_1440_24fps.mp4",
+  // Sunrise / sunset
+  "https://videos.pexels.com/video-files/1409899/1409899-uhd_2560_1440_25fps.mp4",
+  "https://videos.pexels.com/video-files/1585619/1585619-hd_1920_1080_30fps.mp4",
+  "https://videos.pexels.com/video-files/1721294/1721294-uhd_2560_1440_24fps.mp4",
+  // Clouds / mountains
+  "https://videos.pexels.com/video-files/857251/857251-hd_1920_1080_25fps.mp4",
+  "https://videos.pexels.com/video-files/2169880/2169880-uhd_2560_1440_24fps.mp4",
+  // Rivers
+  "https://videos.pexels.com/video-files/2491284/2491284-uhd_2560_1440_24fps.mp4",
+  "https://videos.pexels.com/video-files/2421545/2421545-uhd_2560_1440_24fps.mp4",
+  // Night sky / stars
+  "https://videos.pexels.com/video-files/1826896/1826896-hd_1920_1080_30fps.mp4",
+  "https://videos.pexels.com/video-files/4065924/4065924-uhd_2560_1440_24fps.mp4",
+  // Meadow / flowers
+  "https://videos.pexels.com/video-files/4625518/4625518-uhd_2560_1440_24fps.mp4",
+  // Campfire
+  "https://videos.pexels.com/video-files/3402795/3402795-uhd_2560_1440_24fps.mp4",
+  // Fog / mist
+  "https://videos.pexels.com/video-files/4763824/4763824-uhd_2560_1440_24fps.mp4",
+  // Coral / underwater
+  "https://videos.pexels.com/video-files/4065919/4065919-uhd_2560_1440_24fps.mp4",
 ];
 
+// Schedule: 50% image, 40% video, 10% text — 10 posts per day for richer feed
 const POST_SCHEDULE = [
+  { slot: "dawn", hour: 6, mediaType: "video" as const },
   { slot: "morning", hour: 7, mediaType: "image" as const },
-  { slot: "late_morning", hour: 10, mediaType: "video" as const },
+  { slot: "mid_morning", hour: 9, mediaType: "video" as const },
+  { slot: "late_morning", hour: 10, mediaType: "image" as const },
+  { slot: "noon", hour: 12, mediaType: "video" as const },
   { slot: "afternoon", hour: 13, mediaType: "image" as const },
-  { slot: "late_afternoon", hour: 16, mediaType: "video" as const },
-  { slot: "evening", hour: 19, mediaType: "image" as const },
+  { slot: "late_afternoon", hour: 15, mediaType: "video" as const },
+  { slot: "evening", hour: 17, mediaType: "image" as const },
+  { slot: "sunset", hour: 19, mediaType: "image" as const },
   { slot: "night", hour: 22, mediaType: "discussion" as const },
 ];
 
