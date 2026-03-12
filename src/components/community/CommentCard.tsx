@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { MoreHorizontal, Pencil, Trash2, Check, X, Flag, Reply, ChevronDown, ChevronUp, Send } from "lucide-react";
 import UserAvatar from "@/components/UserAvatar";
+import { isAICompanion, getCompanionAvatar } from "@/lib/companionAvatars";
 import { formatDistanceToNow } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -117,11 +118,17 @@ const CommentCard = ({
           <div className="absolute -left-3 top-0 bottom-0 w-px bg-white/10" />
         )}
 
-        <UserAvatar
-          displayName={comment.anonymous_name}
-          size="xs"
-          onClick={comment.author_id ? () => navigate(`/profile/${comment.author_id}`) : undefined}
-        />
+        {(() => {
+          const companionData = isAICompanion(comment.anonymous_name) ? getCompanionAvatar(comment.anonymous_name) : null;
+          return (
+            <UserAvatar
+              avatarUrl={companionData?.avatarUrl}
+              displayName={comment.anonymous_name}
+              size="xs"
+              onClick={comment.author_id ? () => navigate(`/profile/${comment.author_id}`) : undefined}
+            />
+          );
+        })()}
         <div className="flex-1">
           <div
             className="px-3 py-2.5 rounded-xl"

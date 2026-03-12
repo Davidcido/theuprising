@@ -21,6 +21,7 @@ import WelcomePrompt from "@/components/community/WelcomePrompt";
 import ActivityBanner from "@/components/community/ActivityBanner";
 import AuthModal from "@/components/auth/AuthModal";
 import { Button } from "@/components/ui/button";
+import CompanionStoryBar from "@/components/community/CompanionStoryBar";
 
 import { usePostViewTracker } from "@/hooks/usePostViewTracker";
 import PostViewObserver from "@/components/community/PostViewObserver";
@@ -1066,19 +1067,22 @@ const Community = () => {
     <div className="min-h-screen py-12 pb-24">
       <div className="container mx-auto px-4 max-w-2xl">
         {/* Header */}
-        <div className="text-center mb-8">
-          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex justify-center mb-5">
-            <img src={uprisingLogo} alt="The Uprising" className="w-16 h-16 rounded-2xl object-cover shadow-xl" />
+        <div className="text-center mb-6">
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex justify-center mb-4">
+            <img src={uprisingLogo} alt="The Uprising" className="w-14 h-14 rounded-2xl object-cover shadow-xl" />
           </motion.div>
-          <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-3xl md:text-4xl font-display font-bold text-foreground mb-2">
-            The Uprising Community
+          <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-2xl md:text-3xl font-display font-bold text-foreground mb-1.5">
+            Welcome to Uprising 🌿
           </motion.h1>
           <p className="text-muted-foreground text-sm">Share, support, and uplift each other.</p>
-          <div className="inline-flex items-center gap-2 mt-3 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-muted-foreground text-xs font-medium">
+          <div className="inline-flex items-center gap-2 mt-2.5 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-muted-foreground text-xs font-medium">
             <Shield className="w-3.5 h-3.5" />
             Positive energy only · Anonymous
           </div>
         </div>
+
+        {/* AI Companion Stories */}
+        <CompanionStoryBar />
 
         {/* Quick links */}
         {currentUser && (
