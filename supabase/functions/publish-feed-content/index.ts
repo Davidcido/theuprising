@@ -201,17 +201,23 @@ serve(async (req) => {
 async function generateDayContent(apiKey: string, date: string) {
   const dayName = new Date(date).toLocaleDateString("en-US", { weekday: "long" });
 
-  const prompt = `Generate 6 social media posts for the Uprising community feed for ${dayName}, ${date}.
+  const prompt = `Generate 10 social media posts for the Uprising community feed for ${dayName}, ${date}.
 
 Schedule (50% image, 40% video, 10% text):
-1. Morning (7AM) - 🖼️ IMAGE POST: Calm/Inspirational Visual with cinematic image
-2. Late Morning (10AM) - 🎥 VIDEO POST: Reflective post paired with cinematic nature video
-3. Afternoon (1PM) - 🖼️ IMAGE POST: Motivational/Healing Message with striking visual
-4. Late Afternoon (4PM) - 🎥 VIDEO POST: Nature timelapse or calming scene paired with motivational text
-5. Evening (7PM) - 🖼️ IMAGE POST: AI Companion Reflection with dreamy visual
-6. Night (10PM) - 💬 DISCUSSION POST (text-only): Start a community discussion with a thought-provoking question
+1. Dawn (6AM) - 🎥 VIDEO POST: Paired with calming sunrise/nature footage. Caption about new beginnings.
+2. Morning (7AM) - 🖼️ IMAGE POST: Calm/Inspirational Visual with cinematic image
+3. Mid-Morning (9AM) - 🎥 VIDEO POST: Reflective post paired with ocean waves or forest scene
+4. Late Morning (10AM) - 🖼️ IMAGE POST: Motivational/Healing Message with striking visual
+5. Noon (12PM) - 🎥 VIDEO POST: Nature timelapse or waterfall scene with grounding message
+6. Afternoon (1PM) - 🖼️ IMAGE POST: AI Companion Reflection with dreamy visual
+7. Late Afternoon (3PM) - 🎥 VIDEO POST: Rain or clouds moving across mountains. Calming reflection.
+8. Evening (5PM) - 🖼️ IMAGE POST: Golden hour theme with warm emotional message
+9. Sunset (7PM) - 🖼️ IMAGE POST: Sunset/night transition with peaceful reflection
+10. Night (10PM) - 💬 DISCUSSION POST (text-only): Community discussion with thought-provoking question
 
-Discussion post examples (slot 2):
+Video posts will be paired with cinematic nature footage (ocean waves, waterfalls, forests, rain, sunrise/sunset, clouds, rivers, starry skies). Write captions that complement these visuals.
+
+Discussion post examples:
 - "What small moment made your day better today?"
 - "What helps you find calm when life feels overwhelming?"
 - "What's something you're grateful for tonight?"
@@ -219,7 +225,7 @@ Discussion post examples (slot 2):
 
 For each return JSON with:
 - "title": short powerful title (2-5 words)
-- "visual_concept": cinematic scene description for image posts (glowing forests, peaceful landscapes, sunrise/sunset, calming water, floating particles, mystical nature, soft green tones, dreamlike). For discussion/video posts, still provide a concept.
+- "visual_concept": cinematic scene description for image posts (glowing forests, peaceful landscapes, sunrise/sunset, calming water, floating particles, mystical nature, soft green tones, dreamlike). For video posts, describe the nature scene. For discussion, still provide a concept.
 - "message": 1-3 emotionally resonant sentences
 - "caption": short social media caption with emoji
 - "companion_name": one of Seren/Atlas/Nova/Orion/Kai/Sol/Elias/Leo
