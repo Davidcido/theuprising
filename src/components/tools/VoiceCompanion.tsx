@@ -356,7 +356,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
     return scored.map(s => s.voice);
   }, []);
 
-  // Pick the best voice from available list
+  // Pick the best voice from available list — prefer Samantha
   const pickBest = useCallback((voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null => {
     if (!voices.length) return null;
 
@@ -367,24 +367,27 @@ Never expose the English interpretation to the user — always reply fully in Ha
       if (userPick) return userPick;
     }
 
-    // Priority: Google English > Microsoft English (not David) > network English > local English > any English > first voice
-    const googleEn = voices.find(v => v.name.includes("Google") && v.lang.startsWith("en"));
+    // Only consider allowed voices
+    const allowed = voices.filter(isAllowedVoice);
+    if (!allowed.length) {
+      // Fallback: any English voice
+      return voices.find(v => v.lang.startsWith("en")) || voices[0];
+    }
+
+    // Priority: Samantha > Google English > Karen > Daniel > Moira > first allowed
+    const samantha = allowed.find(v => v.name.toLowerCase().startsWith("samantha"));
+    if (samantha) return samantha;
+
+    const googleEn = allowed.find(v => v.name.includes("Google") && v.lang.startsWith("en"));
     if (googleEn) return googleEn;
 
-    const microsoftEn = voices.find(v => v.name.includes("Microsoft") && v.lang.startsWith("en") && !v.name.includes("David"));
-    if (microsoftEn) return microsoftEn;
+    const karen = allowed.find(v => v.name.toLowerCase().startsWith("karen"));
+    if (karen) return karen;
 
-    const networkEn = voices.find(v => v.lang.startsWith("en") && !v.localService);
-    if (networkEn) return networkEn;
+    const daniel = allowed.find(v => v.name.toLowerCase().startsWith("daniel"));
+    if (daniel) return daniel;
 
-    const localEn = voices.find(v => v.lang.startsWith("en") && v.localService);
-    if (localEn) return localEn;
-
-    const anyEn = voices.find(v => v.lang.startsWith("en"));
-    if (anyEn) return anyEn;
-
-    // Ultimate fallback: first available voice
-    return voices[0];
+    return allowed[0];
   }, []);
 
   // Load voices — returns a shared promise so multiple callers don't race
