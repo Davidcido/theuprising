@@ -376,7 +376,7 @@ const PostCard = ({
             </div>
           </div>
         ) : (
-          <div className="text-foreground/90 text-sm leading-relaxed mb-3 whitespace-pre-wrap break-words"><HashtagText content={post.content} /></div>
+          <ContentWithReadMore content={post.content} hasMedia={!!hasMedia} />
         )}
         </div>
 
