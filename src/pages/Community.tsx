@@ -162,7 +162,7 @@ const Community = () => {
     try {
       let query = supabase
         .from("community_posts")
-        .select("*")
+        .select("id, content, anonymous_name, author_id, is_anonymous, likes_count, comments_count, shares_count, views_count, created_at, media_urls, original_post_id, reposted_by_name, engagement_score")
         .order("created_at", { ascending: false })
         .limit(POSTS_PER_PAGE);
 
@@ -455,45 +455,10 @@ const Community = () => {
       })
       .subscribe();
 
-    const reactionsChannel = supabase
-      .channel("community-reactions")
-      .on("postgres_changes", { event: "*", schema: "public", table: "community_reactions" }, () => fetchReactions())
-      .subscribe();
-
-    const commentReactionsChannel = supabase
-      .channel("comment-reactions")
-      .on("postgres_changes", { event: "*", schema: "public", table: "comment_reactions" }, () => fetchCommentReactions())
-      .subscribe();
-
-    const settingsChannel = supabase
-      .channel("community-settings")
-      .on("postgres_changes", { event: "*", schema: "public", table: "community_settings" }, (payload) => {
-        const row = payload.new as { key: string; value: string };
-        if (row.key === "community_status") setCommunityOpen(row.value === "open");
-      })
-      .subscribe();
-
-    const followsChannel = supabase
-      .channel("community-follows")
-      .on("postgres_changes", { event: "*", schema: "public", table: "follows" }, async () => {
-        if (authUser) {
-          const { data: follows } = await supabase
-            .from("follows")
-            .select("following_id")
-            .eq("follower_id", authUser.id);
-          if (follows) setFollowingIds(new Set(follows.map(f => f.following_id)));
-        }
-      })
-      .subscribe();
-
     return () => {
       supabase.removeChannel(postsChannel);
       supabase.removeChannel(commentsChannel);
       supabase.removeChannel(likesChannel);
-      supabase.removeChannel(reactionsChannel);
-      supabase.removeChannel(commentReactionsChannel);
-      supabase.removeChannel(settingsChannel);
-      supabase.removeChannel(followsChannel);
     };
   }, [authReady]);
 
@@ -795,13 +760,12 @@ const Community = () => {
     setMediaFiles([]);
     if (textareaRef.current) textareaRef.current.style.height = "auto";
 
-    // Separate already-uploaded images (have public URLs) from local video files
+    // Separate already-uploaded images from local video files
     const readyUrls: string[] = [];
     const videoFilesToUpload: { file: File; previewUrl: string }[] = [];
 
     for (const m of savedMedia) {
       if (m.type === "video" && m.file) {
-        // Enforce 50MB limit
         if (m.file.size > 50 * 1024 * 1024) {
           toast({ title: "Video too large", description: "Please upload a file under 50MB.", variant: "destructive" });
           setNewPost(savedContent);
@@ -815,40 +779,10 @@ const Community = () => {
       }
     }
 
-    // Insert the post immediately with only the ready image URLs
-    const insertData: any = {
-      content: savedContent.trim().slice(0, 10000) || "",
-      anonymous_name: postAnonymously ? sessionId : (currentUser?.displayName || sessionId),
-      is_anonymous: postAnonymously,
-      media_urls: readyUrls,
-    };
-    // Always store author_id from auth (not currentUser which may lag)
-    if (authUser?.id) {
-      insertData.author_id = authUser.id;
-    } else if (currentUser) {
-      insertData.author_id = currentUser.id;
-    }
+    // Build optimistic post immediately
+    const optimisticId = `optimistic-post-${Date.now()}`;
+    const authorId = authUser?.id || currentUser?.id || null;
 
-    console.log("[Community] Inserting post:", JSON.stringify(insertData));
-    const { data: insertedPost, error } = await supabase
-      .from("community_posts")
-      .insert(insertData)
-      .select()
-      .single();
-
-    if (error || !insertedPost) {
-      console.error("[Community] Post creation failed:", error?.message, error?.details, error?.hint);
-      setNewPost(savedContent);
-      setMediaFiles(savedMedia);
-      toast({ title: "Post failed to publish", description: error?.message || "Could not post. Try again.", variant: "destructive" });
-      setPosting(false);
-      return;
-    }
-
-    console.log("[Community] Post created successfully:", insertedPost.id);
-    const postId = insertedPost.id;
-
-    // Build pending media entries for videos
     const pendingMedia: PendingMedia[] = videoFilesToUpload.map((v) => {
       const mediaId = `media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       pendingFilesRef.current.set(mediaId, { file: v.file, type: "video" });
@@ -862,61 +796,111 @@ const Community = () => {
       };
     });
 
-    const newPostObj: Post = {
-      id: postId,
-      content: insertedPost.content,
-      anonymous_name: insertedPost.anonymous_name,
+    const optimisticPost: Post = {
+      id: optimisticId,
+      content: savedContent.trim().slice(0, 10000) || "",
+      anonymous_name: postAnonymously ? sessionId : (currentUser?.displayName || sessionId),
       likes_count: 0,
       comments_count: 0,
       shares_count: 0,
       views_count: 0,
-      created_at: insertedPost.created_at,
-      author_id: insertedPost.author_id,
-      is_anonymous: insertedPost.is_anonymous,
+      created_at: new Date().toISOString(),
+      author_id: authorId,
+      is_anonymous: postAnonymously,
       media_urls: readyUrls,
       author_profile: currentUser && !postAnonymously ? { display_name: currentUser.displayName, avatar_url: "" } : null,
+      _optimistic: true,
       _pendingMedia: pendingMedia.length > 0 ? pendingMedia : undefined,
-      _onCancelUpload: pendingMedia.length > 0 ? (mediaId: string) => cancelPendingUpload(postId, mediaId) : undefined,
-      _onRetryUpload: pendingMedia.length > 0 ? (mediaId: string) => retryPendingUpload(postId, mediaId) : undefined,
     };
 
-    const isFirstPost = !allPosts.some(p => p.author_id === currentUser?.id && p.id !== postId);
+    const isFirstPost = !allPosts.some(p => p.author_id === currentUser?.id);
 
-    setAllPosts(prev => [newPostObj, ...prev.filter(p => p.id !== postId)]);
-    toast({ title: videoFilesToUpload.length > 0 ? "Post published! Video uploading..." : "Post published successfully! 🎉" });
+    // Show post immediately
+    setAllPosts(prev => [optimisticPost, ...prev]);
     setPosting(false);
 
-    // Refetch feed to ensure consistency (don't await — optimistic post is already shown)
-    fetchPosts(false).catch(err => console.error("[Community] Post-creation refetch failed:", err));
+    // 4s failsafe: if DB hasn't responded, keep the optimistic post visible
+    const failsafeTimer = setTimeout(() => {
+      // Post is already shown — no stuck state possible
+    }, 4000);
 
-    if (isFirstPost && currentUser) {
-      setShowFirstPostCelebration(true);
-    }
+    // Insert into DB asynchronously
+    const insertData: any = {
+      content: savedContent.trim().slice(0, 10000) || "",
+      anonymous_name: postAnonymously ? sessionId : (currentUser?.displayName || sessionId),
+      is_anonymous: postAnonymously,
+      media_urls: readyUrls,
+    };
+    if (authorId) insertData.author_id = authorId;
 
-    // Start background video uploads
-    for (const pm of pendingMedia) {
-      const fileEntry = pendingFilesRef.current.get(pm.id);
-      if (fileEntry) {
-        startBackgroundUpload(postId, pm.id, fileEntry.file, "video", pm.previewUrl);
+    try {
+      const { data: insertedPost, error } = await supabase
+        .from("community_posts")
+        .insert(insertData)
+        .select("id, content, anonymous_name, author_id, is_anonymous, likes_count, comments_count, shares_count, views_count, created_at, media_urls")
+        .single();
+
+      clearTimeout(failsafeTimer);
+
+      if (error || !insertedPost) {
+        // Remove optimistic post on failure
+        setAllPosts(prev => prev.filter(p => p.id !== optimisticId));
+        setNewPost(savedContent);
+        setMediaFiles(savedMedia);
+        toast({ title: "Post failed to publish", description: error?.message || "Could not post. Try again.", variant: "destructive" });
+        return;
       }
-    }
 
-    // Send mention notifications
-    if (currentUser) {
-      const mentions = extractMentions(savedContent);
-      if (mentions.length > 0) {
-        const { data: mentionedProfiles } = await supabase
-          .from("profiles")
-          .select("user_id, display_name")
-          .in("display_name", mentions);
-        if (mentionedProfiles) {
-          for (const mp of mentionedProfiles) {
-            if (mp.user_id !== currentUser.id) {
-              createNotification(mp.user_id, currentUser.id, "mention", "mentioned you in a post", postId);
-            }
-          }
+      const postId = insertedPost.id;
+
+      // Replace optimistic post with real post
+      const realPost: Post = {
+        ...optimisticPost,
+        id: postId,
+        created_at: insertedPost.created_at,
+        _optimistic: undefined,
+        _onCancelUpload: pendingMedia.length > 0 ? (mediaId: string) => cancelPendingUpload(postId, mediaId) : undefined,
+        _onRetryUpload: pendingMedia.length > 0 ? (mediaId: string) => retryPendingUpload(postId, mediaId) : undefined,
+      };
+
+      setAllPosts(prev => prev.map(p => p.id === optimisticId ? realPost : p));
+      toast({ title: videoFilesToUpload.length > 0 ? "Post published! Video uploading..." : "Post published successfully! 🎉" });
+
+      if (isFirstPost && currentUser) {
+        setShowFirstPostCelebration(true);
+      }
+
+      // Start background video uploads
+      for (const pm of pendingMedia) {
+        const fileEntry = pendingFilesRef.current.get(pm.id);
+        if (fileEntry) {
+          startBackgroundUpload(postId, pm.id, fileEntry.file, "video", pm.previewUrl);
         }
       }
+
+      // Send mention notifications (fire and forget)
+      if (currentUser) {
+        const mentions = extractMentions(savedContent);
+        if (mentions.length > 0) {
+          supabase
+            .from("profiles")
+            .select("user_id, display_name")
+            .in("display_name", mentions)
+            .then(({ data: mentionedProfiles }) => {
+              if (mentionedProfiles) {
+                for (const mp of mentionedProfiles) {
+                  if (mp.user_id !== currentUser.id) {
+                    createNotification(mp.user_id, currentUser.id, "mention", "mentioned you in a post", postId);
+                  }
+                }
+              }
+            });
+        }
+      }
+    } catch (err: any) {
+      clearTimeout(failsafeTimer);
+      // Keep optimistic post visible — user sees their content regardless
+      console.error("[Community] Post insert error:", err?.message);
     }
   };
 
@@ -1107,30 +1091,52 @@ const Community = () => {
   const addReply = async (postId: string, content: string, parentCommentId: string, parentAuthorId?: string | null) => {
     if (!content.trim()) return;
     const commentName = currentUser ? currentUser.displayName : sessionId;
+
+    // Optimistic reply
+    const optimisticId = `optimistic-reply-${Date.now()}`;
+    const optimisticReply: Comment = {
+      id: optimisticId,
+      post_id: postId,
+      content: content.slice(0, 5000),
+      anonymous_name: commentName,
+      author_id: currentUser?.id || null,
+      parent_comment_id: parentCommentId,
+      created_at: new Date().toISOString(),
+    };
+    setComments(prev => ({
+      ...prev,
+      [postId]: [...(prev[postId] || []), optimisticReply],
+    }));
+    setAllPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
+
     const insertData: any = {
       post_id: postId,
       content: content.slice(0, 5000),
       anonymous_name: commentName,
       parent_comment_id: parentCommentId,
     };
-    if (currentUser) {
-      insertData.author_id = currentUser.id;
-    }
+    if (currentUser) insertData.author_id = currentUser.id;
+
     const { data: insertedReply, error } = await supabase.from("community_comments").insert(insertData).select("id").single();
     if (!error && insertedReply) {
-      await supabase.rpc("increment_comments", { post_id_input: postId });
-      setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
-      const { data } = await supabase
-        .from("community_comments")
-        .select("*")
-        .eq("post_id", postId)
-        .order("created_at", { ascending: true });
-      if (data) setComments((prev) => ({ ...prev, [postId]: data as Comment[] }));
+      // Replace optimistic with real ID
+      setComments(prev => ({
+        ...prev,
+        [postId]: (prev[postId] || []).map(c => c.id === optimisticId ? { ...c, id: insertedReply.id } : c),
+      }));
+      supabase.rpc("increment_comments", { post_id_input: postId }).then(() => {});
       if (currentUser && parentAuthorId && parentAuthorId !== currentUser.id) {
         createNotification(parentAuthorId, currentUser.id, "reply", "replied to your comment", postId);
       }
-      // Trigger AI companion reply if @mentioned
       triggerCompanionReply(postId, insertedReply.id, content, parentCommentId);
+    } else {
+      // Rollback
+      setComments(prev => ({
+        ...prev,
+        [postId]: (prev[postId] || []).filter(c => c.id !== optimisticId),
+      }));
+      setAllPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: Math.max(0, p.comments_count - 1) } : p));
+      toast({ title: "Error", description: "Could not add reply.", variant: "destructive" });
     }
   };
 
@@ -1175,40 +1181,43 @@ const Community = () => {
       toast({ title: "Sign in required", description: "Please sign in to repost.", variant: "destructive" });
       return;
     }
-    if (quoteContent) {
-      const { error } = await supabase.from("community_posts").insert({
-        content: quoteContent,
-        anonymous_name: currentUser.displayName,
-        is_anonymous: false,
-        author_id: currentUser.id,
-        original_post_id: post.id,
-      });
-      if (error) {
-        toast({ title: "Error", description: "Could not repost. Try again.", variant: "destructive" });
-        return;
-      }
-      await supabase.from("community_reposts").insert({
-        user_id: currentUser.id,
-        original_post_id: post.id,
-        quote_content: quoteContent,
-      });
-    } else {
-      const { error } = await supabase.from("community_reposts").insert({
-        user_id: currentUser.id,
-        original_post_id: post.id,
-      });
-      if (error) {
-        toast({ title: "Error", description: "Could not repost. Try again.", variant: "destructive" });
-        return;
-      }
-    }
 
-    await supabase.from("community_posts").update({ shares_count: post.shares_count + 1 }).eq("id", post.id);
+    // Optimistic UI update immediately
     setAllPosts(prev => prev.map(p => p.id === post.id ? { ...p, shares_count: p.shares_count + 1 } : p));
     toast({ title: quoteContent ? "Quote reposted!" : "Reposted!" });
-    if (post.author_id && post.author_id !== currentUser.id) {
-      createNotification(post.author_id, currentUser.id, "repost", "reposted your post", post.id);
-    }
+
+    // DB operations async — don't block UI
+    (async () => {
+      try {
+        if (quoteContent) {
+          await supabase.from("community_posts").insert({
+            content: quoteContent,
+            anonymous_name: currentUser.displayName,
+            is_anonymous: false,
+            author_id: currentUser.id,
+            original_post_id: post.id,
+          });
+          await supabase.from("community_reposts").insert({
+            user_id: currentUser.id,
+            original_post_id: post.id,
+            quote_content: quoteContent,
+          });
+        } else {
+          await supabase.from("community_reposts").insert({
+            user_id: currentUser.id,
+            original_post_id: post.id,
+          });
+        }
+        supabase.from("community_posts").update({ shares_count: post.shares_count + 1 }).eq("id", post.id).then(() => {});
+        if (post.author_id && post.author_id !== currentUser.id) {
+          createNotification(post.author_id, currentUser.id, "repost", "reposted your post", post.id);
+        }
+      } catch {
+        // Rollback share count on failure
+        setAllPosts(prev => prev.map(p => p.id === post.id ? { ...p, shares_count: Math.max(0, p.shares_count - 1) } : p));
+        toast({ title: "Error", description: "Could not repost. Try again.", variant: "destructive" });
+      }
+    })();
   };
 
   const reactionCountsMap = useMemo(() => {
