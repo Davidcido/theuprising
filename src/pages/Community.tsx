@@ -332,44 +332,41 @@ const Community = () => {
     if (allPosts.length > 0) fetchReactions();
   }, [allPosts.length]);
 
-  // Auto-fetch comments for all posts that have comments_count > 0
-  // This ensures comments are always available when the section is expanded
-  const fetchCommentsForPosts = useCallback(async (posts: Post[]) => {
-    const postsNeedingComments = posts.filter(
-      p => p.comments_count > 0 && !comments[p.id] && !p.id.startsWith("repost-") && !p.id.startsWith("optimistic-")
-    );
-    if (postsNeedingComments.length === 0) return;
-    
-    const postIds = postsNeedingComments.map(p => p.id);
+  // Lazy comment loading: only fetch comments when a post's comment section is expanded
+  // This prevents firing queries for every post with comments_count > 0 on mount
+  const fetchCommentsForPost = useCallback(async (postId: string) => {
+    if (comments[postId]) return; // already loaded
     const { data } = await supabase
       .from("community_comments")
       .select("*")
-      .in("post_id", postIds)
-      .order("created_at", { ascending: true });
-    
-    if (data && data.length > 0) {
-      const grouped: Record<string, Comment[]> = {};
-      for (const c of data) {
-        if (!grouped[c.post_id]) grouped[c.post_id] = [];
-        grouped[c.post_id].push(c as Comment);
-      }
-      setComments(prev => ({ ...prev, ...grouped }));
-      
-      // Sync comment counts with actual DB data
-      setAllPosts(prev => prev.map(p => {
-        const actual = grouped[p.id];
-        if (actual && actual.length !== p.comments_count) {
-          return { ...p, comments_count: actual.length };
+      .eq("post_id", postId)
+      .is("parent_comment_id", null) // top-level comments only
+      .order("created_at", { ascending: true })
+      .limit(30);
+
+    if (data) {
+      // Also load replies for these top-level comments
+      const topIds = data.map(c => c.id);
+      let allComments = data as Comment[];
+
+      if (topIds.length > 0) {
+        const { data: replies } = await supabase
+          .from("community_comments")
+          .select("*")
+          .in("parent_comment_id", topIds)
+          .order("created_at", { ascending: true });
+        if (replies) {
+          allComments = [...allComments, ...(replies as Comment[])];
         }
-        return p;
-      }));
+      }
+
+      setComments(prev => ({ ...prev, [postId]: allComments }));
+      // Sync comment count
+      setAllPosts(prev => prev.map(p =>
+        p.id === postId ? { ...p, comments_count: Math.max(p.comments_count, allComments.length) } : p
+      ));
     }
   }, [comments]);
-
-  // Trigger auto-fetch whenever allPosts changes
-  useEffect(() => {
-    if (allPosts.length > 0) fetchCommentsForPosts(allPosts);
-  }, [allPosts.length]);
 
   // Load comment reactions when comments are expanded
   useEffect(() => {
@@ -508,25 +505,29 @@ const Community = () => {
   }, [allPosts.length]);
 
   // Background prefetch — loads next PREFETCH_BATCH posts into cache before user reaches bottom
+  // Uses a separate cursor to avoid conflicting with main pagination
+  const prefetchCursorRef = useRef<string | null>(null);
   const prefetchNextBatch = useCallback(async () => {
     if (prefetchTriggered.current || !hasMore || fetchingRef.current) return;
     prefetchTriggered.current = true;
     
+    // Use the main cursor as prefetch starting point
+    const prefetchCursor = cursorRef.current;
+    if (!prefetchCursor) return;
+    
     try {
-      let query = supabase
+      const { data } = await supabase
         .from("community_posts")
         .select("id, content, anonymous_name, author_id, is_anonymous, likes_count, comments_count, shares_count, views_count, created_at, media_urls, original_post_id, reposted_by_name, engagement_score")
         .order("created_at", { ascending: false })
+        .lt("created_at", prefetchCursor)
         .limit(PREFETCH_BATCH);
 
-      if (cursorRef.current) {
-        query = query.lt("created_at", cursorRef.current);
-      }
-
-      const { data } = await query;
       if (data && data.length > 0) {
         const enriched = await enrichPosts(data);
         prefetchCacheRef.current = enriched;
+        // Store the cursor for when this batch gets consumed
+        prefetchCursorRef.current = data[data.length - 1].created_at;
       }
     } catch {}
   }, [hasMore, enrichPosts]);
@@ -558,12 +559,14 @@ const Community = () => {
             // Use prefetched data instantly
             const prefetched = prefetchCacheRef.current;
             prefetchCacheRef.current = [];
+            // Update main cursor from prefetch cursor
+            if (prefetchCursorRef.current) {
+              cursorRef.current = prefetchCursorRef.current;
+              prefetchCursorRef.current = null;
+            }
             setAllPosts(prev => {
               const existingIds = new Set(prev.map(p => p.id));
               const newPosts = prefetched.filter(p => !existingIds.has(p.id));
-              if (newPosts.length > 0 && prefetched.length > 0) {
-                cursorRef.current = prefetched[prefetched.length - 1].created_at;
-              }
               return [...prev, ...newPosts];
             });
             setHasMore(prefetched.length >= PREFETCH_BATCH);
@@ -1014,19 +1017,8 @@ const Community = () => {
       setExpandedComments((prev) => { const n = new Set(prev); n.delete(postId); return n; });
     } else {
       setExpandedComments((prev) => new Set(prev).add(postId));
-      // Always refetch comments to ensure sync with DB count
-      const { data } = await supabase
-        .from("community_comments")
-        .select("*")
-        .eq("post_id", postId)
-        .order("created_at", { ascending: true });
-      if (data) {
-        setComments((prev) => ({ ...prev, [postId]: data as Comment[] }));
-        // Sync the comment count displayed on the post
-        setAllPosts(prev => prev.map(p => 
-          p.id === postId ? { ...p, comments_count: data.length } : p
-        ));
-      }
+      // Lazy-load comments only when expanded
+      await fetchCommentsForPost(postId);
     }
   };
 
@@ -1043,16 +1035,48 @@ const Community = () => {
     if (currentUser) {
       insertData.author_id = currentUser.id;
     }
+
+    // Optimistic comment insertion — show immediately
+    const optimisticId = `optimistic-${Date.now()}`;
+    const optimisticComment: Comment = {
+      id: optimisticId,
+      post_id: postId,
+      content: text.slice(0, 5000),
+      anonymous_name: commentName,
+      author_id: currentUser?.id || null,
+      parent_comment_id: null,
+      created_at: new Date().toISOString(),
+    };
+    setComments(prev => ({
+      ...prev,
+      [postId]: [...(prev[postId] || []), optimisticComment],
+    }));
+    setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
+    setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
+
+    // Send to DB
     const { data: insertedComment, error } = await supabase.from("community_comments").insert(insertData).select("id").single();
     if (!error && insertedComment) {
+      // Replace optimistic with real comment
+      setComments(prev => ({
+        ...prev,
+        [postId]: (prev[postId] || []).map(c =>
+          c.id === optimisticId ? { ...c, id: insertedComment.id } : c
+        ),
+      }));
       await supabase.rpc("increment_comments", { post_id_input: postId });
-      setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
-      setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
       if (currentUser && post?.author_id && post.author_id !== currentUser.id) {
         createNotification(post.author_id, currentUser.id, "comment", "commented on your post", postId);
       }
-      // Trigger AI companion reply if @mentioned
       triggerCompanionReply(postId, insertedComment.id, text);
+    } else {
+      // Rollback optimistic
+      setComments(prev => ({
+        ...prev,
+        [postId]: (prev[postId] || []).filter(c => c.id !== optimisticId),
+      }));
+      setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: Math.max(0, p.comments_count - 1) } : p));
+      toast({ title: "Error", description: "Could not add comment.", variant: "destructive" });
     }
   };
 
