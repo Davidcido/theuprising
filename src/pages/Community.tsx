@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Shield, Eye, EyeOff, Sparkles, Users, TrendingUp, RefreshCw, Bookmark, FileText, AlertCircle } from "lucide-react";
+import { Send, Shield, Eye, EyeOff, Sparkles, Users, TrendingUp, RefreshCw, Bookmark, FileText, AlertCircle, ArrowUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import UserAvatar from "@/components/UserAvatar";
 import { toast } from "@/hooks/use-toast";
@@ -29,6 +29,8 @@ import FirstPostCelebration from "@/components/community/FirstPostCelebration";
 import { extractMentions } from "@/components/community/HashtagText";
 import MentionDropdown from "@/components/community/MentionDropdown";
 import { useAuthReady } from "@/hooks/useAuthReady";
+import { useFeedCache } from "@/hooks/useFeedCache";
+import { useVirtualFeed } from "@/hooks/useVirtualFeed";
 
 type FeedTab = "foryou" | "following" | "trending";
 
@@ -38,7 +40,8 @@ const FEED_TABS: { key: FeedTab; label: string; icon: typeof Sparkles }[] = [
   { key: "trending", label: "Trending", icon: TrendingUp },
 ];
 
-const POSTS_PER_PAGE = 15;
+const POSTS_PER_PAGE = 25;
+const PREFETCH_BATCH = 30;
 
 const getSessionId = () => {
   let id = localStorage.getItem("uprising_session_id");
@@ -49,32 +52,12 @@ const getSessionId = () => {
   return id;
 };
 
-const CACHE_KEY = "uprising_community_cache";
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-const getCachedPosts = (): Post[] | null => {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    if (!raw) return null;
-    const { posts, ts } = JSON.parse(raw);
-    if (Date.now() - ts > CACHE_TTL) return null;
-    return posts;
-  } catch { return null; }
-};
-
-const setCachedPosts = (posts: Post[]) => {
-  try {
-    // Only cache first page worth of posts (lightweight)
-    const toCache = posts.filter(p => !p._optimistic && !p.id.startsWith("repost-")).slice(0, POSTS_PER_PAGE);
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ posts: toCache, ts: Date.now() }));
-  } catch {}
-};
-
 const Community = () => {
-  const cachedPosts = useRef(getCachedPosts());
-  const [allPosts, setAllPosts] = useState<Post[]>(cachedPosts.current || []);
+  const feedCache = useFeedCache<Post>();
+  const initialCached = useRef(feedCache.getCached());
+  const [allPosts, setAllPosts] = useState<Post[]>(initialCached.current || []);
   const [newPost, setNewPost] = useState("");
-  const [loading, setLoading] = useState(!cachedPosts.current);
+  const [loading, setLoading] = useState(!initialCached.current);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
@@ -100,13 +83,16 @@ const Community = () => {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [showFirstPostCelebration, setShowFirstPostCelebration] = useState(false);
+  const [newPostsAvailable, setNewPostsAvailable] = useState(0);
   const [mentionQuery, setMentionQuery] = useState("");
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const prefetchSentinelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   // Cursor for pagination — stores created_at of the last loaded post
   const cursorRef = useRef<string | null>(null);
+  const prefetchCacheRef = useRef<Post[]>([]);
   const fetchingRef = useRef(false);
 
   const { isBookmarked, toggleBookmark } = useBookmarks(currentUser?.id);
@@ -270,7 +256,7 @@ const Community = () => {
           }
           return result;
         });
-        setCachedPosts(enriched);
+        feedCache.updateCache(enriched);
       }
       // Only stop loading more when we get fewer results than requested
       setHasMore(data.length >= POSTS_PER_PAGE);
@@ -281,7 +267,7 @@ const Community = () => {
         return fetchPosts(loadMore, retryCount + 1);
       }
       if (!loadMore && allPosts.length === 0) {
-        const cached = getCachedPosts();
+        const cached = feedCache.getCached();
         if (cached && cached.length > 0) {
           setAllPosts(cached);
         } else {
@@ -413,8 +399,13 @@ const Community = () => {
         const enriched = await enrichPosts([newPost]);
         if (enriched.length > 0) {
           setAllPosts(prev => {
-            // Skip if we already have this post (from instant publish)
             if (prev.some(p => p.id === enriched[0].id)) return prev;
+            // If user is scrolled down, show "new posts" indicator instead
+            const scrolledDown = window.scrollY > 400;
+            if (scrolledDown) {
+              setNewPostsAvailable(c => c + 1);
+              // Still add to state so it's available when they scroll up
+            }
             return [enriched[0], ...prev];
           });
         }
@@ -452,6 +443,21 @@ const Community = () => {
       })
       .subscribe();
 
+    // Real-time engagement: likes update post counters live
+    const likesChannel = supabase
+      .channel("community-likes-rt")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "community_likes" }, (payload) => {
+        const like = payload.new as { post_id: string; session_id: string };
+        if (like.session_id !== sessionId) {
+          setAllPosts(prev => prev.map(p => p.id === like.post_id ? { ...p, likes_count: p.likes_count + 1 } : p));
+        }
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "community_likes" }, (payload) => {
+        const like = payload.old as { post_id: string };
+        setAllPosts(prev => prev.map(p => p.id === like.post_id ? { ...p, likes_count: Math.max(0, p.likes_count - 1) } : p));
+      })
+      .subscribe();
+
     const reactionsChannel = supabase
       .channel("community-reactions")
       .on("postgres_changes", { event: "*", schema: "public", table: "community_reactions" }, () => fetchReactions())
@@ -486,6 +492,7 @@ const Community = () => {
     return () => {
       supabase.removeChannel(postsChannel);
       supabase.removeChannel(commentsChannel);
+      supabase.removeChannel(likesChannel);
       supabase.removeChannel(reactionsChannel);
       supabase.removeChannel(commentReactionsChannel);
       supabase.removeChannel(settingsChannel);
@@ -493,35 +500,91 @@ const Community = () => {
     };
   }, [authReady]);
 
-  // Prefetch: start loading next batch when user is halfway through current posts
+  // Prefetch next batch in background when user scrolls halfway
   const prefetchTriggered = useRef(false);
   useEffect(() => {
     if (!hasMore || loadingMore || fetchingRef.current) return;
-    // Reset prefetch flag when new posts arrive
     prefetchTriggered.current = false;
   }, [allPosts.length]);
 
+  // Background prefetch — loads next PREFETCH_BATCH posts into cache before user reaches bottom
+  const prefetchNextBatch = useCallback(async () => {
+    if (prefetchTriggered.current || !hasMore || fetchingRef.current) return;
+    prefetchTriggered.current = true;
+    
+    try {
+      let query = supabase
+        .from("community_posts")
+        .select("id, content, anonymous_name, author_id, is_anonymous, likes_count, comments_count, shares_count, views_count, created_at, media_urls, original_post_id, reposted_by_name, engagement_score")
+        .order("created_at", { ascending: false })
+        .limit(PREFETCH_BATCH);
+
+      if (cursorRef.current) {
+        query = query.lt("created_at", cursorRef.current);
+      }
+
+      const { data } = await query;
+      if (data && data.length > 0) {
+        const enriched = await enrichPosts(data);
+        prefetchCacheRef.current = enriched;
+      }
+    } catch {}
+  }, [hasMore, enrichPosts]);
+
+  // Prefetch sentinel — halfway through feed triggers background prefetch
+  useEffect(() => {
+    const sentinel = prefetchSentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && hasMore && !fetchingRef.current && activeTab === "foryou") {
+          prefetchNextBatch();
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, prefetchNextBatch, activeTab]);
+
+  // Bottom sentinel — triggers actual load (uses prefetched data if available)
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting && hasMore && !loadingMore && !fetchingRef.current && activeTab === "foryou") {
-          fetchPosts(true);
+          if (prefetchCacheRef.current.length > 0) {
+            // Use prefetched data instantly
+            const prefetched = prefetchCacheRef.current;
+            prefetchCacheRef.current = [];
+            setAllPosts(prev => {
+              const existingIds = new Set(prev.map(p => p.id));
+              const newPosts = prefetched.filter(p => !existingIds.has(p.id));
+              if (newPosts.length > 0 && prefetched.length > 0) {
+                cursorRef.current = prefetched[prefetched.length - 1].created_at;
+              }
+              return [...prev, ...newPosts];
+            });
+            setHasMore(prefetched.length >= PREFETCH_BATCH);
+            prefetchTriggered.current = false;
+          } else {
+            fetchPosts(true);
+          }
         }
       },
-      { rootMargin: "600px" }
+      { rootMargin: "800px" }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [hasMore, loadingMore, fetchPosts, activeTab]);
 
+  // Update cache whenever posts change
   useEffect(() => {
-    if (activeTab !== "foryou") return;
-  }, [activeTab]);
+    if (allPosts.length > 0) feedCache.updateCache(allPosts);
+  }, [allPosts.length]);
 
   const displayPosts = useMemo(() => {
-    // Always sort by created_at descending (newest first) as the base
     const chronological = [...allPosts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     
     switch (activeTab) {
@@ -547,14 +610,25 @@ const Community = () => {
     }
   }, [allPosts, activeTab, followingIds]);
 
-  const visiblePosts = displayPosts;
+  // Virtual feed — only render posts near viewport
+  const { virtualItems: visiblePosts, topSpacer, bottomSpacer } = useVirtualFeed(displayPosts, {
+    estimatedItemHeight: 350,
+    overscan: 8,
+    enabled: displayPosts.length > 30,
+  });
 
-  // View tracking is now handled per-post via PostViewObserver + usePostViewTracker
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setNewPostsAvailable(0);
+  }, []);
+
 
   const handleRefresh = async () => {
     setRefreshing(true);
     setHasMore(true);
+    setNewPostsAvailable(0);
     cursorRef.current = null;
+    prefetchCacheRef.current = [];
     await fetchPosts(false);
     setRefreshing(false);
   };
@@ -1357,9 +1431,32 @@ const Community = () => {
             )}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 relative">
+            {/* New Posts Available indicator */}
+            <AnimatePresence>
+              {newPostsAvailable > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="sticky top-16 z-30 flex justify-center"
+                >
+                  <button
+                    onClick={scrollToTop}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-primary-foreground text-xs font-semibold shadow-lg hover:scale-105 active:scale-95 transition-transform"
+                  >
+                    <ArrowUp className="w-3.5 h-3.5" />
+                    {newPostsAvailable} new {newPostsAvailable === 1 ? "post" : "posts"} available
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Virtual feed spacer top */}
+            {topSpacer > 0 && <div style={{ height: topSpacer }} aria-hidden />}
+
             <AnimatePresence mode="popLayout">
-              {visiblePosts.map((post) => (
+              {visiblePosts.map((post, idx) => (
                 <PostViewObserver key={post.id} postId={post.id} onView={trackView}>
                   <PostCard
                     post={post}
@@ -1395,9 +1492,16 @@ const Community = () => {
                     onDeletePost={handleDeletePost}
                     onEditPost={handleEditPost}
                   />
+                  {/* Prefetch sentinel halfway through the feed */}
+                  {idx === Math.floor(visiblePosts.length / 2) && (
+                    <div ref={prefetchSentinelRef} aria-hidden />
+                  )}
                 </PostViewObserver>
               ))}
             </AnimatePresence>
+
+            {/* Virtual feed spacer bottom */}
+            {bottomSpacer > 0 && <div style={{ height: bottomSpacer }} aria-hidden />}
 
             {/* Infinite scroll sentinel */}
             {hasMore && (
