@@ -97,14 +97,14 @@ const FeedVideo = ({ url, compact, onTap, isSingle }: { url: string; compact?: b
     }
   };
 
-  // Container: for single videos, let height be auto (aspect-ratio driven) with max-height.
+  // Container: for single videos, enforce 4:5 vertical aspect ratio for immersive mobile feel.
   // For grid items, use fixed heights.
   const containerClass = isSingle
     ? "relative cursor-pointer group w-full"
     : "relative cursor-pointer group w-full";
 
   const containerStyle: React.CSSProperties = isSingle
-    ? { maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px`, overflow: "clip" }
+    ? { aspectRatio: "4/5", maxHeight: `${MAX_FEED_VIDEO_HEIGHT}px`, overflow: "clip" }
     : compact
     ? { height: "10rem", overflow: "clip" }
     : { height: "14rem", overflow: "clip" };
