@@ -584,7 +584,10 @@ const Community = () => {
                 const newPosts = prefetched.filter(p => !existingIds.has(p.id));
                 return [...prev, ...newPosts];
               });
-              setHasMore(prefetched.length >= PREFETCH_BATCH);
+              // Only mark finished if prefetch returned zero; otherwise keep paginating
+              if (prefetched.length === 0) {
+                setHasMore(false);
+              }
               prefetchTriggered.current = false;
             } else {
               fetchPosts(true);
