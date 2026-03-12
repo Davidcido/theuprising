@@ -859,6 +859,41 @@ Never expose the English interpretation to the user — always reply fully in Ha
   if (!callActive) {
     return (
       <div className="space-y-6 py-2">
+        {/* Companion selection */}
+        <div className="space-y-2">
+          <p className="text-white/70 text-xs font-medium uppercase tracking-wider">
+            Companion
+          </p>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {companions.map((companion) => {
+              const avatar = getCompanionAvatar(companion.name);
+              const isActive = selectedCompanion.id === companion.id;
+              return (
+                <button
+                  key={companion.id}
+                  type="button"
+                  onClick={() => setSelectedCompanion(companion)}
+                  className={`shrink-0 min-w-[88px] px-2 py-2 rounded-xl border transition-all flex flex-col items-center gap-1.5 ${
+                    isActive
+                      ? "border-white/40 bg-white/20"
+                      : "border-white/10 bg-white/5"
+                  }`}
+                >
+                  <Avatar className="h-10 w-10 border border-white/20">
+                    {avatar?.avatarUrl ? (
+                      <AvatarImage src={avatar.avatarUrl} alt={companion.name} />
+                    ) : null}
+                    <AvatarFallback className="text-sm bg-white/10 text-white">
+                      {getCompanionEmoji(companion.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-[11px] text-white/85 font-medium">{companion.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Mode selection */}
         <div className="space-y-2">
           <p className="text-white/70 text-xs font-medium uppercase tracking-wider">
@@ -947,6 +982,15 @@ Never expose the English interpretation to the user — always reply fully in Ha
           </div>
         )}
 
+        {/* Daily check-in */}
+        <button
+          type="button"
+          onClick={() => startCall()}
+          className="w-full text-left p-3 rounded-xl backdrop-blur-md border border-white/15 bg-white/5 hover:bg-white/10 transition-colors"
+        >
+          <p className="text-xs text-white/60 uppercase tracking-wider mb-1">Daily Companion Check-In</p>
+          <p className="text-sm text-white/90 font-medium">{selectedCompanion.name} has a reflection for you today.</p>
+        </button>
 
         <motion.button
           whileHover={{ scale: 1.03 }}
