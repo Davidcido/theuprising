@@ -1,16 +1,18 @@
 import { motion } from "framer-motion";
-import { Heart, MessageCircle, Sparkles, Users, ArrowRight, Bot, Globe, HandHeart, Sun } from "lucide-react";
+import { Heart, MessageCircle, Sparkles, Users, ArrowRight, Globe, HandHeart, Sun } from "lucide-react";
 import { Link } from "react-router-dom";
 import uprisingLogo from "@/assets/uprising-logo.jpeg";
+import treeOfGrowth from "@/assets/tree-of-growth.jpeg";
 import instagramIcon from "@/assets/instagram-icon.png";
 import snapchatIcon from "@/assets/snapchat-icon.png";
 import DailyCheckIn from "@/components/home/DailyCheckIn";
+import TreeParticles from "@/components/home/TreeParticles";
 
 const features = [
   {
     icon: MessageCircle,
     title: "Talk Freely",
-    description: "Share what's on your mind with an AI companion that truly listens.",
+    description: "Share what's on your mind with a companion that truly listens.",
     to: "/chat",
   },
   {
@@ -36,53 +38,101 @@ const features = [
 const Index = () => {
   return (
     <div className="min-h-screen pb-24">
-      {/* Hero */}
-      <section className="relative py-20 md:py-32">
+      {/* Hero — Living Tree */}
+      <section className="relative py-12 md:py-20 overflow-hidden">
         <div className="container relative mx-auto px-4 text-center">
+          {/* Tree centerpiece */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6 }}
-            className="flex justify-center mb-8"
+            transition={{ duration: 1.2, ease: "easeOut" }}
+            className="relative mx-auto mb-6 w-64 h-64 md:w-80 md:h-80 lg:w-96 lg:h-96"
           >
-            <div className="relative">
-              <div
-                className="absolute inset-0 rounded-3xl blur-2xl opacity-50"
-                style={{ background: "radial-gradient(circle, rgba(207,245,231,0.4), transparent)" }}
-              />
-              <img
-                src={uprisingLogo}
-                alt="The Uprising"
-                className="relative w-28 h-28 rounded-3xl object-cover shadow-xl"
-              />
-            </div>
+            {/* Outer breathing glow */}
+            <motion.div
+              className="absolute inset-0 rounded-full"
+              style={{
+                background: "radial-gradient(circle, rgba(46,139,87,0.35) 0%, rgba(15,81,50,0.15) 50%, transparent 70%)",
+                filter: "blur(40px)",
+              }}
+              animate={{
+                scale: [1, 1.15, 1],
+                opacity: [0.5, 0.8, 0.5],
+              }}
+              transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+            />
+            {/* Inner warm glow */}
+            <motion.div
+              className="absolute inset-[15%] rounded-full"
+              style={{
+                background: "radial-gradient(circle, rgba(207,245,231,0.3) 0%, rgba(144,238,144,0.15) 40%, transparent 70%)",
+                filter: "blur(25px)",
+              }}
+              animate={{
+                scale: [1, 1.1, 1],
+                opacity: [0.4, 0.7, 0.4],
+              }}
+              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+            />
+            {/* Golden light pulse through branches */}
+            <motion.div
+              className="absolute inset-[25%] rounded-full"
+              style={{
+                background: "radial-gradient(circle, rgba(255,215,0,0.15) 0%, rgba(255,200,50,0.08) 40%, transparent 65%)",
+                filter: "blur(15px)",
+              }}
+              animate={{
+                scale: [0.9, 1.2, 0.9],
+                opacity: [0.2, 0.5, 0.2],
+              }}
+              transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+            />
+            {/* The tree image */}
+            <motion.img
+              src={treeOfGrowth}
+              alt="Tree of Growth — healing, connection, and transformation"
+              className="relative z-10 w-full h-full object-contain drop-shadow-2xl"
+              animate={{
+                filter: [
+                  "drop-shadow(0 0 20px rgba(46,139,87,0.3))",
+                  "drop-shadow(0 0 35px rgba(46,139,87,0.5))",
+                  "drop-shadow(0 0 20px rgba(46,139,87,0.3))",
+                ],
+              }}
+              transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+            />
+            {/* Floating particles around the tree */}
+            <TreeParticles />
           </motion.div>
 
+          {/* Text content */}
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
+            transition={{ duration: 0.8, delay: 0.5 }}
           >
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-white/80 text-sm font-medium mb-6">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-white/80 text-sm font-medium mb-5">
               <Heart className="w-4 h-4" fill="currentColor" />
               You are not alone
             </div>
 
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-bold mb-6 text-white leading-tight">
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-bold mb-5 text-white leading-tight">
               Your Safe Space to{" "}
               <span className="bg-gradient-to-r from-emerald-300 to-green-200 bg-clip-text text-transparent">
                 Feel & Heal
               </span>
             </h1>
 
-            <p className="text-lg md:text-xl text-white/60 max-w-2xl mx-auto mb-10 font-body">
-              Uprising Companion is your AI-powered emotional support friend and community space. Talk freely, share your story, connect with others, and grow in a place built on empathy, creativity, and positive energy.
+            <p className="text-lg md:text-xl text-white/60 max-w-2xl mx-auto mb-8 font-body leading-relaxed">
+              Uprising Companion is a place to breathe, reflect, and grow.
+              Talk freely, explore your thoughts, connect with companions,
+              and find support in a space built for healing and positive energy.
             </p>
 
             {/* Feature Badges */}
-            <div className="flex flex-wrap justify-center gap-3 mb-10">
+            <div className="flex flex-wrap justify-center gap-3 mb-8">
               {[
-                { icon: Bot, label: "AI Companion" },
+                { icon: MessageCircle, label: "Companions" },
                 { icon: Globe, label: "Global Community" },
                 { icon: HandHeart, label: "Emotional Support" },
                 { icon: Sun, label: "Daily Rise" },
@@ -91,7 +141,7 @@ const Index = () => {
                   key={badge.label}
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.6 }}
+                  transition={{ delay: 0.8 }}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-white/80 text-sm font-medium"
                 >
                   <badge.icon className="w-4 h-4 text-emerald-300" />
@@ -112,7 +162,7 @@ const Index = () => {
                 to="/tools"
                 className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl font-display font-bold text-white bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all"
               >
-                Explore Tools <Sparkles className="w-5 h-5" />
+                Explore the Space <Sparkles className="w-5 h-5" />
               </Link>
             </div>
           </motion.div>

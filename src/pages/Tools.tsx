@@ -227,7 +227,7 @@ const Tools = () => {
             <span className="text-xs text-white/70 font-medium">Healing Space</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-display font-bold text-white mb-2">
-            Companion Hub
+            Healing Space
           </h1>
           <p className="text-white/50 text-sm max-w-xs mx-auto leading-relaxed">
             Your companions and tools for reflection, guidance, and growth.

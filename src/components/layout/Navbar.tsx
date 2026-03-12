@@ -14,7 +14,7 @@ import { useAuthReady, markLoggedOut } from "@/hooks/useAuthReady";
 const navItems = [
   { to: "/", label: "Home", icon: Heart },
   { to: "/chat", label: "Talk", icon: MessageCircle },
-  { to: "/tools", label: "Companion Hub", icon: Sparkles },
+  { to: "/tools", label: "Healing Space", icon: Sparkles },
   { to: "/community", label: "Community", icon: Users },
   { to: "/explore", label: "Explore", icon: Compass },
   { to: "/daily-rise", label: "Daily Rise", icon: Sun },
