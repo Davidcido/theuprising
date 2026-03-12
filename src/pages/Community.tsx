@@ -53,10 +53,11 @@ const getSessionId = () => {
 };
 
 const Community = () => {
-  const cachedPosts = useRef(getCachedPosts());
-  const [allPosts, setAllPosts] = useState<Post[]>(cachedPosts.current || []);
+  const feedCache = useFeedCache<Post>();
+  const initialCached = useRef(feedCache.getCached());
+  const [allPosts, setAllPosts] = useState<Post[]>(initialCached.current || []);
   const [newPost, setNewPost] = useState("");
-  const [loading, setLoading] = useState(!cachedPosts.current);
+  const [loading, setLoading] = useState(!initialCached.current);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
