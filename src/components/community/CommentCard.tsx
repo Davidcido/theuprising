@@ -121,14 +121,18 @@ const CommentCard = ({
 
         {(() => {
           const companionData = isAICompanion(comment.anonymous_name) ? getCompanionAvatar(comment.anonymous_name) : null;
-          return (
+          const avatar = (
             <UserAvatar
               avatarUrl={companionData?.avatarUrl}
               displayName={comment.anonymous_name}
               size="xs"
-              onClick={comment.author_id ? () => navigate(`/profile/${comment.author_id}`) : undefined}
+              onClick={!companionData && comment.author_id ? () => navigate(`/profile/${comment.author_id}`) : undefined}
             />
           );
+          if (companionData) {
+            return <CompanionInteractionMenu companionName={comment.anonymous_name}>{avatar}</CompanionInteractionMenu>;
+          }
+          return avatar;
         })()}
         <div className="flex-1">
           <div
