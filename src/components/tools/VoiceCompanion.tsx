@@ -1090,7 +1090,7 @@ Never expose the English interpretation to the user — always reply fully in Ha
         </div>
 
         <p className="text-white font-display font-bold text-lg">
-          Uprising Companion
+          {selectedCompanion.name}
         </p>
         <p className="text-white/50 text-sm">{statusText}</p>
         <p className="text-white/30 text-xs">
