@@ -3,7 +3,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Pause, Play, Volume2, VolumeX, Volume1 } from "lucide-react";
 import { BUILTIN_PERSONAS, type BuiltinPersona } from "@/lib/builtinPersonas";
 import { useAudioPreferences, fadeAudio } from "@/hooks/useAudioPreferences";
-import { pickScenesForCompanion, getFallbackScene, type StoryScene } from "@/lib/storyScenes";
+import {
+  pickScenesForCompanion,
+  pickScenesForCompanions,
+  getFallbackScene,
+  type StoryScene,
+} from "@/lib/storyScenes";
 import { Slider } from "@/components/ui/slider";
 
 const STORY_COMPANIONS = ["seren", "sol", "atlas", "nova", "kai"];
@@ -58,7 +63,7 @@ const StoryVideo = ({
 }: {
   scene: StoryScene;
   storyIndex: number;
-  onFallback: (fallback: StoryScene) => void;
+  onFallback: (failedScene: StoryScene) => void;
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoReady, setVideoReady] = useState(false);
@@ -74,9 +79,7 @@ const StoryVideo = ({
   };
 
   const handleError = () => {
-    // Swap to a fallback scene if the video fails
-    const fallback = getFallbackScene(scene.id);
-    onFallback(fallback);
+    onFallback(scene);
   };
 
   return (
