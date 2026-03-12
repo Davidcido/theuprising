@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ChevronLeft, ChevronRight, Pause, Play, Volume2, VolumeX, Volume1 } from "lucide-react";
+import { X, Pause, Play, Volume2, VolumeX, Volume1 } from "lucide-react";
 import { BUILTIN_PERSONAS, type BuiltinPersona } from "@/lib/builtinPersonas";
 import { useAudioPreferences, fadeAudio } from "@/hooks/useAudioPreferences";
+import { pickScenesForCompanion, type StoryScene } from "@/lib/storyScenes";
 import { Slider } from "@/components/ui/slider";
 
 const STORY_COMPANIONS = ["seren", "sol", "atlas", "nova", "kai"];
@@ -11,8 +12,7 @@ type StoryItem = {
   type: "text" | "reflection" | "breathing" | "inspiration";
   title: string;
   message: string;
-  gradient: string;
-  ambientAudio?: string;
+  scene: StoryScene;
 };
 
 type CompanionStory = {
@@ -21,34 +21,26 @@ type CompanionStory = {
   hasNew: boolean;
 };
 
-// Ambient audio URLs – royalty-free loops hosted on common CDNs
-const AMBIENT_TRACKS: Record<string, string> = {
-  forest: "https://cdn.pixabay.com/audio/2022/01/20/audio_ba6c0fee7f.mp3",
-  ocean: "https://cdn.pixabay.com/audio/2022/08/02/audio_884fe92c21.mp3",
-  meditation: "https://cdn.pixabay.com/audio/2022/05/16/audio_3b8e5c2eb1.mp3",
-  piano: "https://cdn.pixabay.com/audio/2022/02/22/audio_d1718ab41b.mp3",
-};
-
-const DEFAULT_STORIES: Record<string, StoryItem[]> = {
+const STORY_TEMPLATES: Record<string, { type: StoryItem["type"]; title: string; message: string }[]> = {
   seren: [
-    { type: "reflection", title: "Evening Reflection", message: "Take a moment to check in with yourself. How are you really feeling right now? Whatever it is, it's okay. 💚", gradient: "from-emerald-900/90 via-emerald-800/80 to-teal-900/90", ambientAudio: "forest" },
-    { type: "breathing", title: "Calm Breathing", message: "Breathe in for 4 counts... Hold for 4... Release for 6. You're doing beautifully. 🌿", gradient: "from-teal-900/90 via-emerald-900/80 to-green-900/90", ambientAudio: "meditation" },
+    { type: "reflection", title: "Evening Reflection", message: "Take a moment to check in with yourself. How are you really feeling right now? Whatever it is, it's okay. 💚" },
+    { type: "breathing", title: "Calm Breathing", message: "Breathe in for 4 counts... Hold for 4... Release for 6. You're doing beautifully. 🌿" },
   ],
   sol: [
-    { type: "inspiration", title: "Morning Light", message: "Every sunrise is a reminder — you get another chance to shine. What will you make of today? 🌅", gradient: "from-orange-900/90 via-amber-800/80 to-yellow-900/90", ambientAudio: "piano" },
-    { type: "text", title: "Gratitude Moment", message: "Name one small thing that made you smile today. Even the tiniest spark counts. ✨", gradient: "from-amber-900/90 via-orange-900/80 to-red-900/90", ambientAudio: "ocean" },
+    { type: "inspiration", title: "Morning Light", message: "Every sunrise is a reminder — you get another chance to shine. What will you make of today? 🌅" },
+    { type: "text", title: "Gratitude Moment", message: "Name one small thing that made you smile today. Even the tiniest spark counts. ✨" },
   ],
   atlas: [
-    { type: "reflection", title: "Deep Thought", message: "What belief about yourself have you outgrown? Growth often starts with letting go of old stories. 🧠", gradient: "from-indigo-900/90 via-purple-900/80 to-blue-900/90", ambientAudio: "meditation" },
-    { type: "text", title: "Perspective Shift", message: "The obstacle you're facing might be the lesson you need. What is it trying to teach you? 💭", gradient: "from-blue-900/90 via-indigo-900/80 to-violet-900/90", ambientAudio: "piano" },
+    { type: "reflection", title: "Deep Thought", message: "What belief about yourself have you outgrown? Growth often starts with letting go of old stories. 🧠" },
+    { type: "text", title: "Perspective Shift", message: "The obstacle you're facing might be the lesson you need. What is it trying to teach you? 💭" },
   ],
   nova: [
-    { type: "inspiration", title: "Creative Spark", message: "Your imagination is your superpower. What would you create if nothing could stop you? ✨", gradient: "from-pink-900/90 via-fuchsia-900/80 to-purple-900/90", ambientAudio: "ocean" },
-    { type: "text", title: "Dream Big", message: "Close your eyes for 10 seconds. Picture your ideal day one year from now. Hold that vision. 🌟", gradient: "from-fuchsia-900/90 via-pink-900/80 to-rose-900/90", ambientAudio: "forest" },
+    { type: "inspiration", title: "Creative Spark", message: "Your imagination is your superpower. What would you create if nothing could stop you? ✨" },
+    { type: "text", title: "Dream Big", message: "Close your eyes for 10 seconds. Picture your ideal day one year from now. Hold that vision. 🌟" },
   ],
   kai: [
-    { type: "breathing", title: "Mindful Pause", message: "Stop scrolling for a moment. Feel your feet on the ground. Notice three sounds around you. You are here. 🌿", gradient: "from-violet-900/90 via-purple-900/80 to-indigo-900/90", ambientAudio: "forest" },
-    { type: "reflection", title: "Inner Peace", message: "You don't have to have it all figured out. Sometimes the bravest thing is to simply be still. 🍃", gradient: "from-purple-900/90 via-violet-900/80 to-blue-900/90", ambientAudio: "meditation" },
+    { type: "breathing", title: "Mindful Pause", message: "Stop scrolling for a moment. Feel your feet on the ground. Notice three sounds around you. You are here. 🌿" },
+    { type: "reflection", title: "Inner Peace", message: "You don't have to have it all figured out. Sometimes the bravest thing is to simply be still. 🍃" },
   ],
 };
 
@@ -66,6 +58,7 @@ const CompanionStoryBar = () => {
   const [progress, setProgress] = useState(0);
   const [showVolumeControl, setShowVolumeControl] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const { volume, muted, setVolume, toggleMute } = useAudioPreferences();
   const [viewedCompanions, setViewedCompanions] = useState<Set<string>>(() => {
     try {
@@ -76,23 +69,25 @@ const CompanionStoryBar = () => {
     } catch { return new Set(); }
   });
 
+  // Build stories with unique scenes per frame
   useEffect(() => {
     const stories = STORY_COMPANIONS.map(id => {
       const companion = BUILTIN_PERSONAS.find(p => p.id === id);
       if (!companion) return null;
-      return {
-        companion,
-        stories: DEFAULT_STORIES[id] || [],
-        hasNew: !viewedCompanions.has(id),
-      };
+      const templates = STORY_TEMPLATES[id] || [];
+      const scenes = pickScenesForCompanion(id, templates.length);
+      const items: StoryItem[] = templates.map((t, i) => ({
+        ...t,
+        scene: scenes[i % scenes.length],
+      }));
+      return { companion, stories: items, hasNew: !viewedCompanions.has(id) };
     }).filter(Boolean) as CompanionStory[];
     setCompanionStories(stories);
   }, [viewedCompanions]);
 
-  // Manage ambient audio for active story
+  // Manage ambient audio per frame
   useEffect(() => {
     if (!activeStory) {
-      // Cleanup audio when story closes
       if (audioRef.current) {
         const audio = audioRef.current;
         fadeAudio(audio, 0, 400);
@@ -102,19 +97,9 @@ const CompanionStoryBar = () => {
       return;
     }
 
-    const currentStory = activeStory.stories[storyIndex];
-    const trackKey = currentStory?.ambientAudio;
-    const trackUrl = trackKey ? AMBIENT_TRACKS[trackKey] : null;
+    const currentScene = activeStory.stories[storyIndex]?.scene;
+    if (!currentScene?.audio) return;
 
-    if (!trackUrl) {
-      if (audioRef.current) {
-        fadeAudio(audioRef.current, 0, 300);
-        setTimeout(() => { audioRef.current?.pause(); }, 400);
-      }
-      return;
-    }
-
-    // Create or reuse audio element
     if (!audioRef.current) {
       audioRef.current = new Audio();
       audioRef.current.loop = true;
@@ -124,11 +109,10 @@ const CompanionStoryBar = () => {
     const audio = audioRef.current;
     const currentSrc = audio.src;
 
-    if (!currentSrc.includes(trackUrl.split("/").pop() || "___")) {
-      // Different track – crossfade
+    if (!currentSrc.includes(currentScene.audio.split("/").pop() || "___")) {
       fadeAudio(audio, 0, 300);
       setTimeout(() => {
-        audio.src = trackUrl;
+        audio.src = currentScene.audio;
         audio.volume = 0;
         audio.muted = muted;
         audio.play().then(() => {
@@ -136,20 +120,19 @@ const CompanionStoryBar = () => {
         }).catch(() => {});
       }, 350);
     } else {
-      // Same track – just update volume
       audio.muted = muted;
       if (!muted) audio.volume = volume;
     }
   }, [activeStory, storyIndex]);
 
-  // Sync volume/mute changes to playing audio
+  // Sync volume/mute
   useEffect(() => {
     if (!audioRef.current) return;
     audioRef.current.muted = muted;
     if (!muted) audioRef.current.volume = volume;
   }, [volume, muted]);
 
-  // Pause/resume audio with story
+  // Pause/resume audio
   useEffect(() => {
     if (!audioRef.current || !activeStory) return;
     if (paused) {
@@ -161,10 +144,17 @@ const CompanionStoryBar = () => {
     }
   }, [paused]);
 
+  // Pause/resume video
+  useEffect(() => {
+    if (!videoRef.current || !activeStory) return;
+    if (paused) videoRef.current.pause();
+    else videoRef.current.play().catch(() => {});
+  }, [paused]);
+
   // Auto-advance timer
   useEffect(() => {
     if (!activeStory || paused) return;
-    const duration = 6000;
+    const duration = 8000; // slightly longer for video enjoyment
     const interval = 50;
     let elapsed = 0;
     const timer = setInterval(() => {
@@ -207,11 +197,8 @@ const CompanionStoryBar = () => {
       setProgress(0);
     } else {
       const idx = companionStories.findIndex(cs => cs.companion.id === activeStory.companion.id);
-      if (idx < companionStories.length - 1) {
-        openStory(companionStories[idx + 1]);
-      } else {
-        setActiveStory(null);
-      }
+      if (idx < companionStories.length - 1) openStory(companionStories[idx + 1]);
+      else setActiveStory(null);
     }
   };
 
@@ -236,11 +223,11 @@ const CompanionStoryBar = () => {
     }
   };
 
-  const handleVolumeChange = (value: number[]) => {
-    setVolume(value[0]);
-  };
+  const handleVolumeChange = (value: number[]) => setVolume(value[0]);
 
   if (companionStories.length === 0) return null;
+
+  const currentStory = activeStory?.stories[storyIndex];
 
   return (
     <>
@@ -256,14 +243,10 @@ const CompanionStoryBar = () => {
               <div className={`relative rounded-full p-[2.5px] transition-all ${
                 cs.hasNew
                   ? "bg-gradient-to-br from-emerald-400 via-teal-400 to-cyan-400"
-                  : "bg-white/20"
+                  : "bg-muted"
               }`}>
                 <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-background">
-                  <img
-                    src={cs.companion.avatar_image}
-                    alt={cs.companion.name}
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={cs.companion.avatar_image} alt={cs.companion.name} className="w-full h-full object-cover" />
                 </div>
                 {cs.hasNew && (
                   <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-400 rounded-full border-2 border-background" />
@@ -279,24 +262,48 @@ const CompanionStoryBar = () => {
 
       {/* Story Viewer */}
       <AnimatePresence>
-        {activeStory && (
+        {activeStory && currentStory && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center"
+            className="fixed inset-0 z-[100] bg-black flex items-center justify-center"
             onClick={(e) => { if (e.target === e.currentTarget) setActiveStory(null); }}
           >
             <div className="relative w-full max-w-md h-[85vh] max-h-[700px] rounded-2xl overflow-hidden">
+              {/* Video Background */}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={`${storyIndex}-${currentStory.scene.id}`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.6 }}
+                  className="absolute inset-0"
+                >
+                  <video
+                    ref={videoRef}
+                    key={currentStory.scene.video + storyIndex}
+                    src={currentStory.scene.video}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                  {/* Overlay for readability */}
+                  <div className={`absolute inset-0 bg-gradient-to-br ${currentStory.scene.gradient} mix-blend-multiply`} />
+                  <div className="absolute inset-0 bg-black/30" />
+                </motion.div>
+              </AnimatePresence>
+
               {/* Progress bars */}
               <div className="absolute top-3 left-3 right-3 z-20 flex gap-1">
                 {activeStory.stories.map((_, i) => (
                   <div key={i} className="flex-1 h-[3px] rounded-full bg-white/20 overflow-hidden">
                     <div
                       className="h-full bg-white rounded-full transition-all"
-                      style={{
-                        width: i < storyIndex ? "100%" : i === storyIndex ? `${progress}%` : "0%",
-                      }}
+                      style={{ width: i < storyIndex ? "100%" : i === storyIndex ? `${progress}%` : "0%" }}
                     />
                   </div>
                 ))}
@@ -310,17 +317,12 @@ const CompanionStoryBar = () => {
                   </div>
                   <div>
                     <p className="text-white text-sm font-semibold">{activeStory.companion.name}</p>
-                    <p className="text-white/50 text-[10px]">{activeStory.companion.role}</p>
+                    <p className="text-white/50 text-[10px]">{currentStory.scene.label}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {/* Volume control */}
                   <div className="flex items-center gap-1 relative">
-                    <button
-                      onClick={handleToggleMute}
-                      onTouchStart={() => setShowVolumeControl(!showVolumeControl)}
-                      className="p-1.5 rounded-full bg-white/10 hover:bg-white/20"
-                    >
+                    <button onClick={handleToggleMute} onTouchStart={() => setShowVolumeControl(!showVolumeControl)} className="p-1.5 rounded-full bg-white/10 hover:bg-white/20">
                       <VolumeIcon muted={muted} volume={volume} />
                     </button>
                     <AnimatePresence>
@@ -335,9 +337,7 @@ const CompanionStoryBar = () => {
                             <Slider
                               orientation="vertical"
                               value={[muted ? 0 : volume]}
-                              min={0}
-                              max={1}
-                              step={0.05}
+                              min={0} max={1} step={0.05}
                               onValueChange={handleVolumeChange}
                               className="h-full [&_[role=slider]]:h-3 [&_[role=slider]]:w-3 [&_[role=slider]]:border-white [&_[role=slider]]:bg-white [&_.bg-primary]:bg-emerald-400 [&_.bg-secondary]:bg-white/20"
                             />
@@ -360,56 +360,50 @@ const CompanionStoryBar = () => {
               <AnimatePresence mode="wait">
                 <motion.div
                   key={storyIndex}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 1.05 }}
-                  transition={{ duration: 0.3 }}
-                  className={`w-full h-full flex flex-col items-center justify-center p-8 text-center bg-gradient-to-br ${activeStory.stories[storyIndex]?.gradient || "from-emerald-900/90 to-teal-900/90"}`}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.4 }}
+                  className="absolute inset-0 z-10 flex flex-col items-center justify-center p-8 text-center"
                 >
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                  >
-                    <p className="text-white/60 text-xs font-semibold uppercase tracking-widest mb-4">
-                      {activeStory.stories[storyIndex]?.type === "breathing" ? "🌬 Breathing Exercise" :
-                       activeStory.stories[storyIndex]?.type === "reflection" ? "💭 Reflection" :
-                       activeStory.stories[storyIndex]?.type === "inspiration" ? "✨ Inspiration" : "💚 Message"}
-                    </p>
-                    <h2 className="text-white text-2xl font-bold mb-6">
-                      {activeStory.stories[storyIndex]?.title}
-                    </h2>
-                    <p className="text-white/90 text-base leading-relaxed max-w-xs mx-auto">
-                      {activeStory.stories[storyIndex]?.message}
-                    </p>
-                    
-                    {/* Audio indicator */}
-                    {activeStory.stories[storyIndex]?.ambientAudio && !muted && (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="mt-6 flex items-center justify-center gap-1.5"
-                      >
-                        {[0, 1, 2, 3, 4].map(i => (
-                          <motion.div
-                            key={i}
-                            className="w-0.5 bg-white/30 rounded-full"
-                            animate={{ height: [4, 12, 6, 14, 4] }}
-                            transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.15 }}
-                          />
-                        ))}
-                        <span className="text-white/30 text-[9px] ml-2">ambient audio</span>
-                      </motion.div>
-                    )}
-                  </motion.div>
+                  <p className="text-white/60 text-xs font-semibold uppercase tracking-widest mb-4">
+                    {currentStory.type === "breathing" ? "🌬 Breathing Exercise" :
+                     currentStory.type === "reflection" ? "💭 Reflection" :
+                     currentStory.type === "inspiration" ? "✨ Inspiration" : "💚 Message"}
+                  </p>
+                  <h2 className="text-white text-2xl font-bold mb-6 drop-shadow-lg">
+                    {currentStory.title}
+                  </h2>
+                  <p className="text-white/90 text-base leading-relaxed max-w-xs mx-auto drop-shadow-md">
+                    {currentStory.message}
+                  </p>
+
+                  {/* Audio visualizer */}
+                  {!muted && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="mt-6 flex items-center justify-center gap-1.5"
+                    >
+                      {[0, 1, 2, 3, 4].map(i => (
+                        <motion.div
+                          key={i}
+                          className="w-0.5 bg-white/30 rounded-full"
+                          animate={{ height: [4, 12, 6, 14, 4] }}
+                          transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.15 }}
+                        />
+                      ))}
+                      <span className="text-white/30 text-[9px] ml-2">{currentStory.scene.label}</span>
+                    </motion.div>
+                  )}
                 </motion.div>
               </AnimatePresence>
 
               {/* Navigation areas */}
-              <div className="absolute inset-0 z-10 flex">
-                <button className="w-1/3 h-full" onClick={goPrev} />
+              <div className="absolute inset-0 z-10 flex pointer-events-none">
+                <button className="w-1/3 h-full pointer-events-auto" onClick={goPrev} />
                 <div className="w-1/3" />
-                <button className="w-1/3 h-full" onClick={goNext} />
+                <button className="w-1/3 h-full pointer-events-auto" onClick={goNext} />
               </div>
             </div>
           </motion.div>
