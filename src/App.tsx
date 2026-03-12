@@ -58,15 +58,20 @@ const PageLoader = () => (
 const AppContent = () => {
   const { showOnboarding, completeOnboarding } = useOnboarding();
   const { showPopup: showDailyRise, dismissPopup: dismissDailyRise } = useDailyRise();
+  const [showPortal, setShowPortal] = useState(false);
 
   useEffect(() => {
     trackVisit();
   }, []);
 
-  // Register push notifications when user logs in
+  // Show spiral portal after sign-in (once per session)
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN") {
+        const shown = sessionStorage.getItem("uprising_portal_shown");
+        if (!shown) {
+          setShowPortal(true);
+        }
         setTimeout(() => {
           registerPushSubscription().catch(console.error);
         }, 2000);
@@ -75,10 +80,22 @@ const AppContent = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  const handlePortalEnter = () => {
+    sessionStorage.setItem("uprising_portal_shown", "1");
+    setShowPortal(false);
+  };
+
+  // Also show portal after onboarding completes
+  const handleOnboardingComplete = () => {
+    completeOnboarding();
+    setShowPortal(true);
+  };
+
   return (
     <>
-      {showOnboarding && <OnboardingFlow onComplete={completeOnboarding} />}
-      <DailyRisePopup open={showDailyRise && !showOnboarding} onClose={dismissDailyRise} />
+      {showOnboarding && <OnboardingFlow onComplete={handleOnboardingComplete} />}
+      {showPortal && !showOnboarding && <SpiralPortal onEnter={handlePortalEnter} />}
+      <DailyRisePopup open={showDailyRise && !showOnboarding && !showPortal} onClose={dismissDailyRise} />
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route element={<Layout />}>
