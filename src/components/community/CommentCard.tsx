@@ -115,7 +115,7 @@ const CommentCard = ({
   const canReply = depth < MAX_REPLY_DEPTH;
 
   return (
-    <div style={{ marginLeft: maxDepthIndent > 0 ? `${Math.min(maxDepthIndent, 3) * 16}px` : undefined }} className="max-w-full overflow-hidden">
+    <div style={{ marginLeft: maxDepthIndent > 0 ? `${maxDepthIndent * 12}px` : undefined }} className="max-w-full overflow-hidden">
       <div className="flex gap-2.5 group relative">
         {depth > 0 && (
           <div className="absolute -left-3 top-0 bottom-0 w-px bg-white/10" />
