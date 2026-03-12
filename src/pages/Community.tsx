@@ -443,31 +443,19 @@ const Community = () => {
           const newComment = payload.new as Comment;
           setComments((prev) => {
             const existing = prev[newComment.post_id] || [];
-            // Deduplicate: skip if this ID already exists (from optimistic insert)
+            // Deduplicate: skip if this exact ID already exists
             if (existing.some(c => c.id === newComment.id)) return prev;
-            // Also check if there's an optimistic comment we should replace
-            // (optimistic IDs start with "optimistic-")
-            const hasMatchingOptimistic = existing.some(c =>
-              c.id.startsWith("optimistic-") &&
+            // Check if there's an optimistic comment to replace (match by content + author)
+            const optimisticIdx = existing.findIndex(c =>
+              c.id.startsWith("optimistic") &&
               c.content === newComment.content &&
               c.anonymous_name === newComment.anonymous_name &&
               c.post_id === newComment.post_id
             );
-            if (hasMatchingOptimistic) {
-              // Replace the first matching optimistic comment with the real one
-              let replaced = false;
-              return {
-                ...prev,
-                [newComment.post_id]: existing.map(c => {
-                  if (!replaced && c.id.startsWith("optimistic-") &&
-                      c.content === newComment.content &&
-                      c.anonymous_name === newComment.anonymous_name) {
-                    replaced = true;
-                    return newComment;
-                  }
-                  return c;
-                }),
-              };
+            if (optimisticIdx >= 0) {
+              const updated = [...existing];
+              updated[optimisticIdx] = newComment;
+              return { ...prev, [newComment.post_id]: updated };
             }
             return {
               ...prev,
