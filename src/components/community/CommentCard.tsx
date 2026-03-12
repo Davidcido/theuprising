@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import EmojiPicker from "@/components/EmojiPicker";
 import CommentReactions from "@/components/community/CommentReactions";
 import MediaGallery from "@/components/community/MediaGallery";
+import CompanionInteractionMenu from "@/components/community/CompanionInteractionMenu";
 
 export type Comment = {
   id: string;
@@ -120,14 +121,18 @@ const CommentCard = ({
 
         {(() => {
           const companionData = isAICompanion(comment.anonymous_name) ? getCompanionAvatar(comment.anonymous_name) : null;
-          return (
+          const avatar = (
             <UserAvatar
               avatarUrl={companionData?.avatarUrl}
               displayName={comment.anonymous_name}
               size="xs"
-              onClick={comment.author_id ? () => navigate(`/profile/${comment.author_id}`) : undefined}
+              onClick={!companionData && comment.author_id ? () => navigate(`/profile/${comment.author_id}`) : undefined}
             />
           );
+          if (companionData) {
+            return <CompanionInteractionMenu companionName={comment.anonymous_name}>{avatar}</CompanionInteractionMenu>;
+          }
+          return avatar;
         })()}
         <div className="flex-1">
           <div

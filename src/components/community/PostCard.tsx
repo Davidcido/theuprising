@@ -11,6 +11,7 @@ import EmojiPicker from "@/components/EmojiPicker";
 import CommentCard from "@/components/community/CommentCard";
 import MediaGallery from "@/components/community/MediaGallery";
 import HashtagText from "@/components/community/HashtagText";
+import CompanionInteractionMenu from "@/components/community/CompanionInteractionMenu";
 import NewMemberBadge from "@/components/community/NewMemberBadge";
 import {
   AlertDialog,
@@ -231,14 +232,18 @@ const PostCard = ({
             {(() => {
               const displayName = !post.is_anonymous && post.author_profile?.display_name ? post.author_profile.display_name : post.anonymous_name;
               const companionData = isAICompanion(displayName) ? getCompanionAvatar(displayName) : null;
-              return (
+              const avatar = (
                 <UserAvatar
                   avatarUrl={companionData?.avatarUrl || post.author_profile?.avatar_url}
                   displayName={displayName}
                   size="sm"
-                  onClick={!post.is_anonymous && post.author_id ? () => onNavigate(`/profile/${post.author_id}`) : undefined}
+                  onClick={!companionData && !post.is_anonymous && post.author_id ? () => onNavigate(`/profile/${post.author_id}`) : undefined}
                 />
               );
+              if (companionData) {
+                return <CompanionInteractionMenu companionName={displayName}>{avatar}</CompanionInteractionMenu>;
+              }
+              return avatar;
             })()}
             <div>
               <span

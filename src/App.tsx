@@ -34,6 +34,8 @@ const Bookmarks = lazy(() => import("./pages/Bookmarks"));
 const Drafts = lazy(() => import("./pages/Drafts"));
 const DailyRise = lazy(() => import("./pages/DailyRise"));
 const CompanionExplorer = lazy(() => import("./pages/CompanionExplorer"));
+const CompanionProfile = lazy(() => import("./pages/CompanionProfile"));
+const SleepMode = lazy(() => import("./pages/SleepMode"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -141,6 +143,14 @@ const AppContent = () => {
             <Route path="/companions" element={
               <ProtectedRoute>
                 <ErrorBoundary inline><CompanionExplorer /></ErrorBoundary>
+              </ProtectedRoute>
+            } />
+            <Route path="/companion/:companionId" element={
+              <ErrorBoundary inline><CompanionProfile /></ErrorBoundary>
+            } />
+            <Route path="/sleep" element={
+              <ProtectedRoute>
+                <ErrorBoundary inline><SleepMode /></ErrorBoundary>
               </ProtectedRoute>
             } />
           </Route>

@@ -209,11 +209,14 @@ const Chat = () => {
   // Persistent chat history
   const { savedMessages, loading: historyLoading, persistMessages, startNewConversation } = useChatHistory(userId, persona.id);
 
-  // Handle companion selection from explorer page
+  // Handle companion selection from explorer page or query param
   useEffect(() => {
     const state = location.state as { newCompanionId?: string } | null;
-    if (state?.newCompanionId) {
-      const found = BUILTIN_PERSONAS.find(p => p.id === state.newCompanionId);
+    const params = new URLSearchParams(location.search);
+    const companionParam = params.get("companion");
+    const newId = state?.newCompanionId || companionParam;
+    if (newId) {
+      const found = BUILTIN_PERSONAS.find(p => p.id === newId);
       if (found) {
         const config: PersonaConfig = { ...found, is_custom: false };
         setPersona(config);
@@ -221,9 +224,14 @@ const Chat = () => {
         setGreetingSet(false);
         saveCompanionId(found.id);
       }
-      window.history.replaceState({}, document.title);
+      // Clean up URL
+      if (companionParam) {
+        navigate("/chat", { replace: true });
+      } else {
+        window.history.replaceState({}, document.title);
+      }
     }
-  }, [location.state]);
+  }, [location.state, location.search]);
 
   // Persist selected companion and reset greeting flag without clearing current UI.
   const prevPersonaIdRef = useRef(persona.id);
