@@ -232,7 +232,7 @@ For each return JSON with:
 - "companion_comment": supportive 1-2 sentence comment in that companion's voice
 - "emotion_tag": one of calm/hopeful/reflective/motivating/healing/inspiring
 
-Return ONLY a valid JSON array of 6 objects.`;
+Return ONLY a valid JSON array of 10 objects.`;
 
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
