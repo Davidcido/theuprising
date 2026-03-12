@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import { trackVisit } from "./lib/trackLogin";
+import { useFeedWarmup } from "./hooks/useFeedWarmup";
 import { registerPushSubscription } from "./lib/pushNotifications";
 import { supabase } from "./integrations/supabase/client";
 import InstallPrompt from "./components/pwa/InstallPrompt";
