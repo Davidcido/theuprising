@@ -30,7 +30,7 @@ import GratitudeReflection from "@/components/tools/GratitudeReflection";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthReady } from "@/hooks/useAuthReady";
 
-/* ── Quick AI Tools ── */
+/* ── Companion Tools ── */
 const quickTools = [
   {
     id: "ask",
@@ -227,7 +227,7 @@ const Tools = () => {
             <span className="text-xs text-white/70 font-medium">Healing Space</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-display font-bold text-white mb-2">
-            Companion Hub
+            Healing Space
           </h1>
           <p className="text-white/50 text-sm max-w-xs mx-auto leading-relaxed">
             Your companions and tools for reflection, guidance, and growth.
@@ -298,7 +298,7 @@ const Tools = () => {
                 </div>
               </section>
 
-              {/* ── Section 2: Quick AI Tools ── */}
+              {/* ── Section 2: Companion Tools ── */}
               <section>
                 <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-3">
                   Companion Tools

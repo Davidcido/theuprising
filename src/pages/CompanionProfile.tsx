@@ -107,7 +107,7 @@ const CompanionProfile = () => {
                 className="text-[10px] px-2 py-0.5 rounded-full font-medium"
                 style={{ background: persona.color + "25", color: persona.color }}
               >
-                AI Companion
+                Companion
               </span>
             </div>
             <p className="text-sm text-muted-foreground mt-0.5">{persona.role}</p>

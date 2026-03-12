@@ -14,7 +14,7 @@ const REASONS = [
 ];
 
 const FEATURES = [
-  { icon: MessageCircle, title: "Start Talking", desc: "Chat with the AI companion and share how you're feeling." },
+  { icon: MessageCircle, title: "Start Talking", desc: "Chat with your companion and share how you're feeling." },
   { icon: Sparkles, title: "Explore Tools", desc: "Access emotional wellness tools and support resources." },
   { icon: Users, title: "Connect with the Community", desc: "Discover and interact with people who are part of the Uprising community." },
   { icon: Pencil, title: "Express Yourself", desc: "Share posts, thoughts, and creativity in a supportive space." },
@@ -96,7 +96,7 @@ const OnboardingFlow = ({ onComplete }: Props) => {
               </div>
               <h1 className="font-display text-3xl font-bold text-white">Rise Together</h1>
               <p className="text-white/70 text-base leading-relaxed max-w-xs">
-                Uprising Companion is your AI-powered emotional support friend and community space. Talk freely, share your story, connect with others, and grow in a place built on empathy, creativity, and positive energy.
+                Uprising Companion is your emotional support friend and community space. Talk freely, share your story, connect with others, and grow in a place built on empathy, creativity, and positive energy.
               </p>
               <Button variant="hero" size="lg" onClick={next} className="mt-4 w-full max-w-xs">
                 Next <ArrowRight className="w-4 h-4 ml-1" />
