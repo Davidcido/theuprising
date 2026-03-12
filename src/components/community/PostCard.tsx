@@ -560,7 +560,7 @@ const PostCard = ({
               transition={{ duration: 0.2 }}
               className="overflow-hidden"
             >
-              <div className="mt-4 pt-3 border-t border-white/5 space-y-2.5">
+              <div className={`mt-4 pt-3 border-t border-white/5 space-y-2.5 ${hasMedia ? "px-5" : ""}`}>
                 {postComments.filter(c => !c.parent_comment_id).map((c) => (
                   <CommentCard
                     key={c.id}
