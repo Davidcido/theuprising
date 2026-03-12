@@ -404,7 +404,13 @@ Never expose the English interpretation to the user — always reply fully in Ha
       langInstruction = `The user is speaking in ${langInfo?.label}. Respond in the same language.`;
     }
 
+    // Build voice persona for the selected companion
+    const personality = getVoicePersonality(selectedCompanionRef.current.id);
+    const companionName = selectedCompanionRef.current.name;
+
     const messagesForAPI = [
+      // Inject companion personality as system-level context
+      { role: "user" as const, content: `[System note: You are ${companionName}. ${personality.systemPrompt}\n\nVOICE CALL RULES:\n- This is a voice conversation, not text chat. Keep responses SHORT (1-3 sentences max).\n- Speak naturally and conversationally. No markdown, no bullet points, no numbered lists.\n- Never use asterisks, hashtags, or formatting. Just natural spoken language.\n- Ask at most ONE follow-up question per response.\n- Stay fully in character as ${companionName} throughout.\n- Understand Nigerian culture, pidgin, and local context.]` },
       ...(langInstruction ? [{ role: "user" as const, content: `[System note: ${langInstruction}]` }] : []),
       ...conversationRef.current.slice(-12),
     ];
