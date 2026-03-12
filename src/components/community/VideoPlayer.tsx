@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  X, Play, Pause, Volume2, VolumeX, Maximize, Minimize,
+  X, Play, Pause, Volume2, VolumeX, Volume1, Maximize, Minimize,
   Heart, MessageCircle, Share2, Repeat2, Eye, Loader2, AlertCircle, RefreshCw,
 } from "lucide-react";
+import { useAudioPreferences, fadeAudio } from "@/hooks/useAudioPreferences";
+import { Slider } from "@/components/ui/slider";
 
 interface VideoPlayerProps {
   url: string;
@@ -29,12 +31,17 @@ const formatTime = (seconds: number) => {
   return `${m}:${s.toString().padStart(2, "0")}`;
 };
 
+const VolumeIcon = ({ muted, volume }: { muted: boolean; volume: number }) => {
+  if (muted || volume === 0) return <VolumeX className="w-5 h-5 text-white" />;
+  if (volume < 0.5) return <Volume1 className="w-5 h-5 text-white" />;
+  return <Volume2 className="w-5 h-5 text-white" />;
+};
+
 const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout>>();
   const [playing, setPlaying] = useState(false);
-  const [muted, setMuted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [buffering, setBuffering] = useState(true);
@@ -42,6 +49,17 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
   const [isNativeFullscreen, setIsNativeFullscreen] = useState(false);
   const [error, setError] = useState(false);
   const [loadTimeout, setLoadTimeout] = useState(false);
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+
+  const { volume, muted, setVolume, toggleMute } = useAudioPreferences();
+
+  // Sync audio prefs to video element
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = muted;
+    v.volume = muted ? 0 : volume;
+  }, [volume, muted, isOpen]);
 
   // Reset state when URL changes or player opens
   useEffect(() => {
@@ -55,22 +73,29 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
     }
   }, [isOpen, url]);
 
-  // Auto-play on open with timeout protection
+  // Auto-play on open with fade-in
   useEffect(() => {
     if (!isOpen || !videoRef.current || error) return;
 
     const v = videoRef.current;
-    // Ensure fresh load
+    v.muted = true; // Start muted for autoplay
+    v.volume = 0;
     v.load();
 
     const playWhenReady = () => {
       v.play().then(() => {
         setPlaying(true);
         setBuffering(false);
+        // Fade in audio if user preference is unmuted
+        if (!muted) {
+          setTimeout(() => {
+            v.muted = false;
+            fadeAudio(v, volume, 1200);
+          }, 300);
+        }
       }).catch(() => setPlaying(false));
     };
 
-    // If metadata already loaded
     if (v.readyState >= 1) {
       setDuration(v.duration || 0);
       playWhenReady();
@@ -81,7 +106,6 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
       }, { once: true });
     }
 
-    // Timeout: if video doesn't load in 15s, show error
     const timeout = setTimeout(() => {
       if (v.readyState < 2) {
         setLoadTimeout(true);
@@ -100,7 +124,10 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
     setShowControls(true);
     hideTimer.current && clearTimeout(hideTimer.current);
     if (playing) {
-      hideTimer.current = setTimeout(() => setShowControls(false), 3000);
+      hideTimer.current = setTimeout(() => {
+        setShowControls(false);
+        setShowVolumeSlider(false);
+      }, 3000);
     }
   }, [playing]);
 
@@ -120,13 +147,15 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
       if (e.key === " ") { e.preventDefault(); togglePlay(); }
-      if (e.key === "m") toggleMute();
+      if (e.key === "m") handleToggleMute();
       if (e.key === "ArrowRight") seek(5);
       if (e.key === "ArrowLeft") seek(-5);
+      if (e.key === "ArrowUp") { e.preventDefault(); setVolume(Math.min(1, volume + 0.1)); }
+      if (e.key === "ArrowDown") { e.preventDefault(); setVolume(Math.max(0, volume - 0.1)); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [isOpen, playing]);
+  }, [isOpen, playing, volume]);
 
   const togglePlay = () => {
     const v = videoRef.current;
@@ -135,11 +164,31 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
     else { v.pause(); setPlaying(false); }
   };
 
-  const toggleMute = () => {
+  const handleToggleMute = () => {
     const v = videoRef.current;
     if (!v) return;
-    v.muted = !v.muted;
-    setMuted(v.muted);
+    if (muted) {
+      // Unmuting: fade in
+      v.muted = false;
+      v.volume = 0;
+      fadeAudio(v, volume, 600);
+    } else {
+      // Muting: instant
+      v.muted = true;
+      v.volume = 0;
+    }
+    toggleMute();
+  };
+
+  const handleVolumeChange = (value: number[]) => {
+    const v = videoRef.current;
+    const newVol = value[0];
+    setVolume(newVol);
+    if (v) {
+      v.muted = newVol === 0;
+      v.volume = newVol;
+    }
+    resetHideTimer();
   };
 
   const seek = (delta: number) => {
@@ -168,7 +217,6 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
     const v = videoRef.current;
     if (!v) return;
     setCurrentTime(v.currentTime);
-    // Also try to pick up duration if we missed it
     if (duration === 0 && isFinite(v.duration) && v.duration > 0) {
       setDuration(v.duration);
     }
@@ -227,7 +275,6 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
           crossOrigin="anonymous"
           className="w-full h-full object-contain"
           playsInline
-          muted={muted}
           loop
           preload="auto"
           onTimeUpdate={handleTimeUpdate}
@@ -311,13 +358,44 @@ const VideoPlayer = ({ url, isOpen, onClose, postData }: VideoPlayerProps) => {
 
                 {/* Controls row */}
                 <div className="flex items-center justify-between px-4 pb-4 pt-1">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <button onClick={togglePlay} className="p-2 rounded-full hover:bg-white/10 transition-colors">
                       {playing ? <Pause className="w-5 h-5 text-white" /> : <Play className="w-5 h-5 text-white" fill="white" />}
                     </button>
-                    <button onClick={toggleMute} className="p-2 rounded-full hover:bg-white/10 transition-colors">
-                      {muted ? <VolumeX className="w-5 h-5 text-white" /> : <Volume2 className="w-5 h-5 text-white" />}
-                    </button>
+                    
+                    {/* Volume control group */}
+                    <div className="flex items-center gap-1 relative">
+                      <button
+                        onClick={handleToggleMute}
+                        onMouseEnter={() => setShowVolumeSlider(true)}
+                        className="p-2 rounded-full hover:bg-white/10 transition-colors"
+                      >
+                        <VolumeIcon muted={muted} volume={volume} />
+                      </button>
+                      
+                      <AnimatePresence>
+                        {showVolumeSlider && (
+                          <motion.div
+                            initial={{ opacity: 0, width: 0 }}
+                            animate={{ opacity: 1, width: 100 }}
+                            exit={{ opacity: 0, width: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden flex items-center"
+                            onMouseLeave={() => setShowVolumeSlider(false)}
+                          >
+                            <Slider
+                              value={[muted ? 0 : volume]}
+                              min={0}
+                              max={1}
+                              step={0.05}
+                              onValueChange={handleVolumeChange}
+                              className="w-[90px] [&_[role=slider]]:h-3.5 [&_[role=slider]]:w-3.5 [&_[role=slider]]:border-white [&_[role=slider]]:bg-white [&_.bg-primary]:bg-emerald-400 [&_.bg-secondary]:bg-white/20"
+                            />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                    
                     <span className="text-xs text-white/70 font-mono tabular-nums">
                       {formatTime(currentTime)} / {formatTime(duration)}
                     </span>
