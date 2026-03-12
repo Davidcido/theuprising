@@ -1091,30 +1091,52 @@ const Community = () => {
   const addReply = async (postId: string, content: string, parentCommentId: string, parentAuthorId?: string | null) => {
     if (!content.trim()) return;
     const commentName = currentUser ? currentUser.displayName : sessionId;
+
+    // Optimistic reply
+    const optimisticId = `optimistic-reply-${Date.now()}`;
+    const optimisticReply: Comment = {
+      id: optimisticId,
+      post_id: postId,
+      content: content.slice(0, 5000),
+      anonymous_name: commentName,
+      author_id: currentUser?.id || null,
+      parent_comment_id: parentCommentId,
+      created_at: new Date().toISOString(),
+    };
+    setComments(prev => ({
+      ...prev,
+      [postId]: [...(prev[postId] || []), optimisticReply],
+    }));
+    setAllPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
+
     const insertData: any = {
       post_id: postId,
       content: content.slice(0, 5000),
       anonymous_name: commentName,
       parent_comment_id: parentCommentId,
     };
-    if (currentUser) {
-      insertData.author_id = currentUser.id;
-    }
+    if (currentUser) insertData.author_id = currentUser.id;
+
     const { data: insertedReply, error } = await supabase.from("community_comments").insert(insertData).select("id").single();
     if (!error && insertedReply) {
-      await supabase.rpc("increment_comments", { post_id_input: postId });
-      setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
-      const { data } = await supabase
-        .from("community_comments")
-        .select("*")
-        .eq("post_id", postId)
-        .order("created_at", { ascending: true });
-      if (data) setComments((prev) => ({ ...prev, [postId]: data as Comment[] }));
+      // Replace optimistic with real ID
+      setComments(prev => ({
+        ...prev,
+        [postId]: (prev[postId] || []).map(c => c.id === optimisticId ? { ...c, id: insertedReply.id } : c),
+      }));
+      supabase.rpc("increment_comments", { post_id_input: postId }).catch(() => {});
       if (currentUser && parentAuthorId && parentAuthorId !== currentUser.id) {
         createNotification(parentAuthorId, currentUser.id, "reply", "replied to your comment", postId);
       }
-      // Trigger AI companion reply if @mentioned
       triggerCompanionReply(postId, insertedReply.id, content, parentCommentId);
+    } else {
+      // Rollback
+      setComments(prev => ({
+        ...prev,
+        [postId]: (prev[postId] || []).filter(c => c.id !== optimisticId),
+      }));
+      setAllPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: Math.max(0, p.comments_count - 1) } : p));
+      toast({ title: "Error", description: "Could not add reply.", variant: "destructive" });
     }
   };
 
