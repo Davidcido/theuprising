@@ -104,6 +104,7 @@ const VoiceCompanion = () => {
   useEffect(() => { mutedRef.current = muted; }, [muted]);
   useEffect(() => { selectedLangRef.current = selectedLang; }, [selectedLang]);
   useEffect(() => { selectedModeRef.current = selectedMode; }, [selectedMode]);
+  useEffect(() => { selectedCompanionRef.current = selectedCompanion; }, [selectedCompanion]);
 
   useEffect(() => {
     if (transcriptEndRef.current) {
