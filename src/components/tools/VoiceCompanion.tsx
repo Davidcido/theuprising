@@ -874,17 +874,23 @@ Never expose the English interpretation to the user — always reply fully in Ha
     processUtterance(text);
   }, [textInput, killRecognition, processUtterance]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount — aggressive shutdown
   useEffect(() => {
     return () => {
       activeRef.current = false;
       clearTimer();
-      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      conversationRef.current = [];
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        setTimeout(() => window.speechSynthesis?.cancel(), 100);
+      }
       if (recognitionRef.current) try { recognitionRef.current.abort(); } catch { try { recognitionRef.current.stop(); } catch {} }
+      recognitionRef.current = null;
       if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+        mediaStreamRef.current = null;
       }
     };
   }, [clearTimer]);
