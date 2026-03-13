@@ -371,7 +371,7 @@ const PostCard = ({
         )}
 
         {/* Content */}
-        <div className={hasMedia ? "px-5 pt-3" : ""}>
+        <div className={hasMedia ? "px-5 pt-4" : ""}>
         {editing ? (
           <div className="mb-3">
             <textarea
