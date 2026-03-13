@@ -90,7 +90,7 @@ export const SpiralAnimation = () => {
       ctx.fill();
       ctx.shadowBlur = 0;
 
-      rotation += (Math.PI * 2) / (45 * 60); // full rotation in ~45s (faster vortex)
+      rotation += (Math.PI * 2) / (11 * 60); // full rotation in ~11s (vortex)
       animationId = requestAnimationFrame(draw);
     };
 
