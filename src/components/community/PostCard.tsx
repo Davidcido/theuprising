@@ -138,7 +138,7 @@ const ContentWithReadMore = ({ content, hasMedia }: { content: string; hasMedia:
   const displayText = !expanded && isLong ? content.slice(0, MAX_CAPTION_LENGTH) + "…" : content;
 
   return (
-    <div className={`text-foreground/90 text-sm leading-relaxed mb-3 whitespace-pre-wrap break-words ${hasMedia ? "line-clamp-none" : ""}`}>
+    <div className={`text-foreground/95 text-sm leading-[1.7] mb-4 whitespace-pre-wrap break-words ${hasMedia ? "line-clamp-none" : ""}`}>
       <HashtagText content={displayText} />
       {isLong && !expanded && (
         <button
