@@ -206,15 +206,16 @@ const Community = () => {
   }, []);
 
   const fetchPosts = useCallback(async (loadMore = false, retryCount = 0) => {
-    if (fetchingRef.current || isFetchingPosts) {
+    if (fetchingRef.current || isFetchingPostsRef.current) {
       console.log("[Community][feed] fetch skipped (lock active)", {
         loadMore,
-        isFetchingPosts,
+        isFetchingPosts: isFetchingPostsRef.current,
       });
       return;
     }
 
     fetchingRef.current = true;
+    isFetchingPostsRef.current = true;
     setIsFetchingPosts(true);
     if (loadMore) setLoadingMore(true);
     setFetchError(null);
@@ -248,10 +249,12 @@ const Community = () => {
 
       if (rows.length === 0) {
         setHasMore(false);
+        hasMoreRef.current = false;
         return;
       }
 
       setHasMore(true);
+      hasMoreRef.current = true;
       const last = rows[rows.length - 1] as { created_at: string; id: string };
       const nextCursor: PaginationCursor = {
         createdAt: new Date(last.created_at).toISOString(),
@@ -267,9 +270,9 @@ const Community = () => {
       const enriched = await enrichPosts(rows);
 
       if (loadMore) {
-        setAllPosts(prev => {
-          const existingIds = new Set(prev.map(p => p.id));
-          const newPosts = enriched.filter(p => !existingIds.has(p.id));
+        setAllPosts((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const newPosts = enriched.filter((p) => !existingIds.has(p.id));
           return [...prev, ...newPosts];
         });
         return;
@@ -287,8 +290,8 @@ const Community = () => {
         if (reposts && reposts.length > 0) {
           const postsMap: Record<string, any> = {};
           for (const p of enriched) postsMap[p.id] = p;
-          const reposterIds = [...new Set(reposts.map(r => r.user_id))];
-          let reposterProfiles: Record<string, string> = {};
+          const reposterIds = [...new Set(reposts.map((r) => r.user_id))];
+          const reposterProfiles: Record<string, string> = {};
           if (reposterIds.length > 0) {
             const { data: rProfiles } = await supabase
               .from("profiles")
@@ -317,11 +320,11 @@ const Community = () => {
       }
 
       const merged = [...enriched, ...directRepostPosts];
-      setAllPosts(prev => {
-        const pendingPosts = prev.filter(p => p._pendingMedia && p._pendingMedia.length > 0);
-        const mergedIds = new Set(merged.map(p => p.id));
-        const result = merged.map(p => {
-          const pending = pendingPosts.find(pp => pp.id === p.id);
+      setAllPosts((prev) => {
+        const pendingPosts = prev.filter((p) => p._pendingMedia && p._pendingMedia.length > 0);
+        const mergedIds = new Set(merged.map((p) => p.id));
+        const result = merged.map((p) => {
+          const pending = pendingPosts.find((pp) => pp.id === p.id);
           if (pending) {
             return { ...p, _pendingMedia: pending._pendingMedia, _onCancelUpload: pending._onCancelUpload, _onRetryUpload: pending._onRetryUpload };
           }
@@ -338,10 +341,11 @@ const Community = () => {
       console.error("[Community][feed] fetch failed", err?.message || err);
       if (retryCount < 1) {
         fetchingRef.current = false;
+        isFetchingPostsRef.current = false;
         setIsFetchingPosts(false);
         return fetchPosts(loadMore, retryCount + 1);
       }
-      if (!loadMore && allPosts.length === 0) {
+      if (!loadMore && allPostsRef.current.length === 0) {
         const cached = feedCache.getCached();
         if (cached && cached.length > 0) {
           setAllPosts(cached);
@@ -353,12 +357,13 @@ const Community = () => {
       setLoading(false);
       setLoadingMore(false);
       fetchingRef.current = false;
+      isFetchingPostsRef.current = false;
       setIsFetchingPosts(false);
       console.log("[Community][feed] fetch lock released", {
         mode: loadMore ? "scroll" : "initial",
       });
     }
-  }, [allPosts.length, enrichPosts, feedCache, isFetchingPosts]);
+  }, [enrichPosts, feedCache]);
 
   const fetchLikedPosts = useCallback(async () => {
     const { data } = await supabase
