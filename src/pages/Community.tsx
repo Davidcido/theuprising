@@ -98,6 +98,14 @@ const Community = () => {
   const cursorRef = useRef<PaginationCursor | null>(null);
   const fetchingRef = useRef(false);
   const [isFetchingPosts, setIsFetchingPosts] = useState(false);
+  const isFetchingPostsRef = useRef(false);
+  const allPostsRef = useRef<Post[]>(initialCached.current || []);
+  const commentsRef = useRef<Record<string, Comment[]>>({});
+  const activeTabRef = useRef<FeedTab>("foryou");
+  const hasMoreRef = useRef(true);
+  const loadingMoreRef = useRef(false);
+  const subscriptionsReadyRef = useRef(false);
+  const observerReadyRef = useRef(false);
   const lastCursorLogRef = useRef<string | null>(null);
 
   const { isBookmarked, toggleBookmark } = useBookmarks(currentUser?.id);
