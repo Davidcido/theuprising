@@ -513,7 +513,7 @@ const PostCard = ({
         </div>
 
         {/* Engagement metrics bar */}
-        <div className={`flex items-center gap-4 text-[10px] text-muted-foreground/50 mb-2 ${hasMedia ? "px-5" : "px-1"}`}>
+        <div className={`flex items-center gap-4 text-[10px] text-muted-foreground/60 mb-3 ${hasMedia ? "px-5" : "px-1"}`}>
           <span>💬 {formatCount(post.comments_count)} comments</span>
           <span>🔁 {formatCount(post.shares_count)} reposts</span>
           <button
