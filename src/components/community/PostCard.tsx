@@ -138,7 +138,7 @@ const ContentWithReadMore = ({ content, hasMedia }: { content: string; hasMedia:
   const displayText = !expanded && isLong ? content.slice(0, MAX_CAPTION_LENGTH) + "…" : content;
 
   return (
-    <div className={`text-foreground/90 text-sm leading-relaxed mb-3 whitespace-pre-wrap break-words ${hasMedia ? "line-clamp-none" : ""}`}>
+    <div className={`text-foreground/95 text-sm leading-[1.7] mb-4 whitespace-pre-wrap break-words ${hasMedia ? "line-clamp-none" : ""}`}>
       <HashtagText content={displayText} />
       {isLong && !expanded && (
         <button
@@ -284,7 +284,7 @@ const PostCard = ({
               {post.is_anonymous && (
                 <span className="ml-1.5 text-[10px] text-muted-foreground/60 bg-white/5 px-1.5 py-0.5 rounded-full">anon</span>
               )}
-              <span className="text-xs text-muted-foreground ml-2">· {formatTime(post.created_at)}</span>
+              <span className="text-xs text-muted-foreground/70 ml-2">· {formatTime(post.created_at)}</span>
             </div>
           </div>
 
@@ -371,7 +371,7 @@ const PostCard = ({
         )}
 
         {/* Content */}
-        <div className={hasMedia ? "px-5 pt-3" : ""}>
+        <div className={hasMedia ? "px-5 pt-4" : ""}>
         {editing ? (
           <div className="mb-3">
             <textarea
@@ -489,7 +489,7 @@ const PostCard = ({
         )}
 
         {/* Emoji Reactions */}
-        <div className={`flex flex-wrap gap-1.5 mb-3 ${hasMedia ? "px-5" : ""}`}>
+        <div className={`flex flex-wrap gap-2 mb-4 ${hasMedia ? "px-5" : ""}`}>
           {REACTION_EMOJIS.map(({ emoji, label }) => {
             const count = reactionCounts[emoji] || 0;
             const isMine = myReactions.has(`${post.id}:${emoji}`);
@@ -513,7 +513,7 @@ const PostCard = ({
         </div>
 
         {/* Engagement metrics bar */}
-        <div className={`flex items-center gap-4 text-[10px] text-muted-foreground/50 mb-2 ${hasMedia ? "px-5" : "px-1"}`}>
+        <div className={`flex items-center gap-4 text-[10px] text-muted-foreground/60 mb-3 ${hasMedia ? "px-5" : "px-1"}`}>
           <span>💬 {formatCount(post.comments_count)} comments</span>
           <span>🔁 {formatCount(post.shares_count)} reposts</span>
           <button
@@ -526,7 +526,7 @@ const PostCard = ({
         </div>
 
         {/* Actions */}
-        <div className={`flex items-center gap-1 border-t border-white/5 pt-3 ${hasMedia ? "px-5" : ""}`}>
+        <div className={`flex items-center gap-2 border-t border-white/5 pt-3 ${hasMedia ? "px-5" : ""}`}>
           <div className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-sm">
             <motion.button
               onClick={() => onToggleLike(post.id)}
