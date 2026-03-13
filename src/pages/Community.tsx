@@ -206,16 +206,13 @@ const Community = () => {
   }, []);
 
   const fetchPosts = useCallback(async (loadMore = false, retryCount = 0) => {
-    if (fetchingRef.current || isFetchingPostsRef.current) {
-      console.log("[Community][feed] fetch skipped (lock active)", {
-        loadMore,
-        isFetchingPosts: isFetchingPostsRef.current,
-      });
+    if (fetchingRef.current) {
+      console.log("[Community][feed] fetch skipped (lock active)", { loadMore });
       return;
     }
 
     fetchingRef.current = true;
-    isFetchingPostsRef.current = true;
+    loadingMoreRef.current = loadMore;
     setIsFetchingPosts(true);
     if (loadMore) setLoadingMore(true);
     setFetchError(null);
@@ -253,19 +250,18 @@ const Community = () => {
         return;
       }
 
-      setHasMore(true);
-      hasMoreRef.current = true;
+      // Only mark as having more if we got a full page
+      const moreAvailable = rows.length >= POSTS_PER_PAGE;
+      setHasMore(moreAvailable);
+      hasMoreRef.current = moreAvailable;
+
       const last = rows[rows.length - 1] as { created_at: string; id: string };
       const nextCursor: PaginationCursor = {
         createdAt: new Date(last.created_at).toISOString(),
         id: String(last.id),
       };
       cursorRef.current = nextCursor;
-      const cursorKey = `${nextCursor.createdAt}|${nextCursor.id}`;
-      if (lastCursorLogRef.current !== cursorKey) {
-        console.log("[Community][feed] cursor updated", nextCursor);
-        lastCursorLogRef.current = cursorKey;
-      }
+      console.log("[Community][feed] cursor updated", nextCursor);
 
       const enriched = await enrichPosts(rows);
 
@@ -341,7 +337,7 @@ const Community = () => {
       console.error("[Community][feed] fetch failed", err?.message || err);
       if (retryCount < 1) {
         fetchingRef.current = false;
-        isFetchingPostsRef.current = false;
+        loadingMoreRef.current = false;
         setIsFetchingPosts(false);
         return fetchPosts(loadMore, retryCount + 1);
       }
@@ -357,7 +353,7 @@ const Community = () => {
       setLoading(false);
       setLoadingMore(false);
       fetchingRef.current = false;
-      isFetchingPostsRef.current = false;
+      loadingMoreRef.current = false;
       setIsFetchingPosts(false);
       console.log("[Community][feed] fetch lock released", {
         mode: loadMore ? "scroll" : "initial",
