@@ -136,6 +136,43 @@ const Community = () => {
     });
   }, [authUser]);
 
+  useEffect(() => {
+    allPostsRef.current = allPosts;
+  }, [allPosts]);
+
+  useEffect(() => {
+    commentsRef.current = comments;
+  }, [comments]);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  useEffect(() => {
+    hasMoreRef.current = hasMore;
+  }, [hasMore]);
+
+  useEffect(() => {
+    loadingMoreRef.current = loadingMore;
+  }, [loadingMore]);
+
+  useEffect(() => {
+    isFetchingPostsRef.current = isFetchingPosts;
+  }, [isFetchingPosts]);
+
+  useEffect(() => {
+    communityControllerMounts += 1;
+    console.log("[Community][controller] mounted", { mounts: communityControllerMounts });
+    return () => {
+      communityControllerMounts = Math.max(0, communityControllerMounts - 1);
+      console.log("[Community][controller] unmounted", { mounts: communityControllerMounts });
+    };
+  }, []);
+
+  const dedupeCommentsById = useCallback((items: Comment[]) => {
+    return Array.from(new Map(items.map((item) => [item.id, item])).values());
+  }, []);
+
   const enrichPosts = useCallback(async (data: any[]): Promise<Post[]> => {
     const authorIds = [...new Set(data.filter((p: any) => p.author_id).map((p: any) => p.author_id))];
     let profilesMap: Record<string, { display_name: string | null; avatar_url: string; created_at?: string }> = {};
