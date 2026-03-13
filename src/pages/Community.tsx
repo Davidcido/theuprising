@@ -107,7 +107,7 @@ const Community = () => {
   const hasMoreRef = useRef(true);
   const loadingMoreRef = useRef(false);
   const subscriptionsReadyRef = useRef(false);
-  const observerReadyRef = useRef(false);
+  const sentinelObserverRef = useRef<IntersectionObserver | null>(null);
   const lastCursorLogRef = useRef<string | null>(null);
 
   const { isBookmarked, toggleBookmark } = useBookmarks(currentUser?.id);
