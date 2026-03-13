@@ -284,7 +284,7 @@ const PostCard = ({
               {post.is_anonymous && (
                 <span className="ml-1.5 text-[10px] text-muted-foreground/60 bg-white/5 px-1.5 py-0.5 rounded-full">anon</span>
               )}
-              <span className="text-xs text-muted-foreground ml-2">· {formatTime(post.created_at)}</span>
+              <span className="text-xs text-muted-foreground/70 ml-2">· {formatTime(post.created_at)}</span>
             </div>
           </div>
 
