@@ -35,31 +35,35 @@ const Navbar = () => {
     // 1. Preserve anonymous session id
     const sessionIdBackup = localStorage.getItem("uprising_session_id");
 
-    // 2. Sign out from auth provider – destroy the session
+    // 2. Set logout flag BEFORE clearing storage so it survives the clear
+    markLoggedOut();
+
+    // 3. Clear ALL storage first to prevent any re-caching
+    localStorage.clear();
+    sessionStorage.clear();
+
+    // 4. Restore preserved items
+    if (sessionIdBackup) localStorage.setItem("uprising_session_id", sessionIdBackup);
+    // Re-set logout flag since sessionStorage was just cleared
+    markLoggedOut();
+
+    // 5. Clear cookies
+    document.cookie.split(";").forEach((c) => {
+      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+    });
+
+    // 6. Sign out from auth provider
     try {
       await supabase.auth.signOut({ scope: 'global' });
     } catch {
       try {
         await supabase.auth.signOut({ scope: 'local' });
       } catch {
-        // Continue with manual cleanup
+        // Continue – storage is already cleared
       }
     }
 
-    // 3. Clear ALL storage (Supabase stores tokens in localStorage)
-    localStorage.clear();
-    sessionStorage.clear();
-    if (sessionIdBackup) localStorage.setItem("uprising_session_id", sessionIdBackup);
-
-    // 4. Clear cookies
-    document.cookie.split(";").forEach((c) => {
-      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-    });
-
-    // 5. Set logout flag AFTER clearing storage so AuthProvider forces null state on reload
-    markLoggedOut();
-
-    // 6. Hard redirect – full page reload forces AuthProvider to re-initialize
+    // 7. Hard redirect – full page reload forces AuthProvider to re-initialize
     window.location.replace("/");
   };
 
