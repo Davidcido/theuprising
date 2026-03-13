@@ -659,13 +659,35 @@ const Community = () => {
     }, delay);
   }, [fetchPosts]);
 
+  const getScrollRootForSentinel = useCallback((sentinel: HTMLElement) => {
+    let parent = sentinel.parentElement;
+
+    while (parent) {
+      const style = window.getComputedStyle(parent);
+      const overflowY = style.overflowY;
+      const isScrollable = /(auto|scroll|overlay)/.test(overflowY);
+
+      if (isScrollable && parent.scrollHeight > parent.clientHeight) {
+        return parent;
+      }
+
+      parent = parent.parentElement;
+    }
+
+    return null;
+  }, []);
+
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    if (!sentinel || activeTab !== "foryou" || !hasMore) return;
-    if (observerReadyRef.current) return;
 
-    observerReadyRef.current = true;
-    console.log("[Community][feed] sentinel observer attached");
+    if (sentinelObserverRef.current) {
+      sentinelObserverRef.current.disconnect();
+      sentinelObserverRef.current = null;
+    }
+
+    if (!sentinel || loading || activeTab !== "foryou" || !hasMore) return;
+
+    const root = getScrollRootForSentinel(sentinel);
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -673,20 +695,72 @@ const Community = () => {
           scheduleLoadMore("sentinel-intersect");
         }
       },
-      { rootMargin: "600px" }
+      {
+        root,
+        rootMargin: "600px 0px 600px 0px",
+        threshold: 0.01,
+      }
     );
 
     observer.observe(sentinel);
+    sentinelObserverRef.current = observer;
+
+    console.log("[Community][feed] sentinel observer attached", {
+      root: root ? "container" : "viewport",
+    });
+
     return () => {
       observer.disconnect();
-      observerReadyRef.current = false;
+      if (sentinelObserverRef.current === observer) {
+        sentinelObserverRef.current = null;
+      }
       console.log("[Community][feed] sentinel observer detached");
+    };
+  }, [activeTab, hasMore, loading, allPosts.length, scheduleLoadMore, getScrollRootForSentinel]);
+
+  useEffect(() => {
+    if (loading || activeTab !== "foryou" || !hasMore) return;
+    if (fetchingRef.current) return;
+
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const root = getScrollRootForSentinel(sentinel);
+    const sentinelRect = sentinel.getBoundingClientRect();
+
+    const shouldAutoFill = (() => {
+      if (root instanceof HTMLElement) {
+        const rootRect = root.getBoundingClientRect();
+        const containerNotScrollable = root.scrollHeight <= root.clientHeight + 8;
+        const sentinelNearBottom = sentinelRect.top <= rootRect.bottom + 120;
+        return containerNotScrollable || sentinelNearBottom;
+      }
+
+      const pageNotScrollable = document.documentElement.scrollHeight <= window.innerHeight + 8;
+      const sentinelNearViewport = sentinelRect.top <= window.innerHeight + 120;
+      return pageNotScrollable || sentinelNearViewport;
+    })();
+
+    if (shouldAutoFill) {
+      console.log("[Community][feed] auto-fill trigger", {
+        root: root ? "container" : "viewport",
+      });
+      scheduleLoadMore("auto-fill");
+    }
+  }, [allPosts.length, activeTab, hasMore, loading, scheduleLoadMore, getScrollRootForSentinel]);
+
+  useEffect(() => {
+    return () => {
       if (scrollDebounceRef.current) {
         clearTimeout(scrollDebounceRef.current);
         scrollDebounceRef.current = null;
       }
+      if (sentinelObserverRef.current) {
+        sentinelObserverRef.current.disconnect();
+        sentinelObserverRef.current = null;
+      }
     };
-  }, [activeTab, hasMore, scheduleLoadMore]);
+  }, []);
 
   // Update cache whenever posts change
   useEffect(() => {
