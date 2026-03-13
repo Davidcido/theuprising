@@ -630,6 +630,7 @@ const Community = () => {
     return () => {
       console.log("[Community][realtime] subscribe cleanup");
       subscriptionsReadyRef.current = false;
+      fetchingRef.current = false; // Reset so re-mount can fetch
       supabase.removeChannel(postsChannel);
       supabase.removeChannel(commentsChannel);
       supabase.removeChannel(likesChannel);
