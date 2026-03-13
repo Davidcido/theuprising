@@ -417,11 +417,25 @@ const Community = () => {
   }, [allPosts.length]);
 
   const resolveCommentTargetPostId = useCallback((uiPostId: string) => {
-    const post = allPosts.find(p => p.id === uiPostId);
+    const post = allPostsRef.current.find((p) => p.id === uiPostId);
     if (!post) return uiPostId;
     if (!uiPostId.startsWith("repost-")) return uiPostId;
     return ((post as Post & { source_post_id?: string }).source_post_id || post.original_post?.id || post.original_post_id || uiPostId);
-  }, [allPosts]);
+  }, []);
+
+  const getUiPostIdsForTargetPost = useCallback((targetPostId: string) => {
+    const uiIds = new Set<string>();
+    for (const post of allPostsRef.current) {
+      const resolvedTarget = post.id.startsWith("repost-")
+        ? ((post as Post & { source_post_id?: string }).source_post_id || post.original_post?.id || post.original_post_id || post.id)
+        : post.id;
+      if (resolvedTarget === targetPostId) {
+        uiIds.add(post.id);
+      }
+    }
+    if (uiIds.size === 0) uiIds.add(targetPostId);
+    return Array.from(uiIds);
+  }, []);
 
   // Lazy comment loading: fetch comments only when a thread is expanded.
   const fetchCommentsForPost = useCallback(async (uiPostId: string, targetPostId?: string) => {
@@ -431,7 +445,7 @@ const Community = () => {
     console.log("[Community][comments] fetch start", {
       uiPostId,
       queryPostId,
-      cachedCount: (comments[uiPostId] || []).length,
+      cachedCount: (commentsRef.current[uiPostId] || []).length,
     });
 
     const { data, error } = await supabase
@@ -447,22 +461,21 @@ const Community = () => {
     }
 
     const dbComments = (data || []) as Comment[];
-    setComments(prev => {
+    setComments((prev) => {
       const existing = prev[uiPostId] || [];
-      const optimistic = existing.filter(c => c.id.startsWith("optimistic-"));
-      const merged = [...dbComments, ...optimistic];
-      const deduped = Array.from(new Map(merged.map(c => [c.id, c])).values());
-      return { ...prev, [uiPostId]: deduped };
+      const optimistic = existing.filter((c) => c.id.startsWith("optimistic-"));
+      const merged = dedupeCommentsById([...dbComments, ...optimistic]);
+      return { ...prev, [uiPostId]: merged };
     });
 
-    setAllPosts(prev => prev.map(p =>
+    setAllPosts((prev) => prev.map((p) =>
       p.id === uiPostId || p.id === queryPostId
         ? { ...p, comments_count: Math.max(p.comments_count, dbComments.length) }
         : p
     ));
 
     console.log("[Community][comments] fetch end", { uiPostId, queryPostId, count: dbComments.length });
-  }, [comments]);
+  }, [dedupeCommentsById]);
 
   // Load comment reactions when comments are expanded
   useEffect(() => {
