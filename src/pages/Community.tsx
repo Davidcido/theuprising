@@ -649,12 +649,8 @@ const Community = () => {
     scrollDebounceRef.current = setTimeout(() => {
       scrollDebounceRef.current = null;
       if (activeTabRef.current !== "foryou" || !hasMoreRef.current) return;
-      if (fetchingRef.current || isFetchingPostsRef.current || loadingMoreRef.current) {
-        console.log("[Community][feed] load-more blocked", {
-          reason,
-          isFetchingPosts: isFetchingPostsRef.current,
-          loadingMore: loadingMoreRef.current,
-        });
+      if (fetchingRef.current) {
+        console.log("[Community][feed] load-more blocked (fetching)", { reason });
         return;
       }
       lastScrollTriggerRef.current = Date.now();
