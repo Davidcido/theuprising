@@ -57,6 +57,8 @@ const getSessionId = () => {
   return id;
 };
 
+let communityControllerMounts = 0;
+
 const Community = () => {
   const feedCache = useFeedCache<Post>();
   const initialCached = useRef(feedCache.getCached());
