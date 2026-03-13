@@ -57,6 +57,8 @@ const getSessionId = () => {
   return id;
 };
 
+let communityControllerMounts = 0;
+
 const Community = () => {
   const feedCache = useFeedCache<Post>();
   const initialCached = useRef(feedCache.getCached());
@@ -98,6 +100,14 @@ const Community = () => {
   const cursorRef = useRef<PaginationCursor | null>(null);
   const fetchingRef = useRef(false);
   const [isFetchingPosts, setIsFetchingPosts] = useState(false);
+  const isFetchingPostsRef = useRef(false);
+  const allPostsRef = useRef<Post[]>(initialCached.current || []);
+  const commentsRef = useRef<Record<string, Comment[]>>({});
+  const activeTabRef = useRef<FeedTab>("foryou");
+  const hasMoreRef = useRef(true);
+  const loadingMoreRef = useRef(false);
+  const subscriptionsReadyRef = useRef(false);
+  const observerReadyRef = useRef(false);
   const lastCursorLogRef = useRef<string | null>(null);
 
   const { isBookmarked, toggleBookmark } = useBookmarks(currentUser?.id);
@@ -125,6 +135,43 @@ const Community = () => {
       }
     });
   }, [authUser]);
+
+  useEffect(() => {
+    allPostsRef.current = allPosts;
+  }, [allPosts]);
+
+  useEffect(() => {
+    commentsRef.current = comments;
+  }, [comments]);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  useEffect(() => {
+    hasMoreRef.current = hasMore;
+  }, [hasMore]);
+
+  useEffect(() => {
+    loadingMoreRef.current = loadingMore;
+  }, [loadingMore]);
+
+  useEffect(() => {
+    isFetchingPostsRef.current = isFetchingPosts;
+  }, [isFetchingPosts]);
+
+  useEffect(() => {
+    communityControllerMounts += 1;
+    console.log("[Community][controller] mounted", { mounts: communityControllerMounts });
+    return () => {
+      communityControllerMounts = Math.max(0, communityControllerMounts - 1);
+      console.log("[Community][controller] unmounted", { mounts: communityControllerMounts });
+    };
+  }, []);
+
+  const dedupeCommentsById = useCallback((items: Comment[]) => {
+    return Array.from(new Map(items.map((item) => [item.id, item])).values());
+  }, []);
 
   const enrichPosts = useCallback(async (data: any[]): Promise<Post[]> => {
     const authorIds = [...new Set(data.filter((p: any) => p.author_id).map((p: any) => p.author_id))];
@@ -159,15 +206,16 @@ const Community = () => {
   }, []);
 
   const fetchPosts = useCallback(async (loadMore = false, retryCount = 0) => {
-    if (fetchingRef.current || isFetchingPosts) {
+    if (fetchingRef.current || isFetchingPostsRef.current) {
       console.log("[Community][feed] fetch skipped (lock active)", {
         loadMore,
-        isFetchingPosts,
+        isFetchingPosts: isFetchingPostsRef.current,
       });
       return;
     }
 
     fetchingRef.current = true;
+    isFetchingPostsRef.current = true;
     setIsFetchingPosts(true);
     if (loadMore) setLoadingMore(true);
     setFetchError(null);
@@ -201,10 +249,12 @@ const Community = () => {
 
       if (rows.length === 0) {
         setHasMore(false);
+        hasMoreRef.current = false;
         return;
       }
 
       setHasMore(true);
+      hasMoreRef.current = true;
       const last = rows[rows.length - 1] as { created_at: string; id: string };
       const nextCursor: PaginationCursor = {
         createdAt: new Date(last.created_at).toISOString(),
@@ -220,9 +270,9 @@ const Community = () => {
       const enriched = await enrichPosts(rows);
 
       if (loadMore) {
-        setAllPosts(prev => {
-          const existingIds = new Set(prev.map(p => p.id));
-          const newPosts = enriched.filter(p => !existingIds.has(p.id));
+        setAllPosts((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const newPosts = enriched.filter((p) => !existingIds.has(p.id));
           return [...prev, ...newPosts];
         });
         return;
@@ -240,8 +290,8 @@ const Community = () => {
         if (reposts && reposts.length > 0) {
           const postsMap: Record<string, any> = {};
           for (const p of enriched) postsMap[p.id] = p;
-          const reposterIds = [...new Set(reposts.map(r => r.user_id))];
-          let reposterProfiles: Record<string, string> = {};
+          const reposterIds = [...new Set(reposts.map((r) => r.user_id))];
+          const reposterProfiles: Record<string, string> = {};
           if (reposterIds.length > 0) {
             const { data: rProfiles } = await supabase
               .from("profiles")
@@ -270,11 +320,11 @@ const Community = () => {
       }
 
       const merged = [...enriched, ...directRepostPosts];
-      setAllPosts(prev => {
-        const pendingPosts = prev.filter(p => p._pendingMedia && p._pendingMedia.length > 0);
-        const mergedIds = new Set(merged.map(p => p.id));
-        const result = merged.map(p => {
-          const pending = pendingPosts.find(pp => pp.id === p.id);
+      setAllPosts((prev) => {
+        const pendingPosts = prev.filter((p) => p._pendingMedia && p._pendingMedia.length > 0);
+        const mergedIds = new Set(merged.map((p) => p.id));
+        const result = merged.map((p) => {
+          const pending = pendingPosts.find((pp) => pp.id === p.id);
           if (pending) {
             return { ...p, _pendingMedia: pending._pendingMedia, _onCancelUpload: pending._onCancelUpload, _onRetryUpload: pending._onRetryUpload };
           }
@@ -291,10 +341,11 @@ const Community = () => {
       console.error("[Community][feed] fetch failed", err?.message || err);
       if (retryCount < 1) {
         fetchingRef.current = false;
+        isFetchingPostsRef.current = false;
         setIsFetchingPosts(false);
         return fetchPosts(loadMore, retryCount + 1);
       }
-      if (!loadMore && allPosts.length === 0) {
+      if (!loadMore && allPostsRef.current.length === 0) {
         const cached = feedCache.getCached();
         if (cached && cached.length > 0) {
           setAllPosts(cached);
@@ -306,12 +357,13 @@ const Community = () => {
       setLoading(false);
       setLoadingMore(false);
       fetchingRef.current = false;
+      isFetchingPostsRef.current = false;
       setIsFetchingPosts(false);
       console.log("[Community][feed] fetch lock released", {
         mode: loadMore ? "scroll" : "initial",
       });
     }
-  }, [allPosts.length, enrichPosts, feedCache, isFetchingPosts]);
+  }, [enrichPosts, feedCache]);
 
   const fetchLikedPosts = useCallback(async () => {
     const { data } = await supabase
@@ -365,11 +417,25 @@ const Community = () => {
   }, [allPosts.length]);
 
   const resolveCommentTargetPostId = useCallback((uiPostId: string) => {
-    const post = allPosts.find(p => p.id === uiPostId);
+    const post = allPostsRef.current.find((p) => p.id === uiPostId);
     if (!post) return uiPostId;
     if (!uiPostId.startsWith("repost-")) return uiPostId;
     return ((post as Post & { source_post_id?: string }).source_post_id || post.original_post?.id || post.original_post_id || uiPostId);
-  }, [allPosts]);
+  }, []);
+
+  const getUiPostIdsForTargetPost = useCallback((targetPostId: string) => {
+    const uiIds = new Set<string>();
+    for (const post of allPostsRef.current) {
+      const resolvedTarget = post.id.startsWith("repost-")
+        ? ((post as Post & { source_post_id?: string }).source_post_id || post.original_post?.id || post.original_post_id || post.id)
+        : post.id;
+      if (resolvedTarget === targetPostId) {
+        uiIds.add(post.id);
+      }
+    }
+    if (uiIds.size === 0) uiIds.add(targetPostId);
+    return Array.from(uiIds);
+  }, []);
 
   // Lazy comment loading: fetch comments only when a thread is expanded.
   const fetchCommentsForPost = useCallback(async (uiPostId: string, targetPostId?: string) => {
@@ -379,7 +445,7 @@ const Community = () => {
     console.log("[Community][comments] fetch start", {
       uiPostId,
       queryPostId,
-      cachedCount: (comments[uiPostId] || []).length,
+      cachedCount: (commentsRef.current[uiPostId] || []).length,
     });
 
     const { data, error } = await supabase
@@ -395,22 +461,21 @@ const Community = () => {
     }
 
     const dbComments = (data || []) as Comment[];
-    setComments(prev => {
+    setComments((prev) => {
       const existing = prev[uiPostId] || [];
-      const optimistic = existing.filter(c => c.id.startsWith("optimistic-"));
-      const merged = [...dbComments, ...optimistic];
-      const deduped = Array.from(new Map(merged.map(c => [c.id, c])).values());
-      return { ...prev, [uiPostId]: deduped };
+      const optimistic = existing.filter((c) => c.id.startsWith("optimistic-"));
+      const merged = dedupeCommentsById([...dbComments, ...optimistic]);
+      return { ...prev, [uiPostId]: merged };
     });
 
-    setAllPosts(prev => prev.map(p =>
+    setAllPosts((prev) => prev.map((p) =>
       p.id === uiPostId || p.id === queryPostId
         ? { ...p, comments_count: Math.max(p.comments_count, dbComments.length) }
         : p
     ));
 
     console.log("[Community][comments] fetch end", { uiPostId, queryPostId, count: dbComments.length });
-  }, [comments]);
+  }, [dedupeCommentsById]);
 
   // Load comment reactions when comments are expanded
   useEffect(() => {
@@ -427,6 +492,14 @@ const Community = () => {
   // Gate initial fetch on auth readiness to prevent "No posts yet" on refresh
   useEffect(() => {
     if (!authReady) return;
+    if (subscriptionsReadyRef.current) {
+      console.log("[Community][realtime] duplicate subscription prevented");
+      return;
+    }
+
+    subscriptionsReadyRef.current = true;
+    console.log("[Community][realtime] subscribe start");
+
     fetchPosts(false);
     fetchLikedPosts();
 
@@ -439,25 +512,21 @@ const Community = () => {
         const newPost = payload.new as any;
         const enriched = await enrichPosts([newPost]);
         if (enriched.length > 0) {
-          setAllPosts(prev => {
-            // Skip if this post ID already exists
-            if (prev.some(p => p.id === enriched[0].id)) return prev;
-            // Check if there's a matching optimistic post to replace
-            const matchIdx = prev.findIndex(p =>
+          setAllPosts((prev) => {
+            if (prev.some((p) => p.id === enriched[0].id)) return prev;
+            const matchIdx = prev.findIndex((p) =>
               p._optimistic &&
               p.content === enriched[0].content &&
               p.anonymous_name === enriched[0].anonymous_name
             );
             if (matchIdx >= 0) {
-              // Replace optimistic with real post
               const updated = [...prev];
               updated[matchIdx] = { ...enriched[0], _pendingMedia: prev[matchIdx]._pendingMedia, _onCancelUpload: prev[matchIdx]._onCancelUpload, _onRetryUpload: prev[matchIdx]._onRetryUpload };
               return updated;
             }
-            // New post from another user
             const scrolledDown = window.scrollY > 400;
             if (scrolledDown) {
-              setNewPostsAvailable(c => c + 1);
+              setNewPostsAvailable((c) => c + 1);
             }
             return [enriched[0], ...prev];
           });
@@ -465,15 +534,14 @@ const Community = () => {
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "community_posts" }, (payload) => {
         const updated = payload.new as any;
-        setAllPosts(prev => prev.map(p => {
+        setAllPosts((prev) => prev.map((p) => {
           if (p.id !== updated.id) return p;
-          // Preserve pending media and callbacks during background uploads
           return { ...p, ...updated, _pendingMedia: p._pendingMedia, _onCancelUpload: p._onCancelUpload, _onRetryUpload: p._onRetryUpload };
         }));
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "community_posts" }, (payload) => {
         const deleted = payload.old as { id: string };
-        setAllPosts(prev => prev.filter(p => p.id !== deleted.id));
+        setAllPosts((prev) => prev.filter((p) => p.id !== deleted.id));
       })
       .subscribe();
 
@@ -482,64 +550,101 @@ const Community = () => {
       .on("postgres_changes", { event: "*", schema: "public", table: "community_comments" }, (payload) => {
         if (payload.eventType === "INSERT") {
           const newComment = payload.new as Comment;
+          const uiPostIds = getUiPostIdsForTargetPost(newComment.post_id);
           setComments((prev) => {
-            const existing = prev[newComment.post_id] || [];
-            // Deduplicate: skip if this exact ID already exists
-            if (existing.some(c => c.id === newComment.id)) return prev;
-            // Check if there's an optimistic comment to replace (match by content + author)
-            const optimisticIdx = existing.findIndex(c =>
-              c.id.startsWith("optimistic") &&
-              c.content === newComment.content &&
-              c.anonymous_name === newComment.anonymous_name &&
-              c.post_id === newComment.post_id
-            );
-            if (optimisticIdx >= 0) {
-              const updated = [...existing];
-              updated[optimisticIdx] = newComment;
-              return { ...prev, [newComment.post_id]: updated };
+            let changed = false;
+            const next: Record<string, Comment[]> = { ...prev };
+
+            for (const uiPostId of uiPostIds) {
+              const existing = next[uiPostId] || [];
+              if (existing.some((c) => c.id === newComment.id)) continue;
+
+              const optimisticIdx = existing.findIndex((c) =>
+                c.id.startsWith("optimistic") &&
+                c.content === newComment.content &&
+                c.anonymous_name === newComment.anonymous_name &&
+                c.parent_comment_id === newComment.parent_comment_id
+              );
+
+              if (optimisticIdx >= 0) {
+                const updated = [...existing];
+                updated[optimisticIdx] = newComment;
+                next[uiPostId] = dedupeCommentsById(updated);
+                changed = true;
+              } else {
+                next[uiPostId] = dedupeCommentsById([...existing, newComment]);
+                changed = true;
+              }
             }
-            return {
-              ...prev,
-              [newComment.post_id]: [...existing, newComment],
-            };
+
+            return changed ? next : prev;
+          });
+        } else if (payload.eventType === "UPDATE") {
+          const updatedComment = payload.new as Comment;
+          const uiPostIds = getUiPostIdsForTargetPost(updatedComment.post_id);
+          setComments((prev) => {
+            let changed = false;
+            const next: Record<string, Comment[]> = { ...prev };
+
+            for (const uiPostId of uiPostIds) {
+              const existing = next[uiPostId] || [];
+              if (!existing.some((c) => c.id === updatedComment.id)) continue;
+              next[uiPostId] = existing.map((c) => (c.id === updatedComment.id ? updatedComment : c));
+              changed = true;
+            }
+
+            return changed ? next : prev;
           });
         } else if (payload.eventType === "DELETE") {
           const oldComment = payload.old as { id: string; post_id: string };
-          setComments((prev) => ({
-            ...prev,
-            [oldComment.post_id]: (prev[oldComment.post_id] || []).filter(c => c.id !== oldComment.id),
-          }));
+          const uiPostIds = getUiPostIdsForTargetPost(oldComment.post_id);
+          setComments((prev) => {
+            let changed = false;
+            const next: Record<string, Comment[]> = { ...prev };
+
+            for (const uiPostId of uiPostIds) {
+              const existing = next[uiPostId] || [];
+              const filtered = existing.filter((c) => c.id !== oldComment.id);
+              if (filtered.length !== existing.length) {
+                next[uiPostId] = filtered;
+                changed = true;
+              }
+            }
+
+            return changed ? next : prev;
+          });
         }
       })
       .subscribe();
 
-    // Real-time engagement: likes update post counters live
     const likesChannel = supabase
       .channel("community-likes-rt")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "community_likes" }, (payload) => {
         const like = payload.new as { post_id: string; session_id: string };
         if (like.session_id !== sessionId) {
-          setAllPosts(prev => prev.map(p => p.id === like.post_id ? { ...p, likes_count: p.likes_count + 1 } : p));
+          setAllPosts((prev) => prev.map((p) => (p.id === like.post_id ? { ...p, likes_count: p.likes_count + 1 } : p)));
         }
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "community_likes" }, (payload) => {
         const like = payload.old as { post_id: string };
-        setAllPosts(prev => prev.map(p => p.id === like.post_id ? { ...p, likes_count: Math.max(0, p.likes_count - 1) } : p));
+        setAllPosts((prev) => prev.map((p) => (p.id === like.post_id ? { ...p, likes_count: Math.max(0, p.likes_count - 1) } : p)));
       })
       .subscribe();
 
     return () => {
+      console.log("[Community][realtime] subscribe cleanup");
+      subscriptionsReadyRef.current = false;
       supabase.removeChannel(postsChannel);
       supabase.removeChannel(commentsChannel);
       supabase.removeChannel(likesChannel);
     };
-  }, [authReady]);
+  }, [authReady, dedupeCommentsById, enrichPosts, fetchLikedPosts, fetchPosts, getUiPostIdsForTargetPost, sessionId]);
 
   const scrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastScrollTriggerRef = useRef(0);
 
   const scheduleLoadMore = useCallback((reason: string) => {
-    if (activeTab !== "foryou" || !hasMore) return;
+    if (activeTabRef.current !== "foryou" || !hasMoreRef.current) return;
     if (scrollDebounceRef.current) return;
 
     const elapsed = Date.now() - lastScrollTriggerRef.current;
@@ -547,20 +652,28 @@ const Community = () => {
 
     scrollDebounceRef.current = setTimeout(() => {
       scrollDebounceRef.current = null;
-      if (activeTab !== "foryou" || !hasMore) return;
-      if (fetchingRef.current || isFetchingPosts || loadingMore) {
-        console.log("[Community][feed] load-more blocked", { reason, isFetchingPosts, loadingMore });
+      if (activeTabRef.current !== "foryou" || !hasMoreRef.current) return;
+      if (fetchingRef.current || isFetchingPostsRef.current || loadingMoreRef.current) {
+        console.log("[Community][feed] load-more blocked", {
+          reason,
+          isFetchingPosts: isFetchingPostsRef.current,
+          loadingMore: loadingMoreRef.current,
+        });
         return;
       }
       lastScrollTriggerRef.current = Date.now();
       console.log("[Community][feed] load-more trigger", { reason, cursor: cursorRef.current });
       fetchPosts(true);
     }, delay);
-  }, [activeTab, fetchPosts, hasMore, isFetchingPosts, loadingMore]);
+  }, [fetchPosts]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    if (!sentinel) return;
+    if (!sentinel || activeTab !== "foryou" || !hasMore) return;
+    if (observerReadyRef.current) return;
+
+    observerReadyRef.current = true;
+    console.log("[Community][feed] sentinel observer attached");
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -574,23 +687,14 @@ const Community = () => {
     observer.observe(sentinel);
     return () => {
       observer.disconnect();
+      observerReadyRef.current = false;
+      console.log("[Community][feed] sentinel observer detached");
       if (scrollDebounceRef.current) {
         clearTimeout(scrollDebounceRef.current);
         scrollDebounceRef.current = null;
       }
     };
-  }, [scheduleLoadMore]);
-
-  // If the sentinel is still visible after append, keep paginating until DB is exhausted.
-  useEffect(() => {
-    if (activeTab !== "foryou" || !hasMore || loadingMore || fetchingRef.current || isFetchingPosts) return;
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-    const rect = sentinel.getBoundingClientRect();
-    if (rect.top <= window.innerHeight + 600) {
-      scheduleLoadMore("catch-up-after-append");
-    }
-  }, [activeTab, allPosts.length, hasMore, isFetchingPosts, loadingMore, scheduleLoadMore]);
+  }, [activeTab, hasMore, scheduleLoadMore]);
 
   // Update cache whenever posts change
   useEffect(() => {
@@ -1060,8 +1164,9 @@ const Community = () => {
     if (!text) return;
     const targetPostId = resolveCommentTargetPostId(postId);
     if (!targetPostId) return;
+
     const commentName = currentUser ? currentUser.displayName : sessionId;
-    const post = allPosts.find(p => p.id === postId);
+    const post = allPosts.find((p) => p.id === postId);
     const insertData: any = {
       post_id: targetPostId,
       content: text.slice(0, 5000),
@@ -1071,33 +1176,31 @@ const Community = () => {
       insertData.author_id = currentUser.id;
     }
 
-    // Optimistic comment insertion — show immediately
     const optimisticId = `optimistic-${Date.now()}`;
     const optimisticComment: Comment = {
       id: optimisticId,
-      post_id: postId,
+      post_id: targetPostId,
       content: text.slice(0, 5000),
       anonymous_name: commentName,
       author_id: currentUser?.id || null,
       parent_comment_id: null,
       created_at: new Date().toISOString(),
     };
-    setComments(prev => ({
+
+    setComments((prev) => ({
       ...prev,
-      [postId]: [...(prev[postId] || []), optimisticComment],
+      [postId]: dedupeCommentsById([...(prev[postId] || []), optimisticComment]),
     }));
     setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
     setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
 
-    // Send to DB
     const { data: insertedComment, error } = await supabase.from("community_comments").insert(insertData).select("id").single();
     if (!error && insertedComment) {
-      // Replace optimistic with real comment
-      setComments(prev => ({
+      setComments((prev) => ({
         ...prev,
-        [postId]: (prev[postId] || []).map(c =>
+        [postId]: dedupeCommentsById((prev[postId] || []).map((c) =>
           c.id === optimisticId ? { ...c, id: insertedComment.id } : c
-        ),
+        )),
       }));
       await supabase.rpc("increment_comments", { post_id_input: targetPostId });
       if (currentUser && post?.author_id && post.author_id !== currentUser.id) {
@@ -1105,10 +1208,9 @@ const Community = () => {
       }
       triggerCompanionReply(targetPostId, insertedComment.id, text);
     } else {
-      // Rollback optimistic
-      setComments(prev => ({
+      setComments((prev) => ({
         ...prev,
-        [postId]: (prev[postId] || []).filter(c => c.id !== optimisticId),
+        [postId]: (prev[postId] || []).filter((c) => c.id !== optimisticId),
       }));
       setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: Math.max(0, p.comments_count - 1) } : p));
       toast({ title: "Error", description: "Could not add comment.", variant: "destructive" });
@@ -1141,27 +1243,40 @@ const Community = () => {
 
   const addReply = async (postId: string, content: string, parentCommentId: string, parentAuthorId?: string | null) => {
     if (!content.trim()) return;
-    const commentName = currentUser ? currentUser.displayName : sessionId;
 
-    // Optimistic reply
+    const mappedUiPostId = Object.entries(commentsRef.current).find(([, list]) =>
+      list.some((comment) => comment.id === parentCommentId)
+    )?.[0] || postId;
+
+    const targetPostId = resolveCommentTargetPostId(mappedUiPostId);
+    if (!targetPostId) return;
+
+    const commentName = currentUser ? currentUser.displayName : sessionId;
     const optimisticId = `optimistic-reply-${Date.now()}`;
     const optimisticReply: Comment = {
       id: optimisticId,
-      post_id: postId,
+      post_id: targetPostId,
       content: content.slice(0, 5000),
       anonymous_name: commentName,
       author_id: currentUser?.id || null,
       parent_comment_id: parentCommentId,
       created_at: new Date().toISOString(),
     };
-    setComments(prev => ({
+
+    console.log("[Community][comments] reply optimistic", { mappedUiPostId, targetPostId, parentCommentId });
+
+    setComments((prev) => ({
       ...prev,
-      [postId]: [...(prev[postId] || []), optimisticReply],
+      [mappedUiPostId]: dedupeCommentsById([...(prev[mappedUiPostId] || []), optimisticReply]),
     }));
-    setAllPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
+    setAllPosts((prev) => prev.map((p) =>
+      p.id === mappedUiPostId || p.id === targetPostId
+        ? { ...p, comments_count: p.comments_count + 1 }
+        : p
+    ));
 
     const insertData: any = {
-      post_id: postId,
+      post_id: targetPostId,
       content: content.slice(0, 5000),
       anonymous_name: commentName,
       parent_comment_id: parentCommentId,
@@ -1170,23 +1285,27 @@ const Community = () => {
 
     const { data: insertedReply, error } = await supabase.from("community_comments").insert(insertData).select("id").single();
     if (!error && insertedReply) {
-      // Replace optimistic with real ID
-      setComments(prev => ({
+      setComments((prev) => ({
         ...prev,
-        [postId]: (prev[postId] || []).map(c => c.id === optimisticId ? { ...c, id: insertedReply.id } : c),
+        [mappedUiPostId]: dedupeCommentsById((prev[mappedUiPostId] || []).map((c) =>
+          c.id === optimisticId ? { ...c, id: insertedReply.id } : c
+        )),
       }));
-      supabase.rpc("increment_comments", { post_id_input: postId }).then(() => {});
+      supabase.rpc("increment_comments", { post_id_input: targetPostId }).then(() => {});
       if (currentUser && parentAuthorId && parentAuthorId !== currentUser.id) {
-        createNotification(parentAuthorId, currentUser.id, "reply", "replied to your comment", postId);
+        createNotification(parentAuthorId, currentUser.id, "reply", "replied to your comment", targetPostId);
       }
-      triggerCompanionReply(postId, insertedReply.id, content, parentCommentId);
+      triggerCompanionReply(targetPostId, insertedReply.id, content, parentCommentId);
     } else {
-      // Rollback
-      setComments(prev => ({
+      setComments((prev) => ({
         ...prev,
-        [postId]: (prev[postId] || []).filter(c => c.id !== optimisticId),
+        [mappedUiPostId]: (prev[mappedUiPostId] || []).filter((c) => c.id !== optimisticId),
       }));
-      setAllPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: Math.max(0, p.comments_count - 1) } : p));
+      setAllPosts((prev) => prev.map((p) =>
+        p.id === mappedUiPostId || p.id === targetPostId
+          ? { ...p, comments_count: Math.max(0, p.comments_count - 1) }
+          : p
+      ));
       toast({ title: "Error", description: "Could not add reply.", variant: "destructive" });
     }
   };

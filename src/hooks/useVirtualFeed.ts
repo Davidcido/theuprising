@@ -25,10 +25,18 @@ export function useVirtualFeed<T extends { id: string }>(
   );
   const rafRef = useRef<number>(0);
   const lastScrollRef = useRef(0);
+  const listenerAttachedRef = useRef(false);
 
   // Throttled scroll handler using rAF
   useEffect(() => {
     if (!enabled) return;
+    if (listenerAttachedRef.current) {
+      console.log("[VirtualFeed] duplicate scroll listener prevented");
+      return;
+    }
+
+    listenerAttachedRef.current = true;
+    console.log("[VirtualFeed] scroll listener attached");
 
     const handleScroll = () => {
       if (rafRef.current) return; // already scheduled
@@ -52,6 +60,8 @@ export function useVirtualFeed<T extends { id: string }>(
     return () => {
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", handleResize);
+      listenerAttachedRef.current = false;
+      console.log("[VirtualFeed] scroll listener detached");
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, [enabled]);
