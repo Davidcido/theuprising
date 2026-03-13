@@ -1164,8 +1164,9 @@ const Community = () => {
     if (!text) return;
     const targetPostId = resolveCommentTargetPostId(postId);
     if (!targetPostId) return;
+
     const commentName = currentUser ? currentUser.displayName : sessionId;
-    const post = allPosts.find(p => p.id === postId);
+    const post = allPosts.find((p) => p.id === postId);
     const insertData: any = {
       post_id: targetPostId,
       content: text.slice(0, 5000),
@@ -1175,33 +1176,31 @@ const Community = () => {
       insertData.author_id = currentUser.id;
     }
 
-    // Optimistic comment insertion — show immediately
     const optimisticId = `optimistic-${Date.now()}`;
     const optimisticComment: Comment = {
       id: optimisticId,
-      post_id: postId,
+      post_id: targetPostId,
       content: text.slice(0, 5000),
       anonymous_name: commentName,
       author_id: currentUser?.id || null,
       parent_comment_id: null,
       created_at: new Date().toISOString(),
     };
-    setComments(prev => ({
+
+    setComments((prev) => ({
       ...prev,
-      [postId]: [...(prev[postId] || []), optimisticComment],
+      [postId]: dedupeCommentsById([...(prev[postId] || []), optimisticComment]),
     }));
     setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
     setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
 
-    // Send to DB
     const { data: insertedComment, error } = await supabase.from("community_comments").insert(insertData).select("id").single();
     if (!error && insertedComment) {
-      // Replace optimistic with real comment
-      setComments(prev => ({
+      setComments((prev) => ({
         ...prev,
-        [postId]: (prev[postId] || []).map(c =>
+        [postId]: dedupeCommentsById((prev[postId] || []).map((c) =>
           c.id === optimisticId ? { ...c, id: insertedComment.id } : c
-        ),
+        )),
       }));
       await supabase.rpc("increment_comments", { post_id_input: targetPostId });
       if (currentUser && post?.author_id && post.author_id !== currentUser.id) {
@@ -1209,10 +1208,9 @@ const Community = () => {
       }
       triggerCompanionReply(targetPostId, insertedComment.id, text);
     } else {
-      // Rollback optimistic
-      setComments(prev => ({
+      setComments((prev) => ({
         ...prev,
-        [postId]: (prev[postId] || []).filter(c => c.id !== optimisticId),
+        [postId]: (prev[postId] || []).filter((c) => c.id !== optimisticId),
       }));
       setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, comments_count: Math.max(0, p.comments_count - 1) } : p));
       toast({ title: "Error", description: "Could not add comment.", variant: "destructive" });
@@ -1245,27 +1243,40 @@ const Community = () => {
 
   const addReply = async (postId: string, content: string, parentCommentId: string, parentAuthorId?: string | null) => {
     if (!content.trim()) return;
-    const commentName = currentUser ? currentUser.displayName : sessionId;
 
-    // Optimistic reply
+    const mappedUiPostId = Object.entries(commentsRef.current).find(([, list]) =>
+      list.some((comment) => comment.id === parentCommentId)
+    )?.[0] || postId;
+
+    const targetPostId = resolveCommentTargetPostId(mappedUiPostId);
+    if (!targetPostId) return;
+
+    const commentName = currentUser ? currentUser.displayName : sessionId;
     const optimisticId = `optimistic-reply-${Date.now()}`;
     const optimisticReply: Comment = {
       id: optimisticId,
-      post_id: postId,
+      post_id: targetPostId,
       content: content.slice(0, 5000),
       anonymous_name: commentName,
       author_id: currentUser?.id || null,
       parent_comment_id: parentCommentId,
       created_at: new Date().toISOString(),
     };
-    setComments(prev => ({
+
+    console.log("[Community][comments] reply optimistic", { mappedUiPostId, targetPostId, parentCommentId });
+
+    setComments((prev) => ({
       ...prev,
-      [postId]: [...(prev[postId] || []), optimisticReply],
+      [mappedUiPostId]: dedupeCommentsById([...(prev[mappedUiPostId] || []), optimisticReply]),
     }));
-    setAllPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p));
+    setAllPosts((prev) => prev.map((p) =>
+      p.id === mappedUiPostId || p.id === targetPostId
+        ? { ...p, comments_count: p.comments_count + 1 }
+        : p
+    ));
 
     const insertData: any = {
-      post_id: postId,
+      post_id: targetPostId,
       content: content.slice(0, 5000),
       anonymous_name: commentName,
       parent_comment_id: parentCommentId,
@@ -1274,23 +1285,27 @@ const Community = () => {
 
     const { data: insertedReply, error } = await supabase.from("community_comments").insert(insertData).select("id").single();
     if (!error && insertedReply) {
-      // Replace optimistic with real ID
-      setComments(prev => ({
+      setComments((prev) => ({
         ...prev,
-        [postId]: (prev[postId] || []).map(c => c.id === optimisticId ? { ...c, id: insertedReply.id } : c),
+        [mappedUiPostId]: dedupeCommentsById((prev[mappedUiPostId] || []).map((c) =>
+          c.id === optimisticId ? { ...c, id: insertedReply.id } : c
+        )),
       }));
-      supabase.rpc("increment_comments", { post_id_input: postId }).then(() => {});
+      supabase.rpc("increment_comments", { post_id_input: targetPostId }).then(() => {});
       if (currentUser && parentAuthorId && parentAuthorId !== currentUser.id) {
-        createNotification(parentAuthorId, currentUser.id, "reply", "replied to your comment", postId);
+        createNotification(parentAuthorId, currentUser.id, "reply", "replied to your comment", targetPostId);
       }
-      triggerCompanionReply(postId, insertedReply.id, content, parentCommentId);
+      triggerCompanionReply(targetPostId, insertedReply.id, content, parentCommentId);
     } else {
-      // Rollback
-      setComments(prev => ({
+      setComments((prev) => ({
         ...prev,
-        [postId]: (prev[postId] || []).filter(c => c.id !== optimisticId),
+        [mappedUiPostId]: (prev[mappedUiPostId] || []).filter((c) => c.id !== optimisticId),
       }));
-      setAllPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: Math.max(0, p.comments_count - 1) } : p));
+      setAllPosts((prev) => prev.map((p) =>
+        p.id === mappedUiPostId || p.id === targetPostId
+          ? { ...p, comments_count: Math.max(0, p.comments_count - 1) }
+          : p
+      ));
       toast({ title: "Error", description: "Could not add reply.", variant: "destructive" });
     }
   };
