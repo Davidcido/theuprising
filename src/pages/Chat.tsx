@@ -296,7 +296,9 @@ const Chat = () => {
 
   const showMemoryChoice = !memLoading && !!userId && memoryEnabled === null && !showCompanionOnboarding;
 
-  const handleCompanionOnboardingComplete = useCallback(async (data: {
+  const [memoryInitializing, setMemoryInitializing] = useState(false);
+
+  const handleCompanionOnboardingComplete = useCallback((data: {
     preferredName: string;
     lifeGoal: string;
     currentFeeling: string;
@@ -304,15 +306,27 @@ const Chat = () => {
     interactionStyle: string;
   }) => {
     completeCompanionOnboarding();
-    // Refetch memories since onboarding stored them
-    await refetchMemories();
-    // Set greeting with the new name
+    // Open chat immediately — no await
     setGreetingSet(false);
     if (data.preferredName && data.lifeGoal) {
       const firstMsg = `Hey ${data.preferredName} 👋 I'm glad we're meeting for the first time. I saw that you're working toward ${data.lifeGoal}. What inspired you to start?`;
       setMessages([{ role: "assistant", content: firstMsg }]);
       setGreetingSet(true);
     }
+    // Show initializing indicator
+    setMemoryInitializing(true);
+    const onComplete = () => {
+      refetchMemories();
+      setMemoryInitializing(false);
+      window.removeEventListener("memory-init-complete", onComplete);
+    };
+    window.addEventListener("memory-init-complete", onComplete);
+    // Safety timeout
+    setTimeout(() => {
+      setMemoryInitializing(false);
+      window.removeEventListener("memory-init-complete", onComplete);
+      refetchMemories();
+    }, 10000);
   }, [completeCompanionOnboarding, refetchMemories]);
 
   const handleMemoryChoice = useCallback(async (enabled: boolean) => {
