@@ -1,4 +1,4 @@
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useMemo } from "react";
 
 const MEMORY_CACHE_SIZE = 100;
 const STORAGE_KEY = "uprising_community_cache";
@@ -52,5 +52,7 @@ export function useFeedCache<T extends { id: string; _optimistic?: boolean }>(id
     try { localStorage.removeItem(STORAGE_KEY); } catch {}
   }, []);
 
-  return { getCached, updateCache, clearCache };
+  // Return a stable object reference to prevent unnecessary re-renders
+  // in consumers that include this in dependency arrays
+  return useMemo(() => ({ getCached, updateCache, clearCache }), [getCached, updateCache, clearCache]);
 }
