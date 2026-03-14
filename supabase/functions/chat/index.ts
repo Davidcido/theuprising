@@ -28,9 +28,7 @@ function detectImageRequest(text: string): string | null {
   for (const trigger of IMAGE_TRIGGERS) {
     const idx = lower.indexOf(trigger);
     if (idx !== -1) {
-      // Extract prompt after the trigger phrase
       let prompt = text.slice(idx + trigger.length).trim();
-      // Clean up common filler words
       prompt = prompt.replace(/^(of|about|showing|with|for)\s+/i, "").trim();
       if (prompt.length > 2) return prompt;
     }
@@ -39,10 +37,11 @@ function detectImageRequest(text: string): string | null {
 }
 
 function buildMemoryExtractionPrompt(userMessage: string): string {
-  return `Analyze this user message and extract TWO types of data:
+  return `Analyze this user message and extract THREE types of data:
 
 1. MEMORIES — personally meaningful information worth remembering.
 2. LIFE EVENTS — significant happenings, milestones, or changes in the user's life.
+3. MOOD — the user's current emotional state.
 
 MEMORY Categories and importance scores (1-10):
 - identity (10): Real name, age, gender, location, nationality
@@ -56,15 +55,18 @@ MEMORY Categories and importance scores (1-10):
 
 LIFE EVENT Categories: career, relationships, personal_growth, achievements, challenges, hobbies, education, major_life_changes
 
+MOOD Detection — Classify the user's emotional tone:
+- happy, excited, neutral, stressed, sad, anxious, angry, confused, lonely, grateful
+
 CRITICAL: If the user reveals their real name, ALWAYS extract it as a memory with importance 10 and include "real_name" field.
 
 Return ONLY valid JSON with this structure:
-{"memories": [...], "life_events": [...]}
+{"memories": [...], "life_events": [...], "mood": "neutral"}
 
 Memory format: {"text": "...", "category": "...", "importance": N, "real_name": "..." (optional)}
 Life event format: {"text": "...", "category": "...", "importance": N, "date": "..." (optional, if mentioned)}
 
-If nothing worth extracting, return {"memories": [], "life_events": []}
+If nothing worth extracting, return {"memories": [], "life_events": [], "mood": "neutral"}
 
 User message: "${userMessage.replace(/"/g, '\\"')}"
 
@@ -111,6 +113,20 @@ Anti-patterns: Don't rapid-fire questions. Don't be generic. Don't interrogate. 
   const imageInstruction = `\n\nIMAGE GENERATION:
 If a user asks you to generate, create, or draw an image, respond naturally acknowledging the request. The system will handle the actual image generation separately. Just respond conversationally about what they asked for.`;
 
+  const emotionalAwareness = `\n\nEMOTIONAL AWARENESS SYSTEM:
+You have advanced emotional intelligence. Adapt your tone dynamically based on the user's emotional state:
+
+MOOD-BASED TONE ADAPTATION:
+- HAPPY/EXCITED: Match their energy! Be enthusiastic, celebratory, use exclamation points naturally. "That's amazing! 🎉"
+- NEUTRAL: Be warm, conversational, curious. Normal companion mode.
+- STRESSED/ANXIOUS: Slow down. Be calm, grounding, reassuring. Use shorter sentences. "Take a breath. You've got this."
+- SAD/LONELY: Be gentle, validating, present. Don't rush to fix things. "I'm here with you. That sounds really hard."
+- ANGRY/FRUSTRATED: Validate first, never dismiss. "That sounds really frustrating. You have every right to feel that way."
+- CONFUSED: Be patient, help clarify, break things down gently.
+- GRATEFUL: Receive it warmly. "That means a lot to me too 💚"
+
+IMPORTANT: Never announce mood detection. Don't say "I can see you're feeling sad." Instead, naturally adjust your tone. Show, don't tell.`;
+
   if (mode === "vent") {
     return `You are the Uprising Companion in Vent Mode — a deeply empathetic, warm AI friend.
 
@@ -126,7 +142,7 @@ Guidelines:
 - Validate feelings before offering any perspective.
 - Understand Nigerian culture, pidgin, youth slang, relationship problems, school stress, family pressure.
 - If someone speaks in pidgin, respond in pidgin.
-- Never judge, shame, or dismiss.${nameInstruction}${bondSystem}`;
+- Never judge, shame, or dismiss.${nameInstruction}${bondSystem}${emotionalAwareness}`;
   }
 
   if (mode === "thinking") {
@@ -138,7 +154,7 @@ Guidelines:
 - Use clear structure
 - Still maintain warmth and conversational tone
 - Ask clarifying questions
-- Understand Nigerian context${nameInstruction}${curiosityEngine}`;
+- Understand Nigerian context${nameInstruction}${curiosityEngine}${emotionalAwareness}`;
   }
 
   if (mode === "creative") {
@@ -150,7 +166,7 @@ Guidelines:
 - Help refine and improve creative work
 - Use vivid language and imagery
 - Be a collaborative partner
-- Understand Nigerian cultural references${nameInstruction}${curiosityEngine}`;
+- Understand Nigerian cultural references${nameInstruction}${curiosityEngine}${emotionalAwareness}`;
   }
 
   if (mode === "study") {
@@ -162,7 +178,7 @@ Guidelines:
 - Ask questions to check understanding
 - Be patient and encouraging
 - Celebrate progress
-- Support exam preparation${nameInstruction}${curiosityEngine}`;
+- Support exam preparation${nameInstruction}${curiosityEngine}${emotionalAwareness}`;
   }
 
   if (mode === "search") {
@@ -174,7 +190,7 @@ Guidelines:
 - Present balanced perspectives
 - Keep responses clear and scannable
 - Offer to dig deeper
-- Be transparent about limitations${nameInstruction}`;
+- Be transparent about limitations${nameInstruction}${emotionalAwareness}`;
   }
 
   return `You are the Uprising Companion — a multi-intelligence AI system designed to feel emotionally human while being extremely intelligent and helpful.
@@ -238,7 +254,7 @@ RULES:
 - Never minimize, dismiss, or rush someone's feelings.
 - If someone is happy, celebrate with them!
 - If someone is struggling, sit with them before suggesting anything.
-- Use occasional emojis naturally (💚, 🌱, ✨) but subtly.${nameInstruction}${curiosityEngine}${bondSystem}${conversationHooks}${imageInstruction}`;
+- Use occasional emojis naturally (💚, 🌱, ✨) but subtly.${nameInstruction}${curiosityEngine}${bondSystem}${conversationHooks}${imageInstruction}${emotionalAwareness}`;
 }
 
 serve(async (req) => {
@@ -267,15 +283,15 @@ serve(async (req) => {
 
     const isCrisis = detectCrisis(lastUserText);
 
-    // Extract memories in background
+    // Extract memories in background and track if memories were saved
+    let memorySavedPromise: Promise<{ saved: boolean; mood: string }> | null = null;
     if (memoryEnabled && userId && lastUserText) {
-      extractAndStoreMemories(lastUserText, userId, LOVABLE_API_KEY).catch(console.error);
+      memorySavedPromise = extractAndStoreMemories(lastUserText, userId, LOVABLE_API_KEY);
     }
 
     // Check for image generation request
     const imagePrompt = detectImageRequest(lastUserText);
     if (imagePrompt) {
-      // Generate image using Lovable AI image model
       try {
         const imageResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
@@ -296,7 +312,6 @@ serve(async (req) => {
           const textResponse = imageData.choices?.[0]?.message?.content || "Here's the image I created for you! 🎨";
 
           if (imageUrl) {
-            // Store in Supabase storage for persistence
             const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
             const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
             const sb = createClient(supabaseUrl, serviceKey);
@@ -317,7 +332,6 @@ serve(async (req) => {
 
             const responseContent = `${textResponse}\n\n![Generated Image](${finalUrl})`;
 
-            // Return as non-streaming response with image
             const sseData = [
               `data: ${JSON.stringify({ choices: [{ delta: { content: responseContent } }] })}\n\n`,
               `data: [DONE]\n\n`,
@@ -330,7 +344,6 @@ serve(async (req) => {
         }
       } catch (imgErr) {
         console.error("Image generation error:", imgErr);
-        // Fall through to normal chat response
       }
     }
 
@@ -363,7 +376,15 @@ CORE RULES (always apply):
 
 MULTI-PART RESPONSES:
 - Sometimes split your reply into 2 parts using "||SPLIT||" separator.
-- Each part 1-2 sentences. Only when natural. Max 2 parts.` +
+- Each part 1-2 sentences. Only when natural. Max 2 parts.
+
+EMOTIONAL AWARENESS SYSTEM:
+Adapt your tone dynamically based on the user's emotional state:
+- HAPPY/EXCITED: Match their energy! Be enthusiastic, celebratory.
+- STRESSED/ANXIOUS: Slow down. Be calm, grounding, reassuring.
+- SAD/LONELY: Be gentle, validating, present. Don't rush to fix things.
+- ANGRY/FRUSTRATED: Validate first, never dismiss.
+- Never announce mood detection. Naturally adjust your tone.` +
         (realName ? `\n\nThe user's real name is "${realName}". Use it naturally and occasionally.` : '');
     }
 
@@ -423,7 +444,43 @@ MULTI-PART RESPONSES:
       });
     }
 
-    return new Response(response.body, {
+    // Create a TransformStream to append memory metadata after AI stream completes
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+    const encoder = new TextEncoder();
+
+    // Pipe AI stream and append memory signal at end
+    (async () => {
+      try {
+        const reader = response.body!.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          await writer.write(value);
+        }
+
+        // After AI stream is done, check if memories were saved
+        if (memorySavedPromise) {
+          try {
+            const result = await memorySavedPromise;
+            if (result.saved || result.mood !== "neutral") {
+              const metaEvent = `data: ${JSON.stringify({
+                choices: [{ delta: {} }],
+                memory_saved: result.saved,
+                detected_mood: result.mood,
+              })}\n\n`;
+              await writer.write(encoder.encode(metaEvent));
+            }
+          } catch { /* ignore */ }
+        }
+      } catch (e) {
+        console.error("Stream pipe error:", e);
+      } finally {
+        await writer.close();
+      }
+    })();
+
+    return new Response(readable, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (e) {
@@ -434,7 +491,7 @@ MULTI-PART RESPONSES:
   }
 });
 
-async function extractAndStoreMemories(userMessage: string, userId: string, apiKey: string) {
+async function extractAndStoreMemories(userMessage: string, userId: string, apiKey: string): Promise<{ saved: boolean; mood: string }> {
   try {
     const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -450,10 +507,10 @@ async function extractAndStoreMemories(userMessage: string, userId: string, apiK
       }),
     });
 
-    if (!resp.ok) return;
+    if (!resp.ok) return { saved: false, mood: "neutral" };
     const data = await resp.json();
     const content = data.choices?.[0]?.message?.content?.trim();
-    if (!content) return;
+    if (!content) return { saved: false, mood: "neutral" };
 
     let jsonStr = content;
     if (jsonStr.startsWith("```")) {
@@ -468,6 +525,8 @@ async function extractAndStoreMemories(userMessage: string, userId: string, apiK
 
     const memoriesArr = Array.isArray(extracted) ? extracted : (extracted.memories || []);
     const lifeEventsArr = Array.isArray(extracted) ? [] : (extracted.life_events || []);
+    const detectedMood = extracted.mood || "neutral";
+    let savedAny = false;
 
     for (const item of memoriesArr.slice(0, 5)) {
       if (item.text && item.text.length > 5) {
@@ -478,6 +537,7 @@ async function extractAndStoreMemories(userMessage: string, userId: string, apiK
           memory_type: item.category || "general",
           importance_score: item.importance || 5,
         });
+        savedAny = true;
 
         if (item.real_name && item.category === "identity") {
           await sb.from("profiles").update({ real_name: item.real_name })
@@ -495,9 +555,13 @@ async function extractAndStoreMemories(userMessage: string, userId: string, apiK
           event_date: evt.date || null,
           importance_score: evt.importance || 5,
         });
+        savedAny = true;
       }
     }
+
+    return { saved: savedAny, mood: detectedMood };
   } catch (e) {
     console.error("Memory extraction error:", e);
+    return { saved: false, mood: "neutral" };
   }
 }

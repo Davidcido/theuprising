@@ -1,12 +1,13 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Brain, Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import ChatInput from "@/components/chat/ChatInput";
 import ChatMessages, { type ChatMessage } from "@/components/chat/ChatMessages";
 import { type ChatMode } from "@/components/chat/FeatureMenu";
 import { useChatHistory } from "@/hooks/useChatHistory";
 import chatWallpaper from "@/assets/chat-wallpaper.jpeg";
+import MemoryPanel from "@/components/chat/MemoryPanel";
 
 const PERSONA_MODE_MAP: Record<string, ChatMode> = {
   seren: "companion",
@@ -49,7 +50,7 @@ type APIMessage = {
 };
 
 async function streamChat({
-  messages, mode, memories, lifeEvents, userId, memoryEnabled, realName, persona, onDelta, onDone,
+  messages, mode, memories, lifeEvents, userId, memoryEnabled, realName, persona, onDelta, onDone, onMemorySaved,
 }: {
   messages: APIMessage[];
   mode?: string;
@@ -61,6 +62,7 @@ async function streamChat({
   persona?: { name: string; role: string; personality: string; conversation_style: string; emotional_tone: string; interests: string } | null;
   onDelta: (deltaText: string) => void;
   onDone: () => void;
+  onMemorySaved?: (mood: string) => void;
 }) {
   const resp = await fetch(CHAT_URL, {
     method: "POST",
@@ -99,6 +101,11 @@ async function streamChat({
       if (jsonStr === "[DONE]") { streamDone = true; break; }
       try {
         const parsed = JSON.parse(jsonStr);
+        // Check for memory metadata signal
+        if (parsed.memory_saved && onMemorySaved) {
+          onMemorySaved(parsed.detected_mood || "neutral");
+          continue;
+        }
         const content = parsed.choices?.[0]?.delta?.content as string | undefined;
         if (content) onDelta(content);
       } catch {
@@ -118,6 +125,10 @@ async function streamChat({
       if (jsonStr === "[DONE]") continue;
       try {
         const parsed = JSON.parse(jsonStr);
+        if (parsed.memory_saved && onMemorySaved) {
+          onMemorySaved(parsed.detected_mood || "neutral");
+          continue;
+        }
         const content = parsed.choices?.[0]?.delta?.content as string | undefined;
         if (content) onDelta(content);
       } catch { /* ignore */ }
@@ -193,7 +204,7 @@ function getInitialPersona(): PersonaConfig {
 const Chat = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { userId, memoryEnabled, memories, lifeEvents, realName, loading: memLoading, setPreference, refetchMemories } = useAIMemory();
+  const { userId, memoryEnabled, memories, lifeEvents, realName, loading: memLoading, setPreference, refetchMemories, deleteMemory, clearMemories } = useAIMemory();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -372,6 +383,15 @@ const Chat = () => {
             return prev;
           });
         },
+        onMemorySaved: (mood) => {
+          toast(
+            <div className="flex items-center gap-2">
+              <span>💚</span>
+              <span className="text-sm">{persona.name} will remember this.</span>
+            </div>,
+            { duration: 3000 }
+          );
+        },
       });
     } catch (e: any) {
       console.error(e);
@@ -531,12 +551,14 @@ const Chat = () => {
               <RefreshCw className="w-3.5 h-3.5 text-white" />
               <span className="text-[11px] text-white font-medium">Switch</span>
             </button>
-            {memoryEnabled && (
-              <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-primary/20 border border-primary/30">
-                <Brain className="w-3 h-3 text-primary" />
-                <span className="text-[11px] text-primary font-medium">Memory</span>
-              </div>
-            )}
+            <MemoryPanel
+              memories={memories}
+              lifeEvents={lifeEvents}
+              memoryEnabled={memoryEnabled}
+              onDeleteMemory={deleteMemory}
+              onClearAll={clearMemories}
+              companionName={persona.name}
+            />
           </div>
         </div>
         {/* Description row */}
