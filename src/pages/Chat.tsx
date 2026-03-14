@@ -500,6 +500,10 @@ const Chat = () => {
 
   const builtinData = BUILTIN_PERSONAS.find(bp => bp.id === persona.id);
 
+  if (!companionOnboardingLoading && showCompanionOnboarding) {
+    return <CompanionOnboarding onComplete={handleCompanionOnboardingComplete} />;
+  }
+
   return (
     <div
       className="relative flex flex-col overflow-hidden"
