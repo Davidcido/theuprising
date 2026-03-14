@@ -1788,6 +1788,7 @@ const Community = () => {
             )}
           </div>
         )}
+        </PullToRefresh>
       </div>
 
       {/* Repost Dialog */}
