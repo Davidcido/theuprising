@@ -779,14 +779,14 @@ const Community = () => {
         return chronological.filter(p => p.author_id && followingIds.has(p.author_id));
       case "trending": {
         const now = Date.now();
-        const cutoff = now - 48 * 60 * 60 * 1000;
+        const cutoff = now - 24 * 60 * 60 * 1000;
         return chronological
           .filter(p => new Date(p.created_at).getTime() > cutoff)
           .sort((a, b) => {
             const hoursA = Math.max(1, (now - new Date(a.created_at).getTime()) / 3600000);
             const hoursB = Math.max(1, (now - new Date(b.created_at).getTime()) / 3600000);
-            const velocityA = ((a.likes_count * 3) + (a.comments_count * 4) + (a.shares_count * 5)) / hoursA;
-            const velocityB = ((b.likes_count * 3) + (b.comments_count * 4) + (b.shares_count * 5)) / hoursB;
+            const velocityA = ((a.likes_count * 3) + (a.comments_count * 4) + (a.shares_count * 5) + ((a.views_count || 0) * 0.5)) / hoursA;
+            const velocityB = ((b.likes_count * 3) + (b.comments_count * 4) + (b.shares_count * 5) + ((b.views_count || 0) * 0.5)) / hoursB;
             return velocityB - velocityA;
           });
       }
