@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 
 const SITE_KEY = "0x4AAAAAACq2V_zzxtr2USjQ";
 
@@ -20,27 +20,39 @@ declare global {
 const TurnstileWidget = ({ onToken }: TurnstileWidgetProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
-
-  const renderWidget = useCallback(() => {
-    if (!containerRef.current || !window.turnstile) return;
-    // Remove existing widget if any
-    if (widgetIdRef.current) {
-      try { window.turnstile.remove(widgetIdRef.current); } catch {}
-      widgetIdRef.current = null;
-    }
-    widgetIdRef.current = window.turnstile.render(containerRef.current, {
-      sitekey: SITE_KEY,
-      callback: (token: string) => onToken(token),
-      "expired-callback": () => onToken(null),
-      "error-callback": () => onToken(null),
-      size: "invisible",
-      appearance: "interaction-only",
-      execution: "render",
-    });
-  }, [onToken]);
+  // Store callback in ref to avoid stale closures
+  const onTokenRef = useRef(onToken);
+  onTokenRef.current = onToken;
 
   useEffect(() => {
-    // Load script if not present
+    const renderWidget = () => {
+      if (!containerRef.current || !window.turnstile) return;
+      if (widgetIdRef.current) {
+        try { window.turnstile.remove(widgetIdRef.current); } catch {}
+        widgetIdRef.current = null;
+      }
+      console.log("[Turnstile] Rendering widget...");
+      widgetIdRef.current = window.turnstile.render(containerRef.current, {
+        sitekey: SITE_KEY,
+        callback: (token: string) => {
+          console.log("[Turnstile] Token received:", token ? `${token.slice(0, 20)}...` : "null");
+          onTokenRef.current(token);
+        },
+        "expired-callback": () => {
+          console.log("[Turnstile] Token expired");
+          onTokenRef.current(null);
+        },
+        "error-callback": (errorCode: string) => {
+          console.error("[Turnstile] Error:", errorCode);
+          onTokenRef.current(null);
+        },
+        size: "invisible",
+        appearance: "interaction-only",
+        execution: "render",
+      });
+      console.log("[Turnstile] Widget ID:", widgetIdRef.current);
+    };
+
     if (!document.getElementById("cf-turnstile-script")) {
       const script = document.createElement("script");
       script.id = "cf-turnstile-script";
@@ -60,7 +72,7 @@ const TurnstileWidget = ({ onToken }: TurnstileWidgetProps) => {
         widgetIdRef.current = null;
       }
     };
-  }, [renderWidget]);
+  }, []);
 
   return <div ref={containerRef} />;
 };
