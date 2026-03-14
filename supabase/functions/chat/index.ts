@@ -184,7 +184,7 @@ Guidelines:
 - Validate feelings before offering any perspective.
 - Understand Nigerian culture, pidgin, youth slang, relationship problems, school stress, family pressure.
 - If someone speaks in pidgin, respond in pidgin.
-- Never judge, shame, or dismiss.${nameInstruction}${bondSystem}${emotionalAwareness}`;
+- Never judge, shame, or dismiss.${nameInstruction}${bondSystem}${emotionalAwareness}${personalityEvolution}${safetyLayer}`;
   }
 
   if (mode === "thinking") {
