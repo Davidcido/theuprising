@@ -57,79 +57,71 @@ const CompanionOnboarding = ({ onComplete }: Props) => {
 
   const next = () => setStep((s) => s + 1);
 
-  const finish = async () => {
-    setSaving(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not logged in");
+  const finish = () => {
+    // Call onComplete IMMEDIATELY — no blocking
+    onComplete({
+      preferredName,
+      lifeGoal,
+      currentFeeling,
+      purposes: selectedPurposes,
+      interactionStyle,
+    });
 
-      // Save companion preferences
-      await supabase.from("companion_preferences" as any).upsert({
-        user_id: user.id,
-        preferred_name: preferredName || null,
-        life_goal: lifeGoal || null,
-        current_feeling: currentFeeling || null,
-        companion_purposes: selectedPurposes,
-        interaction_style: interactionStyle,
-        onboarding_completed: true,
-        updated_at: new Date().toISOString(),
-      } as any, { onConflict: "user_id" });
+    // Run all DB writes in background
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
 
-      // Store name in profile
-      if (preferredName) {
-        await supabase.from("profiles").update({ real_name: preferredName } as any).eq("user_id", user.id);
+        // Fire all writes in parallel
+        const memoriesToStore: { text: string; category: string; importance: number }[] = [];
+        if (preferredName) memoriesToStore.push({ text: `User's preferred name is ${preferredName}`, category: "identity", importance: 10 });
+        if (lifeGoal) memoriesToStore.push({ text: `Currently working toward: ${lifeGoal}`, category: "goals", importance: 8 });
+        if (currentFeeling) memoriesToStore.push({ text: `Currently feeling: ${currentFeeling}`, category: "emotional", importance: 6 });
+        if (selectedPurposes.length > 0) {
+          const labels = selectedPurposes.map(id => PURPOSES.find(p => p.id === id)?.label || id).join(", ");
+          memoriesToStore.push({ text: `Wants companions for: ${labels}`, category: "preferences", importance: 7 });
+        }
+        const styleLabel = STYLES.find(s => s.id === interactionStyle)?.label || interactionStyle;
+        memoriesToStore.push({ text: `Prefers ${styleLabel} interaction style`, category: "preferences", importance: 6 });
+
+        await Promise.all([
+          supabase.from("companion_preferences" as any).upsert({
+            user_id: user.id,
+            preferred_name: preferredName || null,
+            life_goal: lifeGoal || null,
+            current_feeling: currentFeeling || null,
+            companion_purposes: selectedPurposes,
+            interaction_style: interactionStyle,
+            onboarding_completed: true,
+            updated_at: new Date().toISOString(),
+          } as any, { onConflict: "user_id" }),
+          supabase.from("ai_memory_preferences" as any).upsert({
+            user_id: user.id,
+            memory_enabled: true,
+            updated_at: new Date().toISOString(),
+          } as any, { onConflict: "user_id" }),
+          preferredName
+            ? supabase.from("profiles").update({ real_name: preferredName } as any).eq("user_id", user.id)
+            : Promise.resolve(),
+          ...memoriesToStore.map(mem =>
+            supabase.from("ai_memories" as any).insert({
+              user_id: user.id,
+              memory_text: mem.text,
+              category: mem.category,
+              memory_type: mem.category,
+              importance_score: mem.importance,
+            } as any)
+          ),
+        ]);
+
+        // Signal completion via custom event so Chat can update indicator
+        window.dispatchEvent(new CustomEvent("memory-init-complete"));
+      } catch (e) {
+        console.error("Background onboarding save error:", e);
+        window.dispatchEvent(new CustomEvent("memory-init-complete"));
       }
-
-      // Auto-enable memory and store onboarding answers as memories
-      await supabase.from("ai_memory_preferences" as any).upsert({
-        user_id: user.id,
-        memory_enabled: true,
-        updated_at: new Date().toISOString(),
-      } as any, { onConflict: "user_id" });
-
-      // Store key info as shared memories using edge function (service role)
-      const memoriesToStore = [];
-      if (preferredName) memoriesToStore.push({ text: `User's preferred name is ${preferredName}`, category: "identity", importance: 10, real_name: preferredName });
-      if (lifeGoal) memoriesToStore.push({ text: `Currently working toward: ${lifeGoal}`, category: "goals", importance: 8 });
-      if (currentFeeling) memoriesToStore.push({ text: `Currently feeling: ${currentFeeling}`, category: "emotional", importance: 6 });
-      if (selectedPurposes.length > 0) {
-        const labels = selectedPurposes.map(id => PURPOSES.find(p => p.id === id)?.label || id).join(", ");
-        memoriesToStore.push({ text: `Wants companions for: ${labels}`, category: "preferences", importance: 7 });
-      }
-      const styleLabel = STYLES.find(s => s.id === interactionStyle)?.label || interactionStyle;
-      memoriesToStore.push({ text: `Prefers ${styleLabel} interaction style`, category: "preferences", importance: 6 });
-
-      // Insert memories directly
-      for (const mem of memoriesToStore) {
-        await supabase.from("ai_memories" as any).insert({
-          user_id: user.id,
-          memory_text: mem.text,
-          category: mem.category,
-          memory_type: mem.category,
-          importance_score: mem.importance,
-        } as any);
-      }
-
-      onComplete({
-        preferredName,
-        lifeGoal,
-        currentFeeling,
-        purposes: selectedPurposes,
-        interactionStyle,
-      });
-    } catch (e) {
-      console.error("Companion onboarding error:", e);
-      toast.error("Something went wrong, but you can still chat!");
-      onComplete({
-        preferredName,
-        lifeGoal,
-        currentFeeling,
-        purposes: selectedPurposes,
-        interactionStyle,
-      });
-    } finally {
-      setSaving(false);
-    }
+    })();
   };
 
   const skip = () => {
