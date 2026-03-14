@@ -346,7 +346,7 @@ const Chat = () => {
         persona: personaPayload,
         onDelta: (chunk) => {
           if (assistantSoFar === "") {
-            setMessages((prev) => [...prev, { role: "assistant", content: chunk }]);
+            setMessages((prev) => [...prev, { role: "assistant", content: chunk, timestamp: Date.now() }]);
             assistantSoFar = chunk;
           } else {
             assistantSoFar += chunk;
