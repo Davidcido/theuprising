@@ -1654,7 +1654,7 @@ const Community = () => {
           })}
         </div>
 
-        {/* Pull to refresh button */}
+        {/* Pull to refresh + Refresh button */}
         <div className="flex justify-center mb-3">
           <motion.button
             onClick={handleRefresh}
@@ -1666,6 +1666,8 @@ const Community = () => {
             {refreshing ? "Refreshing..." : "Refresh feed"}
           </motion.button>
         </div>
+
+        <PullToRefresh onRefresh={handleRefresh}>
 
         {/* Feed */}
         {fetchError && allPosts.length === 0 ? (
