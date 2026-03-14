@@ -405,6 +405,7 @@ const Chat = () => {
       role: "user",
       content: input.trim(),
       attachments: attachments.map(a => ({ type: a.type, name: a.file.name, preview: a.preview })),
+      timestamp: Date.now(),
     };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
