@@ -27,15 +27,18 @@ const ensureProfile = async (userId: string, email?: string) => {
 
 const verifyTurnstile = async (token: string): Promise<boolean> => {
   try {
+    console.log("[Turnstile] Verifying token with backend...");
     const { data, error } = await supabase.functions.invoke("verify-turnstile", {
       body: { token },
     });
+    console.log("[Turnstile] Backend response:", { data, error });
     if (error) {
-      console.error("Turnstile verification error:", error);
+      console.error("[Turnstile] Verification error:", error);
       return true; // fail open so auth still works if function errors
     }
     return data?.success === true;
-  } catch {
+  } catch (err) {
+    console.error("[Turnstile] Verification exception:", err);
     return true; // fail open
   }
 };
