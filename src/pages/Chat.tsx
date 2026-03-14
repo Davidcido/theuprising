@@ -654,12 +654,14 @@ const Chat = () => {
           </div>
         )}
 
-        {/* Privacy notice */}
+        {/* Privacy / memory status notice */}
         <div className="px-4 py-1">
           <p className="text-center text-[10px] text-muted-foreground/40">
-            {memoryEnabled
-              ? "💚 Memory is on — I'll remember helpful details to support you better."
-              : "🔒 Your conversation is private. No personal data is stored."}
+            {memoryInitializing
+              ? "⏳ Memory initializing…"
+              : memoryEnabled
+                ? "💚 Memory active."
+                : "🔒 Your conversation is private. No personal data is stored."}
           </p>
         </div>
 

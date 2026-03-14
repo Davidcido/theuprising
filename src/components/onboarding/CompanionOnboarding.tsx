@@ -125,7 +125,7 @@ const CompanionOnboarding = ({ onComplete }: Props) => {
   };
 
   const skip = () => {
-    // Mark as completed without data
+    onComplete({ preferredName: "", lifeGoal: "", currentFeeling: "", purposes: [], interactionStyle: "balanced" });
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
@@ -135,8 +135,8 @@ const CompanionOnboarding = ({ onComplete }: Props) => {
           updated_at: new Date().toISOString(),
         } as any, { onConflict: "user_id" });
       }
+      window.dispatchEvent(new CustomEvent("memory-init-complete"));
     })();
-    onComplete({ preferredName: "", lifeGoal: "", currentFeeling: "", purposes: [], interactionStyle: "balanced" });
   };
 
   return (
