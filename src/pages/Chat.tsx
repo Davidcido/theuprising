@@ -560,6 +560,7 @@ const Chat = () => {
           companionAvatarImage={builtinData?.avatar_image}
           companionEmoji={persona.avatar_emoji}
           companionColor={persona.color}
+          companionName={persona.name}
         />
       </div>
 
