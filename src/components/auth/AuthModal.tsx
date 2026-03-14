@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { trackLogin, trackSignup } from "@/lib/trackLogin";
 import { COUNTRIES } from "@/lib/countries";
+import TurnstileWidget from "./TurnstileWidget";
 
 interface AuthModalProps {
   open: boolean;
@@ -24,6 +25,21 @@ const ensureProfile = async (userId: string, email?: string) => {
   }
 };
 
+const verifyTurnstile = async (token: string): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase.functions.invoke("verify-turnstile", {
+      body: { token },
+    });
+    if (error) {
+      console.error("Turnstile verification error:", error);
+      return true; // fail open so auth still works if function errors
+    }
+    return data?.success === true;
+  } catch {
+    return true; // fail open
+  }
+};
+
 const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
   const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
   const [email, setEmail] = useState("");
@@ -31,6 +47,11 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
   const [displayName, setDisplayName] = useState("");
   const [country, setCountry] = useState("");
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+
+  const onTurnstileToken = useCallback((token: string | null) => {
+    setTurnstileToken(token);
+  }, []);
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +75,22 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (mode === "forgot") return handleForgotPassword(e);
+
+    // Verify Turnstile before auth
+    if (!turnstileToken) {
+      toast.error("Please wait for security verification to complete.");
+      return;
+    }
+
     setLoading(true);
+
+    const verified = await verifyTurnstile(turnstileToken);
+    if (!verified) {
+      toast.error("Security verification failed. Please try again.");
+      setTurnstileToken(null);
+      setLoading(false);
+      return;
+    }
 
     const MAX_RETRIES = 2;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -99,7 +135,8 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
         setPassword("");
         setDisplayName("");
         setCountry("");
-        break; // success — exit retry loop
+        setTurnstileToken(null);
+        break;
       } catch (error: any) {
         if (isNetworkError(error.message) && attempt < MAX_RETRIES) {
           await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
@@ -192,6 +229,8 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
               </div>
             </>
           )}
+
+          {mode !== "forgot" && <TurnstileWidget onToken={onTurnstileToken} />}
 
           <Button type="submit" disabled={loading} className="w-full" variant="hero">
             {loading ? "Loading..." : mode === "login" ? "Log In" : mode === "signup" ? "Sign Up" : "Send Reset Link"}
