@@ -20,6 +20,11 @@ type ChatMessagesProps = {
   onMemoryChoice: (enabled: boolean) => void;
   onEditMessage?: (index: number) => void;
   onDeleteMessage?: (index: number) => void;
+  userAvatarUrl?: string | null;
+  userDisplayName?: string | null;
+  companionAvatarImage?: string;
+  companionEmoji?: string;
+  companionColor?: string;
 };
 
 const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, onEditMessage, onDeleteMessage }: ChatMessagesProps) => {
