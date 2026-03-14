@@ -47,7 +47,7 @@ const CompanionOnboarding = ({ onComplete }: Props) => {
   const [currentFeeling, setCurrentFeeling] = useState("");
   const [selectedPurposes, setSelectedPurposes] = useState<string[]>([]);
   const [interactionStyle, setInteractionStyle] = useState("balanced");
-  const [saving, setSaving] = useState(false);
+  
 
   const togglePurpose = (id: string) => {
     setSelectedPurposes((prev) =>
