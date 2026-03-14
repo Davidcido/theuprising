@@ -204,15 +204,15 @@ const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, on
           )}
 
           {isTyping && messages[messages.length - 1]?.role !== "assistant" && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start items-end gap-2">
-              <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden shadow-md mb-0.5" style={{ background: companionColor ? `${companionColor}33` : "rgba(255,255,255,0.1)" }}>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start items-end">
+              <div className="shrink-0 w-7 h-7 rounded-full overflow-hidden shadow-md mr-1.5 mb-0.5" style={{ background: companionColor ? `${companionColor}33` : "rgba(255,255,255,0.1)" }}>
                 {companionAvatarImage ? (
                   <img src={companionAvatarImage} alt="AI" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="flex items-center justify-center w-full h-full text-sm">{companionEmoji || "🌿"}</span>
+                  <span className="flex items-center justify-center w-full h-full text-xs">{companionEmoji || "🌿"}</span>
                 )}
               </div>
-              <div className="bg-[rgba(20,20,20,0.65)] backdrop-blur-md rounded-[18px] rounded-bl-md px-[16px] py-[12px] text-sm text-muted-foreground border border-white/10 shadow-lg shadow-black/20">
+              <div className="bg-[rgba(20,20,20,0.65)] backdrop-blur-md rounded-[18px] rounded-bl-[4px] px-[14px] py-[10px] text-sm text-muted-foreground border border-white/10 shadow-lg shadow-black/20">
                 <span className="inline-flex gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:0ms]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:150ms]" />
