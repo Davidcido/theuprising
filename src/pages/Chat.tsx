@@ -555,6 +555,10 @@ const Chat = () => {
           onMemoryChoice={handleMemoryChoice}
           onEditMessage={handleEditMessage}
           onDeleteMessage={handleDeleteMessage}
+          userDisplayName={realName}
+          companionAvatarImage={builtinData?.avatar_image}
+          companionEmoji={persona.avatar_emoji}
+          companionColor={persona.color}
         />
       </div>
 
