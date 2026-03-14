@@ -31,6 +31,7 @@ import MentionDropdown from "@/components/community/MentionDropdown";
 import { useAuthReady } from "@/hooks/useAuthReady";
 import { useFeedCache } from "@/hooks/useFeedCache";
 import { useVirtualFeed } from "@/hooks/useVirtualFeed";
+import PullToRefresh from "@/components/community/PullToRefresh";
 
 type FeedTab = "foryou" | "following" | "trending";
 
