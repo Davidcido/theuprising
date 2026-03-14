@@ -52,7 +52,7 @@ type APIMessage = {
 };
 
 async function streamChat({
-  messages, mode, memories, lifeEvents, userId, memoryEnabled, realName, persona, onDelta, onDone, onMemorySaved,
+  messages, mode, memories, lifeEvents, userId, memoryEnabled, realName, persona, companionPreferences, onDelta, onDone, onMemorySaved,
 }: {
   messages: APIMessage[];
   mode?: string;
@@ -62,6 +62,7 @@ async function streamChat({
   memoryEnabled?: boolean;
   realName?: string | null;
   persona?: { name: string; role: string; personality: string; conversation_style: string; emotional_tone: string; interests: string } | null;
+  companionPreferences?: { interaction_style?: string; companion_purposes?: string[] } | null;
   onDelta: (deltaText: string) => void;
   onDone: () => void;
   onMemorySaved?: (mood: string) => void;
