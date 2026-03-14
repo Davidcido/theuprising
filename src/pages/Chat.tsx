@@ -204,7 +204,7 @@ function getInitialPersona(): PersonaConfig {
 const Chat = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { userId, memoryEnabled, memories, lifeEvents, realName, loading: memLoading, setPreference, refetchMemories } = useAIMemory();
+  const { userId, memoryEnabled, memories, lifeEvents, realName, loading: memLoading, setPreference, refetchMemories, deleteMemory, clearMemories } = useAIMemory();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
