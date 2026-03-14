@@ -27,7 +27,7 @@ type ChatMessagesProps = {
   companionColor?: string;
 };
 
-const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, onEditMessage, onDeleteMessage }: ChatMessagesProps) => {
+const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, onEditMessage, onDeleteMessage, userAvatarUrl, userDisplayName, companionAvatarImage, companionEmoji, companionColor }: ChatMessagesProps) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const [viewerImages, setViewerImages] = useState<string[] | null>(null);
