@@ -7,6 +7,7 @@ import ChatMessages, { type ChatMessage } from "@/components/chat/ChatMessages";
 import { type ChatMode } from "@/components/chat/FeatureMenu";
 import { useChatHistory } from "@/hooks/useChatHistory";
 import chatWallpaper from "@/assets/chat-wallpaper.jpeg";
+import MemoryPanel from "@/components/chat/MemoryPanel";
 
 const PERSONA_MODE_MAP: Record<string, ChatMode> = {
   seren: "companion",
