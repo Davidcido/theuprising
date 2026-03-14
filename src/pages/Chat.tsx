@@ -551,12 +551,14 @@ const Chat = () => {
               <RefreshCw className="w-3.5 h-3.5 text-white" />
               <span className="text-[11px] text-white font-medium">Switch</span>
             </button>
-            {memoryEnabled && (
-              <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-primary/20 border border-primary/30">
-                <Brain className="w-3 h-3 text-primary" />
-                <span className="text-[11px] text-primary font-medium">Memory</span>
-              </div>
-            )}
+            <MemoryPanel
+              memories={memories}
+              lifeEvents={lifeEvents}
+              memoryEnabled={memoryEnabled}
+              onDeleteMemory={deleteMemory}
+              onClearAll={clearMemories}
+              companionName={persona.name}
+            />
           </div>
         </div>
         {/* Description row */}
