@@ -546,7 +546,7 @@ SAFETY & TRUST:
               })}\n\n`;
               await writer.write(encoder.encode(metaEvent));
             }
-          } catch { /* ignore */ }
+          } catch (_e) { /* ignore */ }
         }
       } catch (e) {
         console.error("Stream pipe error:", e);
