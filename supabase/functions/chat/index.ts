@@ -196,7 +196,7 @@ Guidelines:
 - Use clear structure
 - Still maintain warmth and conversational tone
 - Ask clarifying questions
-- Understand Nigerian context${nameInstruction}${curiosityEngine}${emotionalAwareness}`;
+- Understand Nigerian context${nameInstruction}${curiosityEngine}${emotionalAwareness}${personalityEvolution}`;
   }
 
   if (mode === "creative") {
