@@ -232,7 +232,7 @@ Guidelines:
 - Present balanced perspectives
 - Keep responses clear and scannable
 - Offer to dig deeper
-- Be transparent about limitations${nameInstruction}${emotionalAwareness}`;
+- Be transparent about limitations${nameInstruction}${emotionalAwareness}${safetyLayer}`;
   }
 
   return `You are the Uprising Companion — a multi-intelligence AI system designed to feel emotionally human while being extremely intelligent and helpful.
