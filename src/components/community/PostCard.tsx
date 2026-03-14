@@ -231,7 +231,10 @@ const PostCard = ({
       >
         {/* Optimistic indicator */}
         {post._optimistic && (
-          <div className={`text-[10px] text-muted-foreground mb-2 ${hasMedia ? "px-5 pt-3" : ""}`}>Publishing...</div>
+          <div className={`flex items-center gap-1.5 text-[10px] text-emerald-400/70 mb-2 ${hasMedia ? "px-5 pt-3" : ""}`}>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Posting…
+          </div>
         )}
 
         {/* Pinned label */}
