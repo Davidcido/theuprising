@@ -60,34 +60,53 @@ export const useConversations = (userId?: string) => {
       }
     }
 
-    const result: Conversation[] = [];
-    for (const conv of convs) {
-      const convAny = conv as any;
-      const otherUserId = convAny.user_one_id === userId ? convAny.user_two_id : convAny.user_one_id;
-      const otherProfile = otherUserId ? profilesMap[otherUserId] || null : null;
+    const convIds = convs.map((c: any) => c.id);
 
-      const { data: lastMsg } = await supabase
+    // Batch fetch: last messages and unread counts for ALL conversations at once
+    const [lastMsgsRes, unreadRes] = await Promise.all([
+      // Get all recent messages for these conversations, then pick last per conversation
+      supabase
         .from("direct_messages")
-        .select("content, created_at, sender_id")
-        .eq("conversation_id", conv.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const { count: unread } = await supabase
+        .select("conversation_id, content, created_at, sender_id")
+        .in("conversation_id", convIds)
+        .order("created_at", { ascending: false }),
+      // Get all unread messages in one query
+      supabase
         .from("direct_messages")
-        .select("*", { count: "exact", head: true })
-        .eq("conversation_id", conv.id)
+        .select("conversation_id")
+        .in("conversation_id", convIds)
         .eq("read", false)
-        .neq("sender_id", userId);
+        .neq("sender_id", userId),
+    ]);
 
-      result.push({
+    // Build last message map (first occurrence per conversation_id is the latest)
+    const lastMsgMap: Record<string, { content: string; created_at: string; sender_id: string }> = {};
+    if (lastMsgsRes.data) {
+      for (const msg of lastMsgsRes.data) {
+        if (!lastMsgMap[msg.conversation_id]) {
+          lastMsgMap[msg.conversation_id] = { content: msg.content, created_at: msg.created_at, sender_id: msg.sender_id };
+        }
+      }
+    }
+
+    // Build unread count map
+    const unreadMap: Record<string, number> = {};
+    if (unreadRes.data) {
+      for (const msg of unreadRes.data) {
+        unreadMap[msg.conversation_id] = (unreadMap[msg.conversation_id] || 0) + 1;
+      }
+    }
+
+    const result: Conversation[] = convs.map((conv: any) => {
+      const otherUserId = conv.user_one_id === userId ? conv.user_two_id : conv.user_one_id;
+      const otherProfile = otherUserId ? profilesMap[otherUserId] || null : null;
+      return {
         ...conv,
         other_user: otherProfile,
-        last_message: lastMsg,
-        unread_count: unread || 0,
-      });
-    }
+        last_message: lastMsgMap[conv.id] || null,
+        unread_count: unreadMap[conv.id] || 0,
+      };
+    });
 
     setConversations(result);
     setLoading(false);
