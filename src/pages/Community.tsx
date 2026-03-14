@@ -41,7 +41,7 @@ const FEED_TABS: { key: FeedTab; label: string; icon: typeof Sparkles }[] = [
   { key: "trending", label: "Trending", icon: TrendingUp },
 ];
 
-const POSTS_PER_PAGE = 15;
+const POSTS_PER_PAGE = 10;
 const SCROLL_DEBOUNCE_MS = 300;
 
 type PaginationCursor = {
