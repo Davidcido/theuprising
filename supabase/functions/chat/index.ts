@@ -479,7 +479,6 @@ SAFETY & TRUST:
         systemPrompt += `The user specifically wants companions for: ${companionPreferences.companion_purposes.join(", ")}. Keep this in mind when responding.\n`;
       }
     }
-    }
 
     if (isCrisis) {
       systemPrompt += `\n\nCRITICAL — The user may be in crisis. Respond with DEEP empathy first. Then gently encourage reaching out:\n- 🇺🇸 988 Suicide & Crisis Lifeline: Call or text 988\n- 🌍 Crisis Text Line: Text HELLO to 741741\n- 🌐 IASP: https://www.iasp.info/resources/Crisis_Centres/\nStay present and supportive. Do NOT abruptly end the conversation.`;
