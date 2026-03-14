@@ -35,6 +35,7 @@ const TurnstileWidget = ({ onToken }: TurnstileWidgetProps) => {
       "error-callback": () => onToken(null),
       size: "invisible",
       appearance: "interaction-only",
+      execution: "render",
     });
   }, [onToken]);
 
