@@ -808,16 +808,20 @@ const Community = () => {
   }, []);
 
 
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
+    // Force-reset fetch lock so refresh always works (even in PWA)
+    fetchingRef.current = false;
     setRefreshing(true);
     setHasMore(true);
+    hasMoreRef.current = true;
     setNewPostsAvailable(0);
     cursorRef.current = null;
     lastCursorLogRef.current = null;
-    console.log("[Community][feed] manual refresh");
+    feedCache.clearCache();
+    console.log("[Community][feed] manual refresh (cache cleared)");
     await fetchPosts(false);
     setRefreshing(false);
-  };
+  }, [fetchPosts, feedCache]);
 
   const handlePostChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
