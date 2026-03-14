@@ -263,7 +263,31 @@ const CommentCard = ({
             </div>
           )}
 
-          {/* Reply input */}
+          {/* Nested replies */}
+          {showReplies && directReplies.length > 0 && (
+            <div className="mt-2 space-y-2">
+              {directReplies.map(reply => (
+                <CommentCard
+                  key={reply.id}
+                  comment={reply}
+                  replies={allComments.filter(c => c.parent_comment_id === reply.id)}
+                  currentUserId={currentUserId}
+                  currentUserName={currentUserName}
+                  communityOpen={communityOpen}
+                  depth={depth + 1}
+                  onDelete={onDelete}
+                  onUpdate={onUpdate}
+                  onReply={onReply}
+                  allComments={allComments}
+                  commentReactionCounts={commentReactionCounts}
+                  myCommentReactions={myCommentReactions}
+                  onToggleCommentReaction={onToggleCommentReaction}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Reply input — always below nested replies */}
           {replying && (
             <div className="flex gap-2 mt-2 items-end ml-1">
               <EmojiPicker
@@ -302,30 +326,6 @@ const CommentCard = ({
               >
                 <X className="w-3 h-3" />
               </button>
-            </div>
-          )}
-
-          {/* Nested replies */}
-          {showReplies && directReplies.length > 0 && (
-            <div className="mt-2 space-y-2">
-              {directReplies.map(reply => (
-                <CommentCard
-                  key={reply.id}
-                  comment={reply}
-                  replies={allComments.filter(c => c.parent_comment_id === reply.id)}
-                  currentUserId={currentUserId}
-                  currentUserName={currentUserName}
-                  communityOpen={communityOpen}
-                  depth={depth + 1}
-                  onDelete={onDelete}
-                  onUpdate={onUpdate}
-                  onReply={onReply}
-                  allComments={allComments}
-                  commentReactionCounts={commentReactionCounts}
-                  myCommentReactions={myCommentReactions}
-                  onToggleCommentReaction={onToggleCommentReaction}
-                />
-              ))}
             </div>
           )}
         </div>
