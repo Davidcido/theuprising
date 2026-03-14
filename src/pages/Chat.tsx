@@ -293,7 +293,26 @@ const Chat = () => {
     }
   }, [memLoading, historyLoading, savedMessages, realName, memories, memoryEnabled, greetingSet, persona]);
 
-  const showMemoryChoice = !memLoading && !!userId && memoryEnabled === null;
+  const showMemoryChoice = !memLoading && !!userId && memoryEnabled === null && !showCompanionOnboarding;
+
+  const handleCompanionOnboardingComplete = useCallback(async (data: {
+    preferredName: string;
+    lifeGoal: string;
+    currentFeeling: string;
+    purposes: string[];
+    interactionStyle: string;
+  }) => {
+    completeCompanionOnboarding();
+    // Refetch memories since onboarding stored them
+    await refetchMemories();
+    // Set greeting with the new name
+    setGreetingSet(false);
+    if (data.preferredName && data.lifeGoal) {
+      const firstMsg = `Hey ${data.preferredName} 👋 I'm glad we're meeting for the first time. I saw that you're working toward ${data.lifeGoal}. What inspired you to start?`;
+      setMessages([{ role: "assistant", content: firstMsg }]);
+      setGreetingSet(true);
+    }
+  }, [completeCompanionOnboarding, refetchMemories]);
 
   const handleMemoryChoice = useCallback(async (enabled: boolean) => {
     try {
