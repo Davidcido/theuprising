@@ -27,7 +27,7 @@ export const useUnreadMessages = (userId?: string) => {
     fetchUnread();
     if (!userId) return;
     const channel = supabase
-      .channel("unread-messages")
+      .channel(`unread-messages-${userId}`)
       .on("postgres_changes", {
         event: "INSERT",
         schema: "public",

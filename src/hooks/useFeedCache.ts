@@ -1,4 +1,4 @@
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useMemo } from "react";
 
 const MEMORY_CACHE_SIZE = 100;
 const STORAGE_KEY = "uprising_community_cache";
