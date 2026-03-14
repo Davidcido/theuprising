@@ -220,7 +220,7 @@ Guidelines:
 - Ask questions to check understanding
 - Be patient and encouraging
 - Celebrate progress
-- Support exam preparation${nameInstruction}${curiosityEngine}${emotionalAwareness}`;
+- Support exam preparation${nameInstruction}${curiosityEngine}${emotionalAwareness}${personalityEvolution}`;
   }
 
   if (mode === "search") {
