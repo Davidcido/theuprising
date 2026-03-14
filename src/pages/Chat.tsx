@@ -382,6 +382,15 @@ const Chat = () => {
             return prev;
           });
         },
+        onMemorySaved: (mood) => {
+          toast(
+            <div className="flex items-center gap-2">
+              <span>💚</span>
+              <span className="text-sm">{persona.name} will remember this.</span>
+            </div>,
+            { duration: 3000 }
+          );
+        },
       });
     } catch (e: any) {
       console.error(e);
