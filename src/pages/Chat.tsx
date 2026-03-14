@@ -8,6 +8,8 @@ import { type ChatMode } from "@/components/chat/FeatureMenu";
 import { useChatHistory } from "@/hooks/useChatHistory";
 import chatWallpaper from "@/assets/chat-wallpaper.jpeg";
 import MemoryPanel from "@/components/chat/MemoryPanel";
+import CompanionOnboarding from "@/components/onboarding/CompanionOnboarding";
+import { useCompanionOnboarding } from "@/hooks/useCompanionOnboarding";
 
 const PERSONA_MODE_MAP: Record<string, ChatMode> = {
   seren: "companion",
@@ -50,7 +52,7 @@ type APIMessage = {
 };
 
 async function streamChat({
-  messages, mode, memories, lifeEvents, userId, memoryEnabled, realName, persona, onDelta, onDone, onMemorySaved,
+  messages, mode, memories, lifeEvents, userId, memoryEnabled, realName, persona, companionPreferences, onDelta, onDone, onMemorySaved,
 }: {
   messages: APIMessage[];
   mode?: string;
@@ -60,6 +62,7 @@ async function streamChat({
   memoryEnabled?: boolean;
   realName?: string | null;
   persona?: { name: string; role: string; personality: string; conversation_style: string; emotional_tone: string; interests: string } | null;
+  companionPreferences?: { interaction_style?: string; companion_purposes?: string[] } | null;
   onDelta: (deltaText: string) => void;
   onDone: () => void;
   onMemorySaved?: (mood: string) => void;
@@ -70,7 +73,7 @@ async function streamChat({
       "Content-Type": "application/json",
       Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
     },
-    body: JSON.stringify({ messages, mode, memories, lifeEvents, userId, memoryEnabled, realName, persona }),
+    body: JSON.stringify({ messages, mode, memories, lifeEvents, userId, memoryEnabled, realName, persona, companionPreferences }),
   });
 
   if (!resp.ok) {
@@ -209,6 +212,7 @@ const Chat = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { userId, memoryEnabled, memories, lifeEvents, realName, loading: memLoading, setPreference, refetchMemories, deleteMemory, clearMemories } = useAIMemory();
+  const { showOnboarding: showCompanionOnboarding, loading: companionOnboardingLoading, preferences: companionPrefs, complete: completeCompanionOnboarding } = useCompanionOnboarding();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -290,7 +294,26 @@ const Chat = () => {
     }
   }, [memLoading, historyLoading, savedMessages, realName, memories, memoryEnabled, greetingSet, persona]);
 
-  const showMemoryChoice = !memLoading && !!userId && memoryEnabled === null;
+  const showMemoryChoice = !memLoading && !!userId && memoryEnabled === null && !showCompanionOnboarding;
+
+  const handleCompanionOnboardingComplete = useCallback(async (data: {
+    preferredName: string;
+    lifeGoal: string;
+    currentFeeling: string;
+    purposes: string[];
+    interactionStyle: string;
+  }) => {
+    completeCompanionOnboarding();
+    // Refetch memories since onboarding stored them
+    await refetchMemories();
+    // Set greeting with the new name
+    setGreetingSet(false);
+    if (data.preferredName && data.lifeGoal) {
+      const firstMsg = `Hey ${data.preferredName} 👋 I'm glad we're meeting for the first time. I saw that you're working toward ${data.lifeGoal}. What inspired you to start?`;
+      setMessages([{ role: "assistant", content: firstMsg }]);
+      setGreetingSet(true);
+    }
+  }, [completeCompanionOnboarding, refetchMemories]);
 
   const handleMemoryChoice = useCallback(async (enabled: boolean) => {
     try {
@@ -359,6 +382,7 @@ const Chat = () => {
         memoryEnabled: memoryEnabled === true,
         realName,
         persona: personaPayload,
+        companionPreferences: companionPrefs ? { interaction_style: companionPrefs.interaction_style, companion_purposes: companionPrefs.companion_purposes } : null,
         onDelta: (chunk) => {
           if (assistantSoFar === "") {
             setMessages((prev) => [...prev, { role: "assistant", content: chunk, timestamp: Date.now() }]);
@@ -402,7 +426,7 @@ const Chat = () => {
       setIsTyping(false);
       toast.error(e.message || "Something went wrong. Please try again.");
     }
-  }, [memoryEnabled, memories, lifeEvents, userId, realName, refetchMemories, mode, persona, persistMessages]);
+  }, [memoryEnabled, memories, lifeEvents, userId, realName, refetchMemories, mode, persona, persistMessages, companionPrefs]);
 
   const handleSend = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0) || isTyping) return;
@@ -477,6 +501,10 @@ const Chat = () => {
   }, []);
 
   const builtinData = BUILTIN_PERSONAS.find(bp => bp.id === persona.id);
+
+  if (!companionOnboardingLoading && showCompanionOnboarding) {
+    return <CompanionOnboarding onComplete={handleCompanionOnboardingComplete} />;
+  }
 
   return (
     <div

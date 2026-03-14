@@ -305,7 +305,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, mode, memories, lifeEvents, userId, memoryEnabled, realName, persona } = await req.json();
+    const { messages, mode, memories, lifeEvents, userId, memoryEnabled, realName, persona, companionPreferences } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
@@ -459,6 +459,26 @@ SAFETY & TRUST:
         systemPrompt += `- [${evt.category}] ${evt.text}${evt.date ? ` (${evt.date})` : ''}\n`;
       }
       systemPrompt += `\nSELF-REFLECTION ENGINE:\nOccasionally (roughly once every 5-8 exchanges), share a thoughtful observation about patterns you notice. These should feel gentle and observational, never judgmental.\n\nReflection types:\n- INTEREST: "You seem really passionate about photography."\n- EMOTION: "You've mentioned feeling stressed about work a few times."\n- VALUE: "It sounds like your friendships mean a lot to you."\n- GROWTH: "You've been talking more confidently about your goals lately."\n\nTone: "I might be wrong, but it seems like..." / "It sounds like..." Never force reflections.\n`;
+
+      // Life check-in instructions
+      systemPrompt += `\nLIFE CHECK-IN SYSTEM:\nWhen contextually relevant, naturally follow up on life events from the timeline. Prioritize recent and high-importance events.\nExamples:\n- "You mentioned you had an interview yesterday. How did it go?"\n- "How's the progress on your goal?"\nRules: Max 1 check-in per conversation. Must feel natural, not scripted. Only when the topic connects.\n`;
+    }
+
+    // Inject companion preferences (interaction style)
+    if (companionPreferences) {
+      const styleMap: Record<string, string> = {
+        calm: "Be calm, patient, soothing, and supportive. Use gentle language and create a safe space.",
+        curious: "Be curious, thoughtful, and ask meaningful questions. Show genuine interest in the user's thoughts.",
+        energetic: "Be upbeat, encouraging, and motivating. Use positive energy and celebrate wins.",
+        balanced: "Balance warmth, curiosity, and encouragement naturally based on context.",
+      };
+      const styleInstruction = styleMap[companionPreferences.interaction_style] || styleMap.balanced;
+      systemPrompt += `\n\nUSER INTERACTION PREFERENCE:\n${styleInstruction}\n`;
+      
+      if (companionPreferences.companion_purposes && companionPreferences.companion_purposes.length > 0) {
+        systemPrompt += `The user specifically wants companions for: ${companionPreferences.companion_purposes.join(", ")}. Keep this in mind when responding.\n`;
+      }
+    }
     }
 
     if (isCrisis) {
