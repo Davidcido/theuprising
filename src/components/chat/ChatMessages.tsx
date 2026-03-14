@@ -86,11 +86,10 @@ const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, on
         className="h-full overflow-y-auto overscroll-contain touch-pan-y px-3 sm:px-4 py-6"
         style={{ WebkitOverflowScrolling: "touch" }}
       >
-        <div className="container mx-auto max-w-2xl space-y-4">
+        <div className="container mx-auto max-w-2xl flex flex-col gap-3.5">
           {messages.map((msg, i) => {
             const attachmentImages = msg.attachments?.filter(a => a.type === "image" && a.preview).map(a => a.preview!) || [];
             const contentImages = msg.role === "assistant" ? extractContentImages(msg.content) : [];
-            const allImages = [...attachmentImages, ...contentImages];
 
             const isUser = msg.role === "user";
             const userInitial = (userDisplayName || "Y")[0]?.toUpperCase() || "Y";
@@ -101,90 +100,94 @@ const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, on
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2 }}
-                className={`group flex items-end gap-2 ${isUser ? "justify-end" : "justify-start"}`}
+                className={`group/msg flex items-end ${isUser ? "justify-end" : "justify-start"}`}
               >
-                {/* AI avatar on left */}
+                {/* AI avatar on left — tight gap */}
                 {!isUser && (
-                  <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden shadow-md mb-0.5" style={{ background: companionColor ? `${companionColor}33` : "rgba(255,255,255,0.1)" }}>
+                  <div className="shrink-0 w-7 h-7 rounded-full overflow-hidden shadow-md mr-1.5 mb-0.5" style={{ background: companionColor ? `${companionColor}33` : "rgba(255,255,255,0.1)" }}>
                     {companionAvatarImage ? (
                       <img src={companionAvatarImage} alt="AI" className="w-full h-full object-cover" />
                     ) : (
-                      <span className="flex items-center justify-center w-full h-full text-sm">{companionEmoji || "🌿"}</span>
+                      <span className="flex items-center justify-center w-full h-full text-xs">{companionEmoji || "🌿"}</span>
                     )}
                   </div>
                 )}
 
-                {!isUser && (
-                  <MessageActions content={msg.content} isUser={false} />
-                )}
-
-                <div
-                  className={`max-w-[78%] sm:max-w-[72%] rounded-[18px] text-[15px] font-medium leading-[1.6] px-[16px] py-[12px] ${
-                    isUser
-                      ? "bg-emerald-600/80 text-white border border-emerald-500/30 rounded-br-md shadow-lg shadow-emerald-900/20"
-                      : "bg-[rgba(20,20,20,0.65)] backdrop-blur-md text-white/90 border border-white/10 rounded-bl-md shadow-lg shadow-black/20"
-                  }`}
-                  style={{ textShadow: "0px 1px 2px rgba(0,0,0,0.35)" }}
-                >
-                  {msg.attachments && msg.attachments.length > 0 && (
-                    <div className="flex gap-2 mb-2 flex-wrap">
-                      {msg.attachments.map((att, j) => (
-                        att.type === "image" && att.preview ? (
-                          <img
-                            key={j}
-                            src={att.preview}
-                            alt="Uploaded"
-                            className="w-36 h-36 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                            onClick={() => openImage(attachmentImages, attachmentImages.indexOf(att.preview!))}
-                          />
-                        ) : (
-                          <div key={j} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/10 text-xs text-muted-foreground">
-                            <FileText className="w-3 h-3" />
-                            {att.name}
-                          </div>
-                        )
-                      ))}
-                    </div>
-                  )}
-
-                  {msg.role === "assistant" ? (
-                    <div className="prose prose-sm prose-invert max-w-none [&_img]:rounded-lg [&_img]:cursor-pointer [&_img]:max-h-64 [&_img]:hover:opacity-90 [&_img]:transition-opacity">
-                      <ReactMarkdown
-                        components={{
-                          img: ({ src, alt }) => (
+                {/* Bubble + actions wrapper */}
+                <div className={`relative max-w-[80%] sm:max-w-[72%] ${isUser ? "flex flex-row-reverse items-end" : "flex flex-row items-end"}`}>
+                  <div
+                    className={`rounded-[18px] text-[15px] font-medium leading-[1.6] px-[14px] py-[10px] ${
+                      isUser
+                        ? "bg-emerald-600/80 text-white border border-emerald-500/30 rounded-br-[4px] shadow-lg shadow-emerald-900/20"
+                        : "bg-[rgba(20,20,20,0.65)] backdrop-blur-md text-white/90 border border-white/10 rounded-bl-[4px] shadow-lg shadow-black/20"
+                    }`}
+                    style={{ textShadow: "0px 1px 2px rgba(0,0,0,0.35)" }}
+                  >
+                    {msg.attachments && msg.attachments.length > 0 && (
+                      <div className="flex gap-2 mb-2 flex-wrap">
+                        {msg.attachments.map((att, j) => (
+                          att.type === "image" && att.preview ? (
                             <img
-                              src={src}
-                              alt={alt || "Generated image"}
-                              className="rounded-lg cursor-pointer max-h-64 hover:opacity-90 transition-opacity"
-                              onClick={() => src && openImage([src], 0)}
+                              key={j}
+                              src={att.preview}
+                              alt="Uploaded"
+                              className="w-36 h-36 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => openImage(attachmentImages, attachmentImages.indexOf(att.preview!))}
                             />
-                          ),
-                        }}
-                      >
-                        {msg.content}
-                      </ReactMarkdown>
-                    </div>
-                  ) : (
-                    <span>{msg.content}</span>
-                  )}
+                          ) : (
+                            <div key={j} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/10 text-xs text-muted-foreground">
+                              <FileText className="w-3 h-3" />
+                              {att.name}
+                            </div>
+                          )
+                        ))}
+                      </div>
+                    )}
 
-                  {msg.edited && (
-                    <span className="text-[10px] text-white/40 ml-1">(edited)</span>
-                  )}
+                    {msg.role === "assistant" ? (
+                      <div className="prose prose-sm prose-invert max-w-none [&_img]:rounded-lg [&_img]:cursor-pointer [&_img]:max-h-64 [&_img]:hover:opacity-90 [&_img]:transition-opacity">
+                        <ReactMarkdown
+                          components={{
+                            img: ({ src, alt }) => (
+                              <img
+                                src={src}
+                                alt={alt || "Generated image"}
+                                className="rounded-lg cursor-pointer max-h-64 hover:opacity-90 transition-opacity"
+                                onClick={() => src && openImage([src], 0)}
+                              />
+                            ),
+                          }}
+                        >
+                          {msg.content}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      <span>{msg.content}</span>
+                    )}
+
+                    {msg.edited && (
+                      <span className="text-[10px] text-white/40 ml-1">(edited)</span>
+                    )}
+                  </div>
+
+                  {/* Actions — positioned outside bubble, hidden until hover/long-press */}
+                  <div className={`shrink-0 opacity-0 group-hover/msg:opacity-100 focus-within:opacity-100 transition-opacity duration-150 ${isUser ? "mr-1" : "ml-1"}`}>
+                    {isUser ? (
+                      <MessageActions
+                        content={msg.content}
+                        isUser={true}
+                        onEdit={() => onEditMessage?.(i)}
+                        onDelete={() => onDeleteMessage?.(i)}
+                      />
+                    ) : (
+                      <MessageActions content={msg.content} isUser={false} />
+                    )}
+                  </div>
                 </div>
 
+                {/* User avatar on right — tight gap */}
                 {isUser && (
-                  <MessageActions
-                    content={msg.content}
-                    isUser={true}
-                    onEdit={() => onEditMessage?.(i)}
-                    onDelete={() => onDeleteMessage?.(i)}
-                  />
-                )}
-
-                {/* User avatar on right */}
-                {isUser && (
-                  <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden shadow-md mb-0.5 bg-emerald-500 flex items-center justify-center">
+                  <div className="shrink-0 w-7 h-7 rounded-full overflow-hidden shadow-md ml-1.5 mb-0.5 bg-emerald-500 flex items-center justify-center">
                     {userAvatarUrl ? (
                       <img src={userAvatarUrl} alt="You" className="w-full h-full object-cover" />
                     ) : (
@@ -201,15 +204,15 @@ const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, on
           )}
 
           {isTyping && messages[messages.length - 1]?.role !== "assistant" && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start items-end gap-2">
-              <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden shadow-md mb-0.5" style={{ background: companionColor ? `${companionColor}33` : "rgba(255,255,255,0.1)" }}>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start items-end">
+              <div className="shrink-0 w-7 h-7 rounded-full overflow-hidden shadow-md mr-1.5 mb-0.5" style={{ background: companionColor ? `${companionColor}33` : "rgba(255,255,255,0.1)" }}>
                 {companionAvatarImage ? (
                   <img src={companionAvatarImage} alt="AI" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="flex items-center justify-center w-full h-full text-sm">{companionEmoji || "🌿"}</span>
+                  <span className="flex items-center justify-center w-full h-full text-xs">{companionEmoji || "🌿"}</span>
                 )}
               </div>
-              <div className="bg-[rgba(20,20,20,0.65)] backdrop-blur-md rounded-[18px] rounded-bl-md px-[16px] py-[12px] text-sm text-muted-foreground border border-white/10 shadow-lg shadow-black/20">
+              <div className="bg-[rgba(20,20,20,0.65)] backdrop-blur-md rounded-[18px] rounded-bl-[4px] px-[14px] py-[10px] text-sm text-muted-foreground border border-white/10 shadow-lg shadow-black/20">
                 <span className="inline-flex gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:0ms]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:150ms]" />
