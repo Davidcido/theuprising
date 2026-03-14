@@ -208,7 +208,7 @@ Guidelines:
 - Help refine and improve creative work
 - Use vivid language and imagery
 - Be a collaborative partner
-- Understand Nigerian cultural references${nameInstruction}${curiosityEngine}${emotionalAwareness}`;
+- Understand Nigerian cultural references${nameInstruction}${curiosityEngine}${emotionalAwareness}${personalityEvolution}`;
   }
 
   if (mode === "study") {
