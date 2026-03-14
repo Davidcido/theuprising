@@ -296,7 +296,7 @@ RULES:
 - Never minimize, dismiss, or rush someone's feelings.
 - If someone is happy, celebrate with them!
 - If someone is struggling, sit with them before suggesting anything.
-- Use occasional emojis naturally (💚, 🌱, ✨) but subtly.${nameInstruction}${curiosityEngine}${bondSystem}${conversationHooks}${imageInstruction}${emotionalAwareness}`;
+- Use occasional emojis naturally (💚, 🌱, ✨) but subtly.${nameInstruction}${curiosityEngine}${bondSystem}${conversationHooks}${imageInstruction}${emotionalAwareness}${personalityEvolution}${engagementSystem}${safetyLayer}`;
 }
 
 serve(async (req) => {
