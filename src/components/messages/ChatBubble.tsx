@@ -240,14 +240,44 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
     return () => cancelAnimationFrame(animRef.current);
   }, [isPlaying]);
 
-  const toggleAudio = () => {
-    if (!audioRef.current) return;
+  const toggleAudio = async () => {
+    const audio = audioRef.current;
+    if (!audio) return;
     if (isPlaying) {
-      audioRef.current.pause();
+      audio.pause();
       setIsPlaying(false);
     } else {
-      audioRef.current.play().catch(() => {});
-      setIsPlaying(true);
+      try {
+        // Unlock audio element in user gesture context (iOS Safari)
+        await audio.play().catch(() => {});
+        audio.pause();
+        audio.currentTime = audio.currentTime || 0;
+
+        // Wait for audio to be ready if needed
+        if (audio.readyState < 3) {
+          await new Promise<void>((resolve, reject) => {
+            const onReady = () => { audio.removeEventListener("canplaythrough", onReady); audio.removeEventListener("error", onErr); resolve(); };
+            const onErr = () => { audio.removeEventListener("canplaythrough", onReady); audio.removeEventListener("error", onErr); reject(); };
+            audio.addEventListener("canplaythrough", onReady);
+            audio.addEventListener("error", onErr);
+            audio.load();
+          });
+        }
+
+        await audio.play();
+        setIsPlaying(true);
+      } catch {
+        // Fallback: retry with fresh audio element
+        try {
+          audio.src = msgAny.attachment_url;
+          audio.load();
+          await new Promise(r => setTimeout(r, 100));
+          await audio.play();
+          setIsPlaying(true);
+        } catch {
+          console.error("Audio playback failed");
+        }
+      }
     }
   };
 
