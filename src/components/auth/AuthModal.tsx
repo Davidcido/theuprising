@@ -27,15 +27,18 @@ const ensureProfile = async (userId: string, email?: string) => {
 
 const verifyTurnstile = async (token: string): Promise<boolean> => {
   try {
+    console.log("[Turnstile] Verifying token with backend...");
     const { data, error } = await supabase.functions.invoke("verify-turnstile", {
       body: { token },
     });
+    console.log("[Turnstile] Backend response:", { data, error });
     if (error) {
-      console.error("Turnstile verification error:", error);
+      console.error("[Turnstile] Verification error:", error);
       return true; // fail open so auth still works if function errors
     }
     return data?.success === true;
-  } catch {
+  } catch (err) {
+    console.error("[Turnstile] Verification exception:", err);
     return true; // fail open
   }
 };
@@ -76,20 +79,42 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
     e.preventDefault();
     if (mode === "forgot") return handleForgotPassword(e);
 
-    // Verify Turnstile before auth
-    if (!turnstileToken) {
-      toast.error("Please wait for security verification to complete.");
-      return;
-    }
-
     setLoading(true);
 
-    const verified = await verifyTurnstile(turnstileToken);
-    if (!verified) {
-      toast.error("Security verification failed. Please try again.");
-      setTurnstileToken(null);
-      setLoading(false);
-      return;
+    // If token not yet available, wait up to 5 seconds for it
+    let token = turnstileToken;
+    if (!token) {
+      console.log("[Turnstile] Token not ready, waiting up to 5s...");
+      token = await new Promise<string | null>((resolve) => {
+        const checkInterval = setInterval(() => {
+          // Access latest state via a ref-like pattern
+          setTurnstileToken((current) => {
+            if (current) {
+              clearInterval(checkInterval);
+              resolve(current);
+            }
+            return current;
+          });
+        }, 200);
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          resolve(null);
+        }, 5000);
+      });
+    }
+
+    if (!token) {
+      console.warn("[Turnstile] No token after timeout — proceeding without verification (fail open)");
+      // Fail open: allow auth to proceed if Turnstile never responds
+    } else {
+      const verified = await verifyTurnstile(token);
+      if (!verified) {
+        toast.error("Security verification failed. Please try again.");
+        setTurnstileToken(null);
+        setLoading(false);
+        return;
+      }
+      console.log("[Turnstile] Verification passed ✓");
     }
 
     const MAX_RETRIES = 2;
