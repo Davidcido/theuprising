@@ -114,8 +114,8 @@ const MemoryPanel = ({ memories, lifeEvents, memoryEnabled, onDeleteMemory, onCl
             )}
           </button>
         </SheetTrigger>
-        <SheetContent side="right" className="w-full sm:w-96 bg-background/95 backdrop-blur-xl border-l border-white/10 p-0">
-          <SheetHeader className="px-4 pt-4 pb-3 border-b border-white/10">
+        <SheetContent side="right" className="w-full sm:w-96 bg-background/95 backdrop-blur-xl border-l border-white/10 p-0 [&>button]:z-20 [&>button]:text-foreground">
+          <SheetHeader className="px-4 pt-4 pb-3 border-b border-white/10 pr-12">
             <SheetTitle className="flex items-center gap-2 text-foreground">
               <Brain className="w-4 h-4 text-primary" />
               {companionName}'s Memory
