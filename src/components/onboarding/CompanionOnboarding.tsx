@@ -290,8 +290,8 @@ const CompanionOnboarding = ({ onComplete }: Props) => {
               <p className="text-white/70 text-base max-w-xs">
                 {preferredName ? `${preferredName}, your` : "Your"} companions now know a bit about you. They'll remember your experiences and grow with you over time.
               </p>
-              <Button variant="hero" size="lg" onClick={finish} disabled={saving} className="mt-4 w-full max-w-xs">
-                {saving ? "Setting up..." : "Start Talking"} <ArrowRight className="w-4 h-4 ml-1" />
+              <Button variant="hero" size="lg" onClick={finish} className="mt-4 w-full max-w-xs">
+                Start Talking <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             </div>
           )}
