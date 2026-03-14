@@ -32,9 +32,10 @@ const MessageActions = ({ content, isUser, onEdit, onDelete }: MessageActionsPro
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hover:bg-white/10"
+        onTouchStart={(e) => { e.stopPropagation(); }}
+        className="p-1 rounded-lg transition-colors text-muted-foreground hover:text-foreground hover:bg-white/10"
       >
-        <MoreVertical className="w-4 h-4" />
+        <MoreVertical className="w-3.5 h-3.5" />
       </button>
       <AnimatePresence>
         {open && (
