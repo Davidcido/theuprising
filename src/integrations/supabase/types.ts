@@ -525,6 +525,45 @@ export type Database = {
         }
         Relationships: []
       }
+      companion_preferences: {
+        Row: {
+          companion_purposes: string[] | null
+          created_at: string
+          current_feeling: string | null
+          id: string
+          interaction_style: string | null
+          life_goal: string | null
+          onboarding_completed: boolean | null
+          preferred_name: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          companion_purposes?: string[] | null
+          created_at?: string
+          current_feeling?: string | null
+          id?: string
+          interaction_style?: string | null
+          life_goal?: string | null
+          onboarding_completed?: boolean | null
+          preferred_name?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          companion_purposes?: string[] | null
+          created_at?: string
+          current_feeling?: string | null
+          id?: string
+          interaction_style?: string | null
+          life_goal?: string | null
+          onboarding_completed?: boolean | null
+          preferred_name?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       conversation_participants: {
         Row: {
           conversation_id: string
