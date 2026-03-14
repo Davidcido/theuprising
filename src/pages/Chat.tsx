@@ -49,7 +49,7 @@ type APIMessage = {
 };
 
 async function streamChat({
-  messages, mode, memories, lifeEvents, userId, memoryEnabled, realName, persona, onDelta, onDone,
+  messages, mode, memories, lifeEvents, userId, memoryEnabled, realName, persona, onDelta, onDone, onMemorySaved,
 }: {
   messages: APIMessage[];
   mode?: string;
@@ -61,6 +61,7 @@ async function streamChat({
   persona?: { name: string; role: string; personality: string; conversation_style: string; emotional_tone: string; interests: string } | null;
   onDelta: (deltaText: string) => void;
   onDone: () => void;
+  onMemorySaved?: (mood: string) => void;
 }) {
   const resp = await fetch(CHAT_URL, {
     method: "POST",
@@ -99,6 +100,11 @@ async function streamChat({
       if (jsonStr === "[DONE]") { streamDone = true; break; }
       try {
         const parsed = JSON.parse(jsonStr);
+        // Check for memory metadata signal
+        if (parsed.memory_saved && onMemorySaved) {
+          onMemorySaved(parsed.detected_mood || "neutral");
+          continue;
+        }
         const content = parsed.choices?.[0]?.delta?.content as string | undefined;
         if (content) onDelta(content);
       } catch {
@@ -118,6 +124,10 @@ async function streamChat({
       if (jsonStr === "[DONE]") continue;
       try {
         const parsed = JSON.parse(jsonStr);
+        if (parsed.memory_saved && onMemorySaved) {
+          onMemorySaved(parsed.detected_mood || "neutral");
+          continue;
+        }
         const content = parsed.choices?.[0]?.delta?.content as string | undefined;
         if (content) onDelta(content);
       } catch { /* ignore */ }
