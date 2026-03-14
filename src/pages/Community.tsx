@@ -31,6 +31,7 @@ import MentionDropdown from "@/components/community/MentionDropdown";
 import { useAuthReady } from "@/hooks/useAuthReady";
 import { useFeedCache } from "@/hooks/useFeedCache";
 import { useVirtualFeed } from "@/hooks/useVirtualFeed";
+import PullToRefresh from "@/components/community/PullToRefresh";
 
 type FeedTab = "foryou" | "following" | "trending";
 
@@ -40,7 +41,7 @@ const FEED_TABS: { key: FeedTab; label: string; icon: typeof Sparkles }[] = [
   { key: "trending", label: "Trending", icon: TrendingUp },
 ];
 
-const POSTS_PER_PAGE = 15;
+const POSTS_PER_PAGE = 10;
 const SCROLL_DEBOUNCE_MS = 300;
 
 type PaginationCursor = {
@@ -778,14 +779,14 @@ const Community = () => {
         return chronological.filter(p => p.author_id && followingIds.has(p.author_id));
       case "trending": {
         const now = Date.now();
-        const cutoff = now - 48 * 60 * 60 * 1000;
+        const cutoff = now - 24 * 60 * 60 * 1000;
         return chronological
           .filter(p => new Date(p.created_at).getTime() > cutoff)
           .sort((a, b) => {
             const hoursA = Math.max(1, (now - new Date(a.created_at).getTime()) / 3600000);
             const hoursB = Math.max(1, (now - new Date(b.created_at).getTime()) / 3600000);
-            const velocityA = ((a.likes_count * 3) + (a.comments_count * 4) + (a.shares_count * 5)) / hoursA;
-            const velocityB = ((b.likes_count * 3) + (b.comments_count * 4) + (b.shares_count * 5)) / hoursB;
+            const velocityA = ((a.likes_count * 3) + (a.comments_count * 4) + (a.shares_count * 5) + ((a.views_count || 0) * 0.5)) / hoursA;
+            const velocityB = ((b.likes_count * 3) + (b.comments_count * 4) + (b.shares_count * 5) + ((b.views_count || 0) * 0.5)) / hoursB;
             return velocityB - velocityA;
           });
       }
@@ -807,16 +808,20 @@ const Community = () => {
   }, []);
 
 
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
+    // Force-reset fetch lock so refresh always works (even in PWA)
+    fetchingRef.current = false;
     setRefreshing(true);
     setHasMore(true);
+    hasMoreRef.current = true;
     setNewPostsAvailable(0);
     cursorRef.current = null;
     lastCursorLogRef.current = null;
-    console.log("[Community][feed] manual refresh");
+    feedCache.clearCache();
+    console.log("[Community][feed] manual refresh (cache cleared)");
     await fetchPosts(false);
     setRefreshing(false);
-  };
+  }, [fetchPosts, feedCache]);
 
   const handlePostChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
@@ -1649,7 +1654,7 @@ const Community = () => {
           })}
         </div>
 
-        {/* Pull to refresh button */}
+        {/* Pull to refresh + Refresh button */}
         <div className="flex justify-center mb-3">
           <motion.button
             onClick={handleRefresh}
@@ -1661,6 +1666,8 @@ const Community = () => {
             {refreshing ? "Refreshing..." : "Refresh feed"}
           </motion.button>
         </div>
+
+        <PullToRefresh onRefresh={handleRefresh}>
 
         {/* Feed */}
         {fetchError && allPosts.length === 0 ? (
@@ -1781,6 +1788,7 @@ const Community = () => {
             )}
           </div>
         )}
+        </PullToRefresh>
       </div>
 
       {/* Repost Dialog */}
