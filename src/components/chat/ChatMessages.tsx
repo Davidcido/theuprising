@@ -20,9 +20,14 @@ type ChatMessagesProps = {
   onMemoryChoice: (enabled: boolean) => void;
   onEditMessage?: (index: number) => void;
   onDeleteMessage?: (index: number) => void;
+  userAvatarUrl?: string | null;
+  userDisplayName?: string | null;
+  companionAvatarImage?: string;
+  companionEmoji?: string;
+  companionColor?: string;
 };
 
-const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, onEditMessage, onDeleteMessage }: ChatMessagesProps) => {
+const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, onEditMessage, onDeleteMessage, userAvatarUrl, userDisplayName, companionAvatarImage, companionEmoji, companionColor }: ChatMessagesProps) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const [viewerImages, setViewerImages] = useState<string[] | null>(null);
@@ -81,11 +86,14 @@ const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, on
         className="h-full overflow-y-auto overscroll-contain touch-pan-y px-3 sm:px-4 py-6"
         style={{ WebkitOverflowScrolling: "touch" }}
       >
-        <div className="container mx-auto max-w-2xl space-y-3">
+        <div className="container mx-auto max-w-2xl space-y-4">
           {messages.map((msg, i) => {
             const attachmentImages = msg.attachments?.filter(a => a.type === "image" && a.preview).map(a => a.preview!) || [];
             const contentImages = msg.role === "assistant" ? extractContentImages(msg.content) : [];
             const allImages = [...attachmentImages, ...contentImages];
+
+            const isUser = msg.role === "user";
+            const userInitial = (userDisplayName || "Y")[0]?.toUpperCase() || "Y";
 
             return (
               <motion.div
@@ -93,17 +101,28 @@ const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, on
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2 }}
-                className={`group flex items-end gap-1.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                className={`group flex items-end gap-2 ${isUser ? "justify-end" : "justify-start"}`}
               >
-                {msg.role === "assistant" && (
+                {/* AI avatar on left */}
+                {!isUser && (
+                  <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden shadow-md mb-0.5" style={{ background: companionColor ? `${companionColor}33` : "rgba(255,255,255,0.1)" }}>
+                    {companionAvatarImage ? (
+                      <img src={companionAvatarImage} alt="AI" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="flex items-center justify-center w-full h-full text-sm">{companionEmoji || "🌿"}</span>
+                    )}
+                  </div>
+                )}
+
+                {!isUser && (
                   <MessageActions content={msg.content} isUser={false} />
                 )}
 
                 <div
-                  className={`max-w-[85%] sm:max-w-[75%] rounded-[18px] text-[15px] font-medium leading-[1.6] ${
-                    msg.role === "user"
-                      ? "bg-[rgba(255,255,255,0.18)] text-white border border-white/15 rounded-br-md px-[18px] py-[14px]"
-                      : "bg-[rgba(255,255,255,0.08)] backdrop-blur-[10px] text-white border border-[rgba(255,255,255,0.15)] rounded-bl-md px-[18px] py-[14px]"
+                  className={`max-w-[78%] sm:max-w-[72%] rounded-[18px] text-[15px] font-medium leading-[1.6] px-[16px] py-[12px] ${
+                    isUser
+                      ? "bg-emerald-600/80 text-white border border-emerald-500/30 rounded-br-md shadow-lg shadow-emerald-900/20"
+                      : "bg-[rgba(20,20,20,0.65)] backdrop-blur-md text-white/90 border border-white/10 rounded-bl-md shadow-lg shadow-black/20"
                   }`}
                   style={{ textShadow: "0px 1px 2px rgba(0,0,0,0.35)" }}
                 >
@@ -150,17 +169,28 @@ const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, on
                   )}
 
                   {msg.edited && (
-                    <span className="text-[10px] text-muted-foreground/50 ml-1">(edited)</span>
+                    <span className="text-[10px] text-white/40 ml-1">(edited)</span>
                   )}
                 </div>
 
-                {msg.role === "user" && (
+                {isUser && (
                   <MessageActions
                     content={msg.content}
                     isUser={true}
                     onEdit={() => onEditMessage?.(i)}
                     onDelete={() => onDeleteMessage?.(i)}
                   />
+                )}
+
+                {/* User avatar on right */}
+                {isUser && (
+                  <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden shadow-md mb-0.5 bg-emerald-500 flex items-center justify-center">
+                    {userAvatarUrl ? (
+                      <img src={userAvatarUrl} alt="You" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-white text-xs font-bold">{userInitial}</span>
+                    )}
+                  </div>
                 )}
               </motion.div>
             );
@@ -171,8 +201,15 @@ const ChatMessages = ({ messages, isTyping, showMemoryChoice, onMemoryChoice, on
           )}
 
           {isTyping && messages[messages.length - 1]?.role !== "assistant" && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
-              <div className="bg-[rgba(255,255,255,0.08)] backdrop-blur-[10px] rounded-[18px] rounded-bl-md px-[18px] py-[14px] text-sm text-muted-foreground border border-[rgba(255,255,255,0.15)]">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start items-end gap-2">
+              <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden shadow-md mb-0.5" style={{ background: companionColor ? `${companionColor}33` : "rgba(255,255,255,0.1)" }}>
+                {companionAvatarImage ? (
+                  <img src={companionAvatarImage} alt="AI" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="flex items-center justify-center w-full h-full text-sm">{companionEmoji || "🌿"}</span>
+                )}
+              </div>
+              <div className="bg-[rgba(20,20,20,0.65)] backdrop-blur-md rounded-[18px] rounded-bl-md px-[16px] py-[12px] text-sm text-muted-foreground border border-white/10 shadow-lg shadow-black/20">
                 <span className="inline-flex gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:0ms]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:150ms]" />
