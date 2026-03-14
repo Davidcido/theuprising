@@ -144,6 +144,8 @@ const PROACTIVE_GREETINGS_WITH_NAME = [
   "Hey NAME 💚 Good to see you! What's been on your mind?",
   "Welcome back NAME! How's your day going so far?",
   "Hey NAME! 🌱 I'm here whenever you want to talk. How are you feeling?",
+  "Hey NAME 💚 What was one good moment today?",
+  "Hi NAME! What are you looking forward to this week?",
 ];
 
 const PROACTIVE_GREETINGS = [
@@ -152,6 +154,8 @@ const PROACTIVE_GREETINGS = [
   "Hey there 💚 Good to see you! What's been on your mind?",
   "Welcome back! How's your day going so far?",
   "Hey! 🌱 I'm here whenever you want to talk. How are you feeling?",
+  "Hey 💚 What was one good moment today?",
+  "Hi! What are you looking forward to this week?",
 ];
 
 const LAST_VISIT_KEY = "uprising_last_chat_visit";
