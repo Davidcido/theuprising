@@ -346,7 +346,7 @@ const Chat = () => {
         persona: personaPayload,
         onDelta: (chunk) => {
           if (assistantSoFar === "") {
-            setMessages((prev) => [...prev, { role: "assistant", content: chunk }]);
+            setMessages((prev) => [...prev, { role: "assistant", content: chunk, timestamp: Date.now() }]);
             assistantSoFar = chunk;
           } else {
             assistantSoFar += chunk;
@@ -405,6 +405,7 @@ const Chat = () => {
       role: "user",
       content: input.trim(),
       attachments: attachments.map(a => ({ type: a.type, name: a.file.name, preview: a.preview })),
+      timestamp: Date.now(),
     };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
@@ -559,6 +560,7 @@ const Chat = () => {
           companionAvatarImage={builtinData?.avatar_image}
           companionEmoji={persona.avatar_emoji}
           companionColor={persona.color}
+          companionName={persona.name}
         />
       </div>
 
