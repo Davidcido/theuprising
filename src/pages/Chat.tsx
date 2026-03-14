@@ -382,6 +382,7 @@ const Chat = () => {
         memoryEnabled: memoryEnabled === true,
         realName,
         persona: personaPayload,
+        companionPreferences: companionPrefs ? { interaction_style: companionPrefs.interaction_style, companion_purposes: companionPrefs.companion_purposes } : null,
         onDelta: (chunk) => {
           if (assistantSoFar === "") {
             setMessages((prev) => [...prev, { role: "assistant", content: chunk, timestamp: Date.now() }]);
