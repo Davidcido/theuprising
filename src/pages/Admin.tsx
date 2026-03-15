@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Shield, LogOut, RefreshCw, AlertTriangle } from "lucide-react";
@@ -16,6 +17,7 @@ import AnalyticsTab from "@/components/admin/AnalyticsTab";
 import { supabase } from "@/integrations/supabase/client";
 
 const Admin = () => {
+  const navigate = useNavigate();
   const { isAuthenticated, isAdmin, loading, error: authError, login, logout } = useAdminAuth();
   const {
     posts, comments, reports, bannedUsers, communityStatus, totalLikes,
@@ -26,6 +28,12 @@ const Admin = () => {
     fetchAllData, deletePost, deleteComment, updateReportStatus,
     banUser, unbanUser, toggleCommunityStatus,
   } = useAdminData();
+
+  useEffect(() => {
+    if (!loading && isAuthenticated && !isAdmin) {
+      navigate("/", { replace: true });
+    }
+  }, [loading, isAuthenticated, isAdmin, navigate]);
 
   useEffect(() => {
     if (isAdmin) fetchAllData();
