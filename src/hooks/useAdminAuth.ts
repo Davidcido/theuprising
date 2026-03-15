@@ -28,16 +28,13 @@ export const useAdminAuth = () => {
     const checkRole = async (userId: string): Promise<boolean> => {
       try {
         const { data, error: roleError } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", userId)
-          .eq("role", "admin");
+          .rpc("has_role", { _user_id: userId, _role: "admin" });
 
         if (roleError) {
           console.error("Role check error:", roleError);
           return false;
         }
-        return !!(data && data.length > 0);
+        return data === true;
       } catch (err) {
         console.error("Role check exception:", err);
         return false;
