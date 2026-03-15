@@ -37,6 +37,8 @@ export const useAdminAuth = () => {
         console.error("Role check exception:", err);
         setError("Failed to verify admin status");
         setIsAdmin(false);
+      } finally {
+        if (mounted.current) setLoading(false);
       }
     };
 
