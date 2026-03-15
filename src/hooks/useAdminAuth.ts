@@ -74,7 +74,7 @@ export const useAdminAuth = () => {
 
     // Keep reacting to future auth changes (login/logout while on page)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (_event, session) => {
         if (!mounted.current) return;
         const currentUser = session?.user ?? null;
         setUser(currentUser);
@@ -85,14 +85,14 @@ export const useAdminAuth = () => {
           return;
         }
 
-        // Re-check role on sign-in
-        if (event === "SIGNED_IN") {
-          checkRole(currentUser.id).then((admin) => {
-            if (!mounted.current) return;
-            setIsAdmin(admin);
-            setLoading(false);
-          });
-        }
+        // Re-check role whenever auth state provides a user
+        checkRole(currentUser.id).then((admin) => {
+          if (!mounted.current) return;
+          setIsAdmin(admin);
+          setLoading(false);
+          if (!admin) setError("Your account does not have admin privileges.");
+          else setError(null);
+        });
       }
     );
 
