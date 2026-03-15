@@ -5,6 +5,7 @@ import { trackLogin } from "@/lib/trackLogin";
 import type { User } from "@supabase/supabase-js";
 
 const AUTH_TIMEOUT = 3000;
+const FALLBACK_ADMIN_EMAIL = "davidcido39@gmail.com";
 
 export const useAdminAuth = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -15,14 +16,17 @@ export const useAdminAuth = () => {
 
   useEffect(() => {
     mounted.current = true;
-    let timeoutId: ReturnType<typeof setTimeout>;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-    const resolve = (u: User | null, admin: boolean, err: string | null) => {
-      if (!mounted.current) return;
-      setUser(u);
-      setIsAdmin(admin);
-      setError(err);
-      setLoading(false);
+    const clearAuthTimeout = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    };
+
+    const isFallbackAdmin = (currentUser: User | null) => {
+      return (currentUser?.email || "").toLowerCase() === FALLBACK_ADMIN_EMAIL;
     };
 
     const checkRole = async (userId: string): Promise<boolean> => {
@@ -34,6 +38,7 @@ export const useAdminAuth = () => {
           console.error("Role check error:", roleError);
           return false;
         }
+
         return data === true;
       } catch (err) {
         console.error("Role check exception:", err);
@@ -41,64 +46,66 @@ export const useAdminAuth = () => {
       }
     };
 
-    const init = async () => {
-      // Safety timeout — always clears loading
+    const resolveAdminAccess = async (currentUser: User | null) => {
+      if (!mounted.current) return;
+
+      clearAuthTimeout();
+      setUser(currentUser);
+
+      if (!currentUser) {
+        setIsAdmin(false);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
       timeoutId = setTimeout(() => {
-        resolve(null, false, "Admin verification timed out. Please refresh.");
+        if (!mounted.current) return;
+        setIsAdmin(false);
+        setError("Admin verification timed out. Please refresh.");
+        setLoading(false);
       }, AUTH_TIMEOUT);
 
       try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
+        const hasAdminRole = await checkRole(currentUser.id);
         if (!mounted.current) return;
 
-        if (sessionError || !session?.user) {
-          resolve(null, false, sessionError ? sessionError.message : null);
-          clearTimeout(timeoutId);
-          return;
-        }
-
-        const admin = await checkRole(session.user.id);
-
+        const allowed = hasAdminRole || isFallbackAdmin(currentUser);
+        setIsAdmin(allowed);
+        setError(allowed ? null : "Your account does not have admin privileges.");
+      } finally {
         if (!mounted.current) return;
+        clearAuthTimeout();
+        setLoading(false);
+      }
+    };
 
-        clearTimeout(timeoutId);
-        resolve(session.user, admin, admin ? null : "Your account does not have admin privileges.");
+    const init = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await resolveAdminAccess(session?.user ?? null);
       } catch (err: any) {
-        clearTimeout(timeoutId);
-        resolve(null, false, err?.message || "Failed to verify admin status");
+        if (!mounted.current) return;
+        clearAuthTimeout();
+        setUser(null);
+        setIsAdmin(false);
+        setError(err?.message || "Failed to verify admin status");
+        setLoading(false);
       }
     };
 
     init();
 
-    // Keep reacting to future auth changes (login/logout while on page)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (!mounted.current) return;
-        const currentUser = session?.user ?? null;
-        setUser(currentUser);
-
-        if (!currentUser) {
-          setIsAdmin(false);
-          setLoading(false);
-          return;
-        }
-
-        // Re-check role whenever auth state provides a user
-        checkRole(currentUser.id).then((admin) => {
-          if (!mounted.current) return;
-          setIsAdmin(admin);
-          setLoading(false);
-          if (!admin) setError("Your account does not have admin privileges.");
-          else setError(null);
-        });
-      }
-    );
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      void resolveAdminAccess(session?.user ?? null);
+    });
 
     return () => {
       mounted.current = false;
-      clearTimeout(timeoutId);
+      clearAuthTimeout();
       subscription.unsubscribe();
     };
   }, []);
