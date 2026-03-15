@@ -74,7 +74,7 @@ export const useAdminAuth = () => {
 
     // Keep reacting to future auth changes (login/logout while on page)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (_event, session) => {
         if (!mounted.current) return;
         const currentUser = session?.user ?? null;
         setUser(currentUser);
