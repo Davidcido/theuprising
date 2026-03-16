@@ -16,34 +16,65 @@ export const useAdminAuth = () => {
     const checkRole = async (userId: string): Promise<boolean> => {
       try {
         const { data, error } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
-        if (error) return false;
+
+        if (error) {
+          console.error("[admin] role lookup failed", error);
+          return false;
+        }
+
         return data === true;
-      } catch { return false; }
+      } catch (error) {
+        console.error("[admin] role lookup exception", error);
+        return false;
+      }
     };
 
-    const resolve = async (currentUser: User | null) => {
+    const resolveAdminAccess = async (currentUser: User | null) => {
       if (!mounted.current) return;
+
+      setLoading(true);
       setUser(currentUser);
+
       if (!currentUser) {
+        console.log("[admin] no authenticated user");
         setIsAdmin(false);
         setLoading(false);
         return;
       }
-      const hasRole = await checkRole(currentUser.id);
+
+      const hasAdminRole = await checkRole(currentUser.id);
       if (!mounted.current) return;
-      const allowed = hasRole || (currentUser.email?.toLowerCase() === FALLBACK_ADMIN_EMAIL);
+
+      const normalizedEmail = currentUser.email?.toLowerCase() ?? "";
+      const allowedByEmail = normalizedEmail === FALLBACK_ADMIN_EMAIL;
+      const allowed = hasAdminRole || allowedByEmail;
+
+      console.log("[admin] access check", {
+        email: currentUser.email,
+        userId: currentUser.id,
+        hasAdminRole,
+        allowedByEmail,
+        allowed,
+      });
+
       setIsAdmin(allowed);
       setLoading(false);
     };
 
-    supabase.auth.getSession().then(({ data: { session } }) => resolve(session?.user ?? null));
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setLoading(true);
-      resolve(session?.user ?? null);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      void resolveAdminAccess(session?.user ?? null);
     });
 
-    return () => { mounted.current = false; subscription.unsubscribe(); };
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      void resolveAdminAccess(session?.user ?? null);
+    });
+
+    return () => {
+      mounted.current = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const logout = async () => {
@@ -57,5 +88,12 @@ export const useAdminAuth = () => {
     window.location.href = "/";
   };
 
-  return { isAuthenticated: !!user, isAdmin, loading, logout };
+  return {
+    user,
+    isAuthenticated: !!user,
+    isAdmin,
+    loading,
+    logout,
+  };
 };
+

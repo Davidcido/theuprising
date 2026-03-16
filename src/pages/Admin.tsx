@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const Admin = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, isAdmin, loading, logout } = useAdminAuth();
+  const { user, isAuthenticated, isAdmin, loading, logout } = useAdminAuth();
   const {
     posts, comments, reports, bannedUsers, communityStatus, totalLikes,
     loginSessions, loginsToday,
@@ -30,15 +30,22 @@ const Admin = () => {
 
   useEffect(() => {
     if (loading) return;
+
+    console.log("[admin] route guard", {
+      email: user?.email,
+      isAuthenticated,
+      isAdmin,
+    });
+
     if (!isAuthenticated) {
-      // Not logged in — go home (AuthModal will handle login)
       navigate("/", { replace: true });
       return;
     }
+
     if (!isAdmin) {
       navigate("/", { replace: true });
     }
-  }, [loading, isAuthenticated, isAdmin, navigate]);
+  }, [loading, user?.email, isAuthenticated, isAdmin, navigate]);
 
   useEffect(() => {
     if (isAdmin) fetchAllData();
@@ -65,7 +72,7 @@ const Admin = () => {
   }
 
   if (!isAuthenticated || !isAdmin) {
-    return null; // Will redirect via useEffect
+    return null;
   }
 
   return (
