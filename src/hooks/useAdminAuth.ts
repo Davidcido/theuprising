@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
 const FALLBACK_ADMIN_EMAIL = "davidcido39@gmail.com";
-const VERIFICATION_TIMEOUT = 2000;
+const VERIFICATION_TIMEOUT = 1500;
 
 type RoleCheckResult = {
   hasAdminRole: boolean;
@@ -92,38 +92,35 @@ export const useAdminAuth = () => {
       const normalizedEmail = currentUser.email?.toLowerCase() ?? "";
       const allowedByEmail = normalizedEmail === FALLBACK_ADMIN_EMAIL;
 
-      console.log("[admin] verifying user", {
-        email: normalizedEmail,
-        userId: currentUser.id,
-      });
-
-      if (allowedByEmail) {
-        console.log("[admin] access check", {
-          email: normalizedEmail,
-          role: "email_fallback",
-          adminCheckResult: true,
-        });
-        setIsAdmin(true);
-        setLoading(false);
-        return;
-      }
+      console.log("[admin] user email", normalizedEmail);
 
       try {
-        const { hasAdminRole, roleValue } = await checkRoleWithTimeout(currentUser.id);
+        const { hasAdminRole, roleValue, timedOut } = await checkRoleWithTimeout(currentUser.id);
 
         if (!mounted.current || requestId !== verificationRequestId.current) return;
 
-        console.log("[admin] access check", {
-          email: normalizedEmail,
+        const shouldUseFallback = timedOut || roleValue === null;
+        const allowed = hasAdminRole || (shouldUseFallback && allowedByEmail);
+
+        if (shouldUseFallback) {
+          console.log("[admin] timeout fallback trigger", {
+            timedOut,
+            roleValue,
+            allowedByEmail,
+          });
+        }
+
+        console.log("[admin] admin role result", {
           role: roleValue,
-          adminCheckResult: hasAdminRole,
+          hasAdminRole,
+          allowed,
         });
 
-        setIsAdmin(hasAdminRole);
+        setIsAdmin(allowed);
       } catch (error) {
         console.error("[admin] verification failed", error);
         if (!mounted.current || requestId !== verificationRequestId.current) return;
-        setIsAdmin(false);
+        setIsAdmin(allowedByEmail);
       } finally {
         if (!mounted.current || requestId !== verificationRequestId.current) return;
         setLoading(false);
@@ -174,4 +171,3 @@ export const useAdminAuth = () => {
     logout,
   };
 };
-
