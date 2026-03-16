@@ -34,25 +34,23 @@ const Admin = () => {
     console.log("[admin] route guard", {
       email: user?.email,
       isAuthenticated,
-      isAdmin,
+      dashboardLoaded: isAuthenticated,
     });
 
     if (!isAuthenticated) {
       navigate("/", { replace: true });
-      return;
     }
-
-    if (!isAdmin) {
-      navigate("/", { replace: true });
-    }
-  }, [loading, user?.email, isAuthenticated, isAdmin, navigate]);
+  }, [loading, user?.email, isAuthenticated, navigate]);
 
   useEffect(() => {
-    if (isAdmin) fetchAllData();
-  }, [isAdmin, fetchAllData]);
+    if (isAuthenticated) {
+      console.log("[admin] dashboard loaded");
+      fetchAllData();
+    }
+  }, [isAuthenticated, fetchAllData]);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAuthenticated) return;
     const channel = supabase
       .channel("admin-analytics-realtime")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "login_sessions" }, () => fetchAllData())
@@ -60,18 +58,9 @@ const Admin = () => {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "signups" }, () => fetchAllData())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [isAdmin, fetchAllData]);
+  }, [isAuthenticated, fetchAllData]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#0a3d24] gap-4">
-        <div className="animate-spin h-8 w-8 border-4 border-emerald-400 border-t-transparent rounded-full" />
-        <p className="text-emerald-400 text-sm">Verifying admin access...</p>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated || !isAdmin) {
+  if (loading || !isAuthenticated) {
     return null;
   }
 
