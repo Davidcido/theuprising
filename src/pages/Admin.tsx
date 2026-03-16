@@ -5,7 +5,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Shield, LogOut, RefreshCw, AlertTriangle } from "lucide-react";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useAdminData } from "@/hooks/useAdminData";
-import AdminLogin from "@/components/admin/AdminLogin";
 import AdminStats from "@/components/admin/AdminStats";
 import CommunityControl from "@/components/admin/CommunityControl";
 import PostsTab from "@/components/admin/PostsTab";
@@ -18,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const Admin = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, isAdmin, loading, error: authError, login, logout } = useAdminAuth();
+  const { isAuthenticated, isAdmin, loading, logout } = useAdminAuth();
   const {
     posts, comments, reports, bannedUsers, communityStatus, totalLikes,
     loginSessions, loginsToday,
@@ -30,7 +29,13 @@ const Admin = () => {
   } = useAdminData();
 
   useEffect(() => {
-    if (!loading && isAuthenticated && !isAdmin) {
+    if (loading) return;
+    if (!isAuthenticated) {
+      // Not logged in — go home (AuthModal will handle login)
+      navigate("/", { replace: true });
+      return;
+    }
+    if (!isAdmin) {
       navigate("/", { replace: true });
     }
   }, [loading, isAuthenticated, isAdmin, navigate]);
@@ -39,7 +44,6 @@ const Admin = () => {
     if (isAdmin) fetchAllData();
   }, [isAdmin, fetchAllData]);
 
-  // Realtime subscriptions for analytics tables
   useEffect(() => {
     if (!isAdmin) return;
     const channel = supabase
@@ -61,15 +65,7 @@ const Admin = () => {
   }
 
   if (!isAuthenticated || !isAdmin) {
-    return (
-      <AdminLogin
-        isAuthenticated={isAuthenticated}
-        isAdmin={isAdmin}
-        onLogin={login}
-        onLogout={logout}
-        error={authError}
-      />
-    );
+    return null; // Will redirect via useEffect
   }
 
   return (
