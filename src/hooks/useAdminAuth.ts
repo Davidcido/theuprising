@@ -3,33 +3,78 @@ import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
 const FALLBACK_ADMIN_EMAIL = "davidcido39@gmail.com";
+const VERIFICATION_TIMEOUT = 3000;
+
+type RoleCheckResult = {
+  hasAdminRole: boolean;
+  roleValue: "admin" | null | "timeout";
+  timedOut: boolean;
+};
 
 export const useAdminAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const mounted = useRef(true);
+  const verificationRequestId = useRef(0);
 
   useEffect(() => {
     mounted.current = true;
 
-    const checkRole = async (userId: string): Promise<boolean> => {
-      try {
-        const { data, error } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
+    const checkRoleWithTimeout = async (userId: string): Promise<RoleCheckResult> => {
+      let timeoutId: number | undefined;
 
-        if (error) {
-          console.error("[admin] role lookup failed", error);
-          return false;
+      const roleCheckPromise = (async (): Promise<RoleCheckResult> => {
+        try {
+          const { data, error } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
+
+          if (error) {
+            console.error("[admin] role lookup failed", error);
+            return {
+              hasAdminRole: false,
+              roleValue: null,
+              timedOut: false,
+            };
+          }
+
+          return {
+            hasAdminRole: data === true,
+            roleValue: data === true ? "admin" : null,
+            timedOut: false,
+          };
+        } catch (error) {
+          console.error("[admin] role lookup exception", error);
+          return {
+            hasAdminRole: false,
+            roleValue: null,
+            timedOut: false,
+          };
         }
+      })();
 
-        return data === true;
-      } catch (error) {
-        console.error("[admin] role lookup exception", error);
-        return false;
+      const timeoutPromise = new Promise<RoleCheckResult>((resolve) => {
+        timeoutId = window.setTimeout(() => {
+          console.warn("[admin] role lookup timed out");
+          resolve({
+            hasAdminRole: false,
+            roleValue: "timeout",
+            timedOut: true,
+          });
+        }, VERIFICATION_TIMEOUT);
+      });
+
+      const result = await Promise.race([roleCheckPromise, timeoutPromise]);
+
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
       }
+
+      return result;
     };
 
     const resolveAdminAccess = async (currentUser: User | null) => {
+      const requestId = ++verificationRequestId.current;
+
       if (!mounted.current) return;
 
       setLoading(true);
@@ -42,17 +87,24 @@ export const useAdminAuth = () => {
         return;
       }
 
-      const hasAdminRole = await checkRole(currentUser.id);
-      if (!mounted.current) return;
-
       const normalizedEmail = currentUser.email?.toLowerCase() ?? "";
+      console.log("[admin] verifying user", {
+        email: normalizedEmail,
+        userId: currentUser.id,
+      });
+
+      const { hasAdminRole, roleValue, timedOut } = await checkRoleWithTimeout(currentUser.id);
+
+      if (!mounted.current || requestId !== verificationRequestId.current) return;
+
       const allowedByEmail = normalizedEmail === FALLBACK_ADMIN_EMAIL;
       const allowed = hasAdminRole || allowedByEmail;
 
       console.log("[admin] access check", {
-        email: currentUser.email,
-        userId: currentUser.id,
+        email: normalizedEmail,
+        role: roleValue,
         hasAdminRole,
+        timedOut,
         allowedByEmail,
         allowed,
       });
@@ -67,9 +119,18 @@ export const useAdminAuth = () => {
       void resolveAdminAccess(session?.user ?? null);
     });
 
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      void resolveAdminAccess(session?.user ?? null);
-    });
+    void supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        void resolveAdminAccess(session?.user ?? null);
+      })
+      .catch((error) => {
+        console.error("[admin] session lookup failed", error);
+        if (!mounted.current) return;
+        setUser(null);
+        setIsAdmin(false);
+        setLoading(false);
+      });
 
     return () => {
       mounted.current = false;
