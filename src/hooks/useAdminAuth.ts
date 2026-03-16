@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
 const FALLBACK_ADMIN_EMAIL = "davidcido39@gmail.com";
-const VERIFICATION_TIMEOUT = 3000;
+const VERIFICATION_TIMEOUT = 2000;
 
 type RoleCheckResult = {
   hasAdminRole: boolean;
@@ -37,9 +37,11 @@ export const useAdminAuth = () => {
             };
           }
 
+          const resolvedRole = data === true ? "admin" : null;
+
           return {
             hasAdminRole: data === true,
-            roleValue: data === true ? "admin" : null,
+            roleValue: resolvedRole,
             timedOut: false,
           };
         } catch (error) {
@@ -88,29 +90,44 @@ export const useAdminAuth = () => {
       }
 
       const normalizedEmail = currentUser.email?.toLowerCase() ?? "";
+      const allowedByEmail = normalizedEmail === FALLBACK_ADMIN_EMAIL;
+
       console.log("[admin] verifying user", {
         email: normalizedEmail,
         userId: currentUser.id,
       });
 
-      const { hasAdminRole, roleValue, timedOut } = await checkRoleWithTimeout(currentUser.id);
+      if (allowedByEmail) {
+        console.log("[admin] access check", {
+          email: normalizedEmail,
+          role: "email_fallback",
+          adminCheckResult: true,
+        });
+        setIsAdmin(true);
+        setLoading(false);
+        return;
+      }
 
-      if (!mounted.current || requestId !== verificationRequestId.current) return;
+      try {
+        const { hasAdminRole, roleValue } = await checkRoleWithTimeout(currentUser.id);
 
-      const allowedByEmail = normalizedEmail === FALLBACK_ADMIN_EMAIL;
-      const allowed = hasAdminRole || allowedByEmail;
+        if (!mounted.current || requestId !== verificationRequestId.current) return;
 
-      console.log("[admin] access check", {
-        email: normalizedEmail,
-        role: roleValue,
-        hasAdminRole,
-        timedOut,
-        allowedByEmail,
-        allowed,
-      });
+        console.log("[admin] access check", {
+          email: normalizedEmail,
+          role: roleValue,
+          adminCheckResult: hasAdminRole,
+        });
 
-      setIsAdmin(allowed);
-      setLoading(false);
+        setIsAdmin(hasAdminRole);
+      } catch (error) {
+        console.error("[admin] verification failed", error);
+        if (!mounted.current || requestId !== verificationRequestId.current) return;
+        setIsAdmin(false);
+      } finally {
+        if (!mounted.current || requestId !== verificationRequestId.current) return;
+        setLoading(false);
+      }
     };
 
     const {
