@@ -39,32 +39,30 @@ export const useDailyRiseContent = () => {
     queryFn: async (): Promise<DailyRiseCard[]> => {
       const today = new Date().toISOString().split("T")[0];
 
-      const { data, error } = await (supabase as any)
-        .from("daily_rise_content")
-        .select("cards")
-        .eq("content_date", today)
-        .maybeSingle();
+      try {
+        const { data } = await (supabase as any)
+          .from("daily_rise_content")
+          .select("cards")
+          .eq("content_date", today)
+          .maybeSingle();
 
-      if (error || !data) {
-        // Try to generate if missing
-        try {
-          await supabase.functions.invoke("generate-daily-rise");
-          const { data: retry } = await (supabase as any)
-            .from("daily_rise_content")
-            .select("cards")
-            .eq("content_date", today)
-            .maybeSingle();
-
-          if (retry?.cards) {
-            return mapCards(retry.cards as any[]);
-          }
-        } catch {
-          // Fall through to static fallback
+        if (data?.cards) {
+          return mapCards(data.cards as any[]);
         }
-        return getDailyRiseCards();
+
+        // No content for today. Trigger generation in the background
+        // (fire-and-forget) so the UI never waits on the AI function.
+        // If AI credits are unavailable it simply fails silently and we
+        // keep serving the static fallback below.
+        supabase.functions
+          .invoke("generate-daily-rise")
+          .catch(() => {});
+      } catch {
+        // Ignore — fall through to static fallback so the app keeps working
+        // even if the database query or AI generation fails.
       }
 
-      return mapCards(data.cards as any[]);
+      return getDailyRiseCards();
     },
     staleTime: 1000 * 60 * 30, // 30 min
   });
