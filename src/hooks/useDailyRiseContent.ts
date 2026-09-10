@@ -52,11 +52,19 @@ export const useDailyRiseContent = () => {
 
         // No content for today. Trigger generation in the background
         // (fire-and-forget) so the UI never waits on the AI function.
-        // If AI credits are unavailable it simply fails silently and we
-        // keep serving the static fallback below.
-        supabase.functions
-          .invoke("generate-daily-rise")
-          .catch(() => {});
+        // If AI credits are unavailable (402/429) we back off for the rest
+        // of the day and keep serving the static fallback below.
+        const backoffKey = "daily-rise-gen-blocked";
+        if (localStorage.getItem(backoffKey) !== today) {
+          supabase.functions
+            .invoke("generate-daily-rise")
+            .then(({ error }) => {
+              if (error) localStorage.setItem(backoffKey, today);
+            })
+            .catch(() => {
+              localStorage.setItem(backoffKey, today);
+            });
+        }
       } catch {
         // Ignore — fall through to static fallback so the app keeps working
         // even if the database query or AI generation fails.
