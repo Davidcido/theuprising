@@ -1458,7 +1458,7 @@ const Community = () => {
             original_post_id: post.id,
           });
         }
-        supabase.from("community_posts").update({ shares_count: post.shares_count + 1 }).eq("id", post.id).then(() => {});
+        supabase.rpc("increment_shares", { post_id_input: post.id }).then(() => {});
         if (post.author_id && post.author_id !== currentUser.id) {
           createNotification(post.author_id, currentUser.id, "repost", "reposted your post", post.id);
         }

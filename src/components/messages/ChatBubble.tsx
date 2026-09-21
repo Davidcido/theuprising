@@ -273,7 +273,7 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
       } catch {
         // Fallback: retry with fresh audio element
         try {
-          audio.src = msgAny.attachment_url;
+          audio.src = attachmentUrl ?? "";
           audio.load();
           await new Promise(r => setTimeout(r, 100));
           await audio.play();
