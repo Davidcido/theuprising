@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { EmojiPicker as FrimoussePicker } from "frimousse";
 import type { DirectMessage } from "@/hooks/useConversations";
 import type { GroupedReaction } from "@/hooks/useMessageReactions";
+import { useDmMediaUrl } from "@/lib/dmMedia";
 
 type Props = {
   msg: DirectMessage;
@@ -151,6 +152,9 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
   const longPressRef = useRef<NodeJS.Timeout | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Attachments live in a private bucket — resolve to a short-lived signed URL.
+  const attachmentUrl = useDmMediaUrl(msgAny.attachment_url);
+
   const isDeletedForEveryone = msgAny.deleted_for_everyone === true;
   const isEdited = !!msgAny.edited_at;
   const canEdit = isMine && !isDeletedForEveryone && !msgAny.attachment_url && (Date.now() - new Date(msg.created_at).getTime()) < EDIT_WINDOW_MS;
@@ -269,7 +273,7 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
       } catch {
         // Fallback: retry with fresh audio element
         try {
-          audio.src = msgAny.attachment_url;
+          audio.src = attachmentUrl ?? "";
           audio.load();
           await new Promise(r => setTimeout(r, 100));
           await audio.play();
@@ -452,18 +456,18 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
           )}
 
           {/* Image attachment */}
-          {msgAny.attachment_url && msgAny.attachment_type === "image" && (
+          {attachmentUrl && msgAny.attachment_type === "image" && (
             <img
-              src={msgAny.attachment_url}
+              src={attachmentUrl}
               alt="Shared image"
               className="rounded-xl max-w-full mb-2 cursor-pointer hover:opacity-90"
-              onClick={() => window.open(msgAny.attachment_url, "_blank")}
+              onClick={() => window.open(attachmentUrl, "_blank")}
             />
           )}
 
           {/* Video attachment */}
-          {msgAny.attachment_url && msgAny.attachment_type === "video" && (
-            <ChatVideoPlayer url={msgAny.attachment_url} />
+          {attachmentUrl && msgAny.attachment_type === "video" && (
+            <ChatVideoPlayer url={attachmentUrl} />
           )}
 
           {/* Audio attachment */}
@@ -494,7 +498,7 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
               </button>
               <audio
                 ref={audioRef}
-                src={msgAny.attachment_url}
+                src={attachmentUrl ?? undefined}
                 preload="auto"
                 onLoadedMetadata={handleAudioLoaded}
                 onEnded={handleAudioEnded}
