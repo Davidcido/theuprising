@@ -8,6 +8,7 @@ export const useAdminAuth = () => {
 
   useEffect(() => {
     const resolveAccess = (currentUser: User | null) => {
+      console.log("[dbg] resolveAccess", currentUser?.email);
       setUser(currentUser);
       setLoading(false);
     };
@@ -15,12 +16,14 @@ export const useAdminAuth = () => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log("[dbg] admin auth event", _event);
       resolveAccess(session?.user ?? null);
     });
 
     void supabase.auth
       .getSession()
       .then(({ data: { session } }) => {
+        console.log("[dbg] getSession resolved", session?.user?.email);
         resolveAccess(session?.user ?? null);
       })
       .catch((error) => {
