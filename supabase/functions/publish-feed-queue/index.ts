@@ -170,16 +170,30 @@ serve(async (req) => {
         .maybeSingle();
       if (!claimed) continue;
 
-      const companion = findCompanion(item.companion_name) || COMPANIONS[0];
-      let mediaUrls: string[] = item.media_urls || [];
+      const companion = resolveCompanion(item.companion_name) || COMPANIONS[0];
+      const mediaSeed = seedFrom(item.id + item.content.slice(0, 40));
+      let mediaUrls: string[] = [];
 
-      if (item.media_type === "image" && mediaUrls.length === 0) {
+      // Never reuse media: anything already in the history is rejected.
+      for (const url of (item.media_urls as string[]) || []) {
+        const { data: seen } = await supabase
+          .from("feed_media_assets")
+          .select("id")
+          .eq("url", url)
+          .maybeSingle();
+        if (!seen && (await claimAsset(supabase, `url:${url}`, url, item.media_type, null))) {
+          mediaUrls.push(url);
+        }
+      }
+
+      if (item.media_type !== "text" && mediaUrls.length === 0) {
         if (apiKey && imagesMade < MAX_IMAGES_PER_RUN) {
           const url = await generateImage(
             apiKey,
             supabase,
             item.visual_concept || item.content.slice(0, 120),
             `feed-${item.id}`,
+            mediaSeed,
           );
           if (url) {
             mediaUrls = [url];
@@ -187,9 +201,12 @@ serve(async (req) => {
           }
         }
         if (mediaUrls.length === 0) {
-          // graceful fallback: a themed clip rather than an empty media post
-          const pick = pickCompanionVideo(companion, Math.floor(Math.random() * 97));
-          mediaUrls = [pick.url];
+          // Fall back to a themed clip, but only one that has never been used.
+          const pick = await pickUnusedVideo(supabase, companion, mediaSeed % 97);
+          if (pick && (await claimAsset(supabase, `url:${pick.url}`, pick.url, "video", pick.theme))) {
+            mediaUrls = [pick.url];
+          }
+          // Otherwise the post simply publishes as text — better than recycled media.
         }
       }
 
