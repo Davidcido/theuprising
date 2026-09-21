@@ -1263,11 +1263,49 @@ export type Database = {
         Returns: boolean
       }
       decrement_likes: { Args: { post_id_input: string }; Returns: undefined }
+      delete_my_comment_reaction: {
+        Args: { _comment_id: string; _emoji: string; _session_id: string }
+        Returns: undefined
+      }
+      delete_my_like: {
+        Args: { _post_id: string; _session_id: string }
+        Returns: undefined
+      }
+      delete_my_reaction: {
+        Args: { _emoji: string; _post_id: string; _session_id: string }
+        Returns: undefined
+      }
       find_conversation_between: {
         Args: { user_a: string; user_b: string }
         Returns: string
       }
+      get_comment_reactions: {
+        Args: { _comment_ids: string[]; _session_id: string }
+        Returns: {
+          comment_id: string
+          created_at: string
+          emoji: string
+          id: string
+          session_id: string
+        }[]
+      }
+      get_my_liked_posts: {
+        Args: { _session_id: string }
+        Returns: {
+          post_id: string
+        }[]
+      }
       get_my_real_name: { Args: never; Returns: string }
+      get_post_reactions: {
+        Args: { _post_ids: string[]; _session_id: string }
+        Returns: {
+          created_at: string
+          emoji: string
+          id: string
+          post_id: string
+          session_id: string
+        }[]
+      }
       get_profile_view_counts: {
         Args: { _profile_user_id: string }
         Returns: {
