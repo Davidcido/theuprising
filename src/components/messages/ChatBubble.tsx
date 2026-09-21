@@ -498,7 +498,7 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
               </button>
               <audio
                 ref={audioRef}
-                src={msgAny.attachment_url}
+                src={attachmentUrl ?? undefined}
                 preload="auto"
                 onLoadedMetadata={handleAudioLoaded}
                 onEnded={handleAudioEnded}
