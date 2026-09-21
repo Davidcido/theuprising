@@ -151,7 +151,7 @@ const Profile = () => {
   };
 
   // Show skeleton only when we have no profile data at all
-  if (!profile && loading) {
+  if (!profile && (loading || !authReady)) {
     return <ProfileSkeleton />;
   }
 
