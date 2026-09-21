@@ -371,22 +371,19 @@ const Community = () => {
   }, [enrichPosts, feedCache]);
 
   const fetchLikedPosts = useCallback(async () => {
-    const { data } = await supabase
-      .from("community_likes")
-      .select("post_id")
-      .eq("session_id", sessionId);
-    if (data) setLikedPosts(new Set(data.map((l) => l.post_id)));
+    const { data } = await supabase.rpc("get_my_liked_posts" as any, { _session_id: sessionId });
+    if (data) setLikedPosts(new Set((data as any[]).map((l) => l.post_id)));
   }, [sessionId]);
 
   const fetchReactions = useCallback(async () => {
     // Only fetch reactions for currently loaded posts to reduce payload
     const postIds = allPosts.map(p => p.id).filter(id => !id.startsWith("repost-") && !id.startsWith("optimistic-"));
     if (postIds.length === 0) return;
-    const { data } = await supabase.from("community_reactions").select("*").in("post_id", postIds);
+    const { data } = await supabase.rpc("get_post_reactions" as any, { _post_ids: postIds, _session_id: sessionId });
     if (data) {
       const grouped: Record<string, Reaction[]> = {};
       const mine = new Set<string>();
-      for (const r of data) {
+      for (const r of data as any[]) {
         if (!grouped[r.post_id]) grouped[r.post_id] = [];
         grouped[r.post_id].push(r);
         if (r.session_id === sessionId) mine.add(`${r.post_id}:${r.emoji}`);
@@ -402,11 +399,11 @@ const Community = () => {
     if (expandedPostIds.length === 0) return;
     const commentIds = expandedPostIds.flatMap(pid => (comments[pid] || []).map(c => c.id));
     if (commentIds.length === 0) return;
-    const { data } = await supabase.from("comment_reactions").select("*").in("comment_id", commentIds);
+    const { data } = await supabase.rpc("get_comment_reactions" as any, { _comment_ids: commentIds, _session_id: sessionId });
     if (data) {
       const grouped: Record<string, { emoji: string; session_id: string }[]> = {};
       const mine = new Set<string>();
-      for (const r of data) {
+      for (const r of data as any[]) {
         if (!grouped[r.comment_id]) grouped[r.comment_id] = [];
         grouped[r.comment_id].push({ emoji: r.emoji, session_id: r.session_id });
         if (r.session_id === sessionId) mine.add(`${r.comment_id}:${r.emoji}`);
@@ -1171,7 +1168,7 @@ const Community = () => {
     if (isLiked) {
       setLikedPosts((prev) => { const n = new Set(prev); n.delete(postId); return n; });
       setAllPosts((prev) => prev.map((p) => p.id === postId ? { ...p, likes_count: Math.max(0, p.likes_count - 1) } : p));
-      await supabase.from("community_likes").delete().eq("post_id", postId).eq("session_id", sessionId);
+      await supabase.rpc("delete_my_like" as any, { _post_id: postId, _session_id: sessionId });
       await supabase.rpc("decrement_likes", { post_id_input: postId });
     } else {
       setLikedPosts((prev) => new Set(prev).add(postId));
@@ -1193,7 +1190,7 @@ const Community = () => {
         ...prev,
         [postId]: (prev[postId] || []).filter((r) => !(r.session_id === sessionId && r.emoji === emoji)),
       }));
-      await supabase.from("community_reactions").delete().eq("post_id", postId).eq("session_id", sessionId).eq("emoji", emoji);
+      await supabase.rpc("delete_my_reaction" as any, { _post_id: postId, _emoji: emoji, _session_id: sessionId });
     } else {
       setMyReactions((prev) => new Set(prev).add(key));
       const newReaction = { id: crypto.randomUUID(), post_id: postId, session_id: sessionId, emoji };
@@ -1214,7 +1211,7 @@ const Community = () => {
         ...prev,
         [commentId]: (prev[commentId] || []).filter((r) => !(r.session_id === sessionId && r.emoji === emoji)),
       }));
-      await supabase.from("comment_reactions").delete().eq("comment_id", commentId).eq("session_id", sessionId).eq("emoji", emoji);
+      await supabase.rpc("delete_my_comment_reaction" as any, { _comment_id: commentId, _emoji: emoji, _session_id: sessionId });
     } else {
       setMyCommentReactions((prev) => new Set(prev).add(key));
       setCommentReactions((prev) => ({
