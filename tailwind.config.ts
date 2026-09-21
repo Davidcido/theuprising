@@ -63,6 +63,16 @@ export default {
           "blue-light": "hsl(var(--uprising-blue-light))",
           warm: "hsl(var(--uprising-warm))",
         },
+        jdg: {
+          ink: "#090909",
+          surface: "#151412",
+          bone: "#F3EFE6",
+          muted: "#A8A196",
+          gold: "#C49A3A",
+          blue: "#243F8F",
+          burgundy: "#681A29",
+          forest: "#16472C",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -102,6 +112,10 @@ export default {
         "accordion-up": "accordion-up 0.2s ease-out",
         "float": "float 6s ease-in-out infinite",
         "pulse-soft": "pulse-soft 3s ease-in-out infinite",
+      },
+      backgroundImage: {
+        "jdg-vignette": "linear-gradient(180deg, rgba(9,9,9,.18) 15%, rgba(9,9,9,.95) 100%)",
+        "jdg-lookbook": "linear-gradient(180deg, rgba(9,9,9,.08) 20%, rgba(9,9,9,.92) 100%)",
       },
     },
   },

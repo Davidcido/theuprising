@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Heart, MessageCircle, Sparkles, Users, Menu, X, LogIn, LogOut, User, Mail, Compass, Sun } from "lucide-react";
+import { Heart, MessageCircle, Sparkles, Users, Menu, X, LogIn, LogOut, User, Mail, Compass, Sun, Gem } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,6 +19,7 @@ const navItems = [
   { to: "/explore", label: "Explore", icon: Compass },
   { to: "/daily-rise", label: "Daily Rise", icon: Sun },
   { to: "/vision", label: "The Uprising", icon: Heart },
+  { to: "/brand", label: "The Brand", icon: Gem, secondary: true },
 ];
 
 const Navbar = () => {
@@ -83,14 +84,16 @@ const Navbar = () => {
           </Link>
 
           {/* Desktop nav */}
-          <div className="hidden md:flex items-center gap-1">
+          <div className="hidden lg:flex items-center gap-1">
             {navItems.map((item) => {
-              const active = location.pathname === item.to;
+               const active = item.to === "/brand" ? location.pathname.startsWith("/brand") : location.pathname === item.to;
               return (
                 <Link
                   key={item.to}
                   to={item.to}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                    item.secondary ? "ml-1 border border-amber-300/25 " : ""
+                  }${
                     active
                       ? "bg-white/20 text-white border border-white/20"
                       : "text-white/60 hover:text-white hover:bg-white/10"
@@ -149,7 +152,7 @@ const Navbar = () => {
           </div>
 
           {/* Mobile toggle */}
-          <div className="md:hidden flex items-center gap-1">
+           <div className="lg:hidden flex items-center gap-1">
             {authUser && (
               <>
                 <button
@@ -184,25 +187,25 @@ const Navbar = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[-1] md:hidden"
+                 className="fixed inset-0 z-[-1] lg:hidden"
                 onClick={() => setMobileOpen(false)}
               />
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
-                className="md:hidden border-b border-white/10 backdrop-blur-xl"
+                 className="lg:hidden border-b border-white/10 backdrop-blur-xl"
                 style={{ background: "rgba(15, 81, 50, 0.95)" }}
               >
               <div className="px-4 py-3 flex flex-col gap-1">
                 {navItems.map((item) => {
-                  const active = location.pathname === item.to;
+                   const active = item.to === "/brand" ? location.pathname.startsWith("/brand") : location.pathname === item.to;
                   return (
                     <Link
                       key={item.to}
                       to={item.to}
                       onClick={() => setMobileOpen(false)}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                       className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${item.secondary ? "mt-2 border-t border-white/10 pt-4 rounded-none " : ""}${
                         active
                           ? "bg-white/20 text-white"
                           : "text-white/60 hover:text-white hover:bg-white/10"

@@ -18,6 +18,7 @@ const buttonVariants = cva(
         hero: "bg-gradient-hero text-primary-foreground hover:opacity-90 shadow-glow font-semibold",
         warm: "bg-uprising-orange text-primary-foreground hover:bg-uprising-orange/90 font-semibold",
         soft: "bg-uprising-green-light text-uprising-green-dark hover:bg-uprising-green-light/80 font-medium",
+        jdg: "rounded-none border border-jdg-gold bg-jdg-gold px-7 uppercase tracking-[0.14em] text-jdg-ink hover:bg-transparent hover:text-jdg-gold",
       },
       size: {
         default: "h-10 px-4 py-2",

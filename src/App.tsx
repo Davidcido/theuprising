@@ -38,6 +38,13 @@ const DailyRise = lazy(() => import("./pages/DailyRise"));
 const CompanionExplorer = lazy(() => import("./pages/CompanionExplorer"));
 const CompanionProfile = lazy(() => import("./pages/CompanionProfile"));
 const SleepMode = lazy(() => import("./pages/SleepMode"));
+const JdgShell = lazy(() => import("./components/brand/JdgShell"));
+const JdgHome = lazy(() => import("./pages/brand/JdgHome"));
+const JdgCollection = lazy(() => import("./pages/brand/JdgCollection"));
+const JdgProduct = lazy(() => import("./pages/brand/JdgProduct"));
+const JdgLookbook = lazy(() => import("./pages/brand/JdgLookbook"));
+const JdgStory = lazy(() => import("./pages/brand/JdgStory"));
+const JdgShop = lazy(() => import("./pages/brand/JdgShop"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -175,6 +182,14 @@ const AppContent = () => {
                 <ErrorBoundary inline><SleepMode /></ErrorBoundary>
               </ProtectedRoute>
             } />
+            <Route path="/brand" element={<ErrorBoundary inline><JdgShell /></ErrorBoundary>}>
+              <Route index element={<JdgHome />} />
+              <Route path="collection" element={<JdgCollection />} />
+              <Route path="product/:slug" element={<JdgProduct />} />
+              <Route path="lookbook" element={<JdgLookbook />} />
+              <Route path="story" element={<JdgStory />} />
+              <Route path="shop" element={<JdgShop />} />
+            </Route>
           </Route>
           <Route path="/admin" element={<Admin />} />
           <Route path="/reset-password" element={<ResetPassword />} />
