@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchCommunityPosts } from "@/lib/communityFeedApi";
 
 const WARMUP_KEY = "uprising_feed_warmup";
 const WARMUP_TTL = 3 * 60 * 1000; // 3 minutes
@@ -27,11 +27,7 @@ export function useFeedWarmup() {
     // Fire and forget — don't block anything
     const warmup = async () => {
       try {
-        const { data } = await supabase
-          .from("community_posts")
-          .select("id, content, anonymous_name, author_id, is_anonymous, likes_count, comments_count, shares_count, views_count, created_at, media_urls, original_post_id, reposted_by_name, engagement_score")
-          .order("created_at", { ascending: false })
-          .limit(15);
+        const data = await fetchCommunityPosts(15);
 
         if (data && data.length > 0) {
           localStorage.setItem(
