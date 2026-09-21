@@ -8,8 +8,23 @@ import sleevelessWhiteAsset from "@/assets/jdg/paneled-sleeveless-white.png.asse
 import sleevelessBlackAsset from "@/assets/jdg/paneled-sleeveless-black.png.asset.json";
 import sleevelessBlueAsset from "@/assets/jdg/paneled-sleeveless-blue.webp.asset.json";
 import sleevelessGreenAsset from "@/assets/jdg/paneled-sleeveless-green.webp.asset.json";
+import cropTopWhiteAsset from "@/assets/jdg/crop-top-white.png.asset.json";
+import cropTopBlackAsset from "@/assets/jdg/crop-top-black.png.asset.json";
+import cropTopBlueAsset from "@/assets/jdg/crop-top-blue.png.asset.json";
+import cropTopBurgundyAsset from "@/assets/jdg/crop-top-burgundy.png.asset.json";
+import cropTopGreenAsset from "@/assets/jdg/crop-top-green.png.asset.json";
+import beanieAsset from "@/assets/jdg/black-emblem-beanie.png.asset.json";
 
-export type JdgCategory = "T-Shirts" | "Sleeveless Tops";
+export type JdgCategory =
+  | "New Arrivals"
+  | "T-Shirts"
+  | "Hoodies"
+  | "Outerwear"
+  | "Bottoms"
+  | "Accessories"
+  | "Limited Editions"
+  | "Sleeveless Tops"
+  | "Tops";
 
 export interface JdgColorway {
   name: string;
@@ -58,6 +73,28 @@ export const jdgProducts: JdgProduct[] = [
       { name: "Black / Gold", swatch: "bg-jdg-ink border-jdg-muted", image: sleevelessBlackAsset.url, imageAlt: "Black and gold JDG paneled sleeveless top" },
       { name: "Royal Blue / Cream", swatch: "bg-jdg-blue", image: sleevelessBlueAsset.url, imageAlt: "Royal blue and cream JDG paneled sleeveless top" },
       { name: "Forest Green / Cream", swatch: "bg-jdg-forest", image: sleevelessGreenAsset.url, imageAlt: "Forest green and cream JDG paneled sleeveless top" },
+    ],
+  },
+  {
+    slug: "cropped-panel-top",
+    name: "JDG Cropped Panel Top",
+    category: "Tops",
+    tagline: "A fitted shape cut for movement, traced with contrast panels.",
+    colorways: [
+      { name: "White / Gold", swatch: "bg-jdg-bone", image: cropTopWhiteAsset.url, imageAlt: "White and gold JDG cropped panel top on a mannequin" },
+      { name: "Black / Gold", swatch: "bg-jdg-ink border-jdg-muted", image: cropTopBlackAsset.url, imageAlt: "Black and gold JDG cropped panel top on a mannequin" },
+      { name: "Royal Blue / Cream", swatch: "bg-jdg-blue", image: cropTopBlueAsset.url, imageAlt: "Royal blue and cream JDG cropped panel top on a mannequin" },
+      { name: "Burgundy / Cream", swatch: "bg-jdg-burgundy", image: cropTopBurgundyAsset.url, imageAlt: "Burgundy and cream JDG cropped panel top on a mannequin" },
+      { name: "Forest Green / Cream", swatch: "bg-jdg-forest", image: cropTopGreenAsset.url, imageAlt: "Forest green and cream JDG cropped panel top on a mannequin" },
+    ],
+  },
+  {
+    slug: "rebirth-emblem-beanie",
+    name: "JDG Rebirth Emblem Beanie",
+    category: "Accessories",
+    tagline: "The emblem, stitched for colder mornings.",
+    colorways: [
+      { name: "Black / Gold", swatch: "bg-jdg-ink border-jdg-muted", image: beanieAsset.url, imageAlt: "Black JDG beanie with gold rebirth emblem" },
     ],
   },
 ];
