@@ -6,8 +6,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   COMPANIONS,
   CONTENT_TYPES,
-  findCompanion,
-  pickCompanionVideo,
+  INTERACTION_PROFILES,
+  resolveCompanion,
+  selectCommenters,
 } from "../_shared/feedCompanions.ts";
 
 const corsHeaders = {
@@ -304,12 +305,14 @@ serve(async (req) => {
       .map((r) => r.content.replace(/\s+/g, " ").slice(0, 90))
       .join("\n- ");
 
-    const roster = COMPANIONS.map(
-      (c) =>
-        `${c.name} ${c.emoji} — ${c.style}. Voice: ${c.voice}. Activity level: ${
-          c.activity >= 0.85 ? "high" : c.activity >= 0.65 ? "medium" : "low"
-        }.`,
-    ).join("\n");
+    const roster = COMPANIONS.map((c) => {
+      const p = INTERACTION_PROFILES[c.name];
+      return `${c.name} ${c.emoji} — ${c.style}. Voice: ${c.voice}. Posting activity: ${
+        c.activity >= 0.85 ? "high" : c.activity >= 0.65 ? "medium" : "low"
+      }. Cares about: ${p.topics.join(", ")}. Rarely engages with: ${p.avoids.join(
+        ", ",
+      )}. Tone: ${p.tone}. Naturally bounces off: ${p.affinities.join(" and ")}.`;
+    }).join("\n");
 
     const prompt = `Plan ${todo.length} day(s) of activity for the Uprising community feed.
 Dates (UTC): ${todo.join(", ")}. Current real date: ${dateStr(now)}. Season context: ${seasonFor(
