@@ -127,6 +127,7 @@ export const useProfile = (userId?: string) => {
       setProfile((prev) => prev ? { ...prev, ...updates } : prev);
       invalidateProfileCache(userId);
       profileCache.delete(userId);
+      try { localStorage.removeItem(STORAGE_PREFIX + userId); } catch {}
     }
     return { error: error?.message || null };
   };
