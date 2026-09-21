@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { EmojiPicker as FrimoussePicker } from "frimousse";
 import type { DirectMessage } from "@/hooks/useConversations";
 import type { GroupedReaction } from "@/hooks/useMessageReactions";
+import { useDmMediaUrl } from "@/lib/dmMedia";
 
 type Props = {
   msg: DirectMessage;
