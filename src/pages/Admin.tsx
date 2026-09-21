@@ -16,7 +16,6 @@ import AnalyticsTab from "@/components/admin/AnalyticsTab";
 import { supabase } from "@/integrations/supabase/client";
 
 const Admin = () => {
-  console.log("[dbg] Admin render");
   const navigate = useNavigate();
   const { user, isAuthenticated, isAdmin, loading, logout } = useAdminAuth();
   const {
