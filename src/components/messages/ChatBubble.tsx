@@ -456,18 +456,18 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
           )}
 
           {/* Image attachment */}
-          {msgAny.attachment_url && msgAny.attachment_type === "image" && (
+          {attachmentUrl && msgAny.attachment_type === "image" && (
             <img
-              src={msgAny.attachment_url}
+              src={attachmentUrl}
               alt="Shared image"
               className="rounded-xl max-w-full mb-2 cursor-pointer hover:opacity-90"
-              onClick={() => window.open(msgAny.attachment_url, "_blank")}
+              onClick={() => window.open(attachmentUrl, "_blank")}
             />
           )}
 
           {/* Video attachment */}
-          {msgAny.attachment_url && msgAny.attachment_type === "video" && (
-            <ChatVideoPlayer url={msgAny.attachment_url} />
+          {attachmentUrl && msgAny.attachment_type === "video" && (
+            <ChatVideoPlayer url={attachmentUrl} />
           )}
 
           {/* Audio attachment */}
