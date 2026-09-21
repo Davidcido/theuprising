@@ -274,7 +274,7 @@ serve(async (req) => {
         commentCount++;
 
         if (inter.reply_text && inter.reply_companion) {
-          const replier = findCompanion(inter.reply_companion);
+          const replier = resolveCompanion(inter.reply_companion);
           if (replier) {
             const replyAt = new Date(at.getTime() + (10 + Math.floor(Math.random() * 90)) * 60000);
             if (replyAt.getTime() <= Date.now()) {
