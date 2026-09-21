@@ -32,6 +32,7 @@ import { useAuthReady } from "@/hooks/useAuthReady";
 import { useFeedCache } from "@/hooks/useFeedCache";
 import { useVirtualFeed } from "@/hooks/useVirtualFeed";
 import PullToRefresh from "@/components/community/PullToRefresh";
+import { fetchCommunityPosts } from "@/lib/communityFeedApi";
 
 type FeedTab = "foryou" | "following" | "trending";
 
@@ -224,22 +225,10 @@ const Community = () => {
     });
 
     try {
-      let query = supabase
-        .from("community_posts")
-        .select("id, content, anonymous_name, author_id, is_anonymous, likes_count, comments_count, shares_count, views_count, created_at, media_urls, original_post_id, reposted_by_name, engagement_score")
-        .order("created_at", { ascending: false })
-        .order("id", { ascending: false })
-        .limit(POSTS_PER_PAGE);
-
-      if (loadMore && cursorRef.current) {
-        const { createdAt, id } = cursorRef.current;
-        query = query.or(`created_at.lt.${createdAt},and(created_at.eq.${createdAt},id.lt.${id})`);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-
-      const rows = data || [];
+      const rows = await fetchCommunityPosts(
+        POSTS_PER_PAGE,
+        loadMore ? cursorRef.current : null,
+      );
       console.log("[Community][feed] fetch end", {
         mode: loadMore ? "scroll" : "initial",
         count: rows.length,
@@ -274,6 +263,25 @@ const Community = () => {
         });
         return;
       }
+
+      // Commit the primary feed immediately. Optional repost/profile lookups must
+      // never hold existing posts off-screen if an authenticated client request stalls.
+      setAllPosts((prev) => {
+        const pendingPosts = prev.filter((p) => p._pendingMedia && p._pendingMedia.length > 0);
+        const enrichedIds = new Set(enriched.map((p) => p.id));
+        const result = enriched.map((p) => {
+          const pending = pendingPosts.find((pp) => pp.id === p.id);
+          return pending
+            ? { ...p, _pendingMedia: pending._pendingMedia, _onCancelUpload: pending._onCancelUpload, _onRetryUpload: pending._onRetryUpload }
+            : p;
+        });
+        for (const pending of pendingPosts) {
+          if (!enrichedIds.has(pending.id)) result.unshift(pending);
+        }
+        return result;
+      });
+      feedCache.updateCache(enriched);
+      setLoading(false);
 
       let directRepostPosts: Post[] = [];
       try {
