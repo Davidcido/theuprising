@@ -78,9 +78,23 @@ export const useProfile = (userId?: string) => {
           .insert({ user_id: userId, display_name: defaultName, online_status: "online" })
           .select("*")
           .single();
+        const p = (newProfile as unknown as Profile) ?? ({
+          // Creation blocked or slow — still render the page with the basics
+          // instead of leaving the user staring at a skeleton.
+          id: userId,
+          user_id: userId,
+          display_name: defaultName,
+          bio: null,
+          country: null,
+          avatar_url: null,
+          cover_photo: null,
+          online_status: "online",
+          last_seen_at: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as Profile);
+        setProfile(p);
         if (newProfile) {
-          const p = newProfile as unknown as Profile;
-          setProfile(p);
           profileCache.set(userId, { profile: p, ts: Date.now() });
           writeStoredProfile(userId, p);
         }
