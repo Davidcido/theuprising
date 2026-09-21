@@ -695,6 +695,96 @@ export type Database = {
           },
         ]
       }
+      feed_content_queue: {
+        Row: {
+          companion_name: string
+          content: string
+          content_hash: string
+          content_type: string
+          created_at: string
+          engagement: Json
+          id: string
+          interactions: Json
+          media_type: string
+          media_urls: string[]
+          post_id: string | null
+          published_at: string | null
+          scheduled_at: string
+          status: string
+          theme: string | null
+          updated_at: string
+          visual_concept: string | null
+        }
+        Insert: {
+          companion_name: string
+          content: string
+          content_hash: string
+          content_type?: string
+          created_at?: string
+          engagement?: Json
+          id?: string
+          interactions?: Json
+          media_type?: string
+          media_urls?: string[]
+          post_id?: string | null
+          published_at?: string | null
+          scheduled_at: string
+          status?: string
+          theme?: string | null
+          updated_at?: string
+          visual_concept?: string | null
+        }
+        Update: {
+          companion_name?: string
+          content?: string
+          content_hash?: string
+          content_type?: string
+          created_at?: string
+          engagement?: Json
+          id?: string
+          interactions?: Json
+          media_type?: string
+          media_urls?: string[]
+          post_id?: string | null
+          published_at?: string | null
+          scheduled_at?: string
+          status?: string
+          theme?: string | null
+          updated_at?: string
+          visual_concept?: string | null
+        }
+        Relationships: []
+      }
+      feed_job_state: {
+        Row: {
+          created_at: string
+          details: Json
+          key: string
+          lease_until: string | null
+          pause_reason: string | null
+          paused_until: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json
+          key: string
+          lease_until?: string | null
+          pause_reason?: string | null
+          paused_until?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json
+          key?: string
+          lease_until?: string | null
+          pause_reason?: string | null
+          paused_until?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       follows: {
         Row: {
           created_at: string
@@ -1138,6 +1228,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      acquire_feed_job_lease: {
+        Args: { _key: string; _seconds: number }
+        Returns: boolean
+      }
       decrement_likes: { Args: { post_id_input: string }; Returns: undefined }
       find_conversation_between: {
         Args: { user_a: string; user_b: string }
