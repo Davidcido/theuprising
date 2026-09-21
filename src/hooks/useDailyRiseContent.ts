@@ -72,6 +72,9 @@ export const useDailyRiseContent = () => {
 
       return getDailyRiseCards();
     },
+    // Render the static cards instantly, then swap in today's content when it
+    // arrives — the user never sits in front of a skeleton.
+    placeholderData: () => getDailyRiseCards(),
     staleTime: 1000 * 60 * 30, // 30 min
   });
 };
