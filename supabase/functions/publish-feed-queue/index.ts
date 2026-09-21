@@ -24,12 +24,54 @@ const MAX_IMAGES_PER_RUN = 3;
 
 const REACTION_EMOJIS = ["❤️", "🔥", "🙏", "✨", "💚", "😊"];
 
+async function sha256Hex(bytes: Uint8Array) {
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/** Records an asset in the permanent media history. Returns false if already used. */
+async function claimAsset(
+  supabase: any,
+  assetHash: string,
+  url: string,
+  kind: string,
+  concept: string | null,
+) {
+  const { error } = await supabase
+    .from("feed_media_assets")
+    .insert({ asset_hash: assetHash, url, kind, visual_concept: concept });
+  return !error;
+}
+
+/** Picks a themed clip that has never been used before, if one is left. */
+async function pickUnusedVideo(supabase: any, companion: any, seed: number) {
+  const themes = companion.themes.filter((t: string) => THEMED_VIDEOS[t]?.length);
+  const candidates: { url: string; theme: string }[] = [];
+  for (const theme of themes.length ? themes : ["forest"]) {
+    for (const url of THEMED_VIDEOS[theme] || []) candidates.push({ url, theme });
+  }
+  if (candidates.length === 0) return pickCompanionVideo(companion, seed);
+
+  const { data: used } = await supabase
+    .from("feed_media_assets")
+    .select("url")
+    .in("url", candidates.map((c) => c.url));
+  const usedSet = new Set((used || []).map((u: any) => u.url));
+  const fresh = candidates.filter((c) => !usedSet.has(c.url));
+  if (fresh.length === 0) return null;
+  return fresh[seed % fresh.length];
+}
+
 async function generateImage(
   apiKey: string,
   supabase: any,
   concept: string,
   fileName: string,
+  seed: number,
 ): Promise<string | null> {
+  const direction = buildVisualDirection(seed);
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -38,7 +80,7 @@ async function generateImage(
       messages: [
         {
           role: "user",
-          content: `Create a beautiful cinematic image: ${concept}. Style: dreamy, soft lighting, rich colors, peaceful, mystical glow. No text in image. Vertical 9:16 aspect ratio.`,
+          content: `Create an original cinematic image, unlike any stock photo: ${concept}. Visual direction: ${direction}. Include human life or lived-in detail where it fits. No text in image. Vertical 9:16 aspect ratio.`,
         },
       ],
       modalities: ["image", "text"],
@@ -59,13 +101,29 @@ async function generateImage(
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
+  // Reject an image that is byte-identical to one already published.
+  const assetHash = await sha256Hex(bytes);
+  const { data: seen } = await supabase
+    .from("feed_media_assets")
+    .select("id")
+    .eq("asset_hash", assetHash)
+    .maybeSingle();
+  if (seen) {
+    console.log("skipping duplicate generated image");
+    return null;
+  }
+
   const path = `${fileName}.${match[1]}`;
   const { error } = await supabase.storage
     .from("community-media")
     .upload(path, bytes, { contentType: `image/${match[1]}`, upsert: true });
   if (error) return null;
 
-  return supabase.storage.from("community-media").getPublicUrl(path).data?.publicUrl || null;
+  const url =
+    supabase.storage.from("community-media").getPublicUrl(path).data?.publicUrl || null;
+  if (!url) return null;
+  await claimAsset(supabase, assetHash, url, "image", concept);
+  return url;
 }
 
 serve(async (req) => {
