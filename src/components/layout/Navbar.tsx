@@ -84,7 +84,7 @@ const Navbar = () => {
           </Link>
 
           {/* Desktop nav */}
-          <div className="hidden md:flex items-center gap-1">
+          <div className="hidden lg:flex items-center gap-1">
             {navItems.map((item) => {
                const active = item.to === "/brand" ? location.pathname.startsWith("/brand") : location.pathname === item.to;
               return (
@@ -152,7 +152,7 @@ const Navbar = () => {
           </div>
 
           {/* Mobile toggle */}
-          <div className="md:hidden flex items-center gap-1">
+           <div className="lg:hidden flex items-center gap-1">
             {authUser && (
               <>
                 <button
@@ -187,14 +187,14 @@ const Navbar = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[-1] md:hidden"
+                 className="fixed inset-0 z-[-1] lg:hidden"
                 onClick={() => setMobileOpen(false)}
               />
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
-                className="md:hidden border-b border-white/10 backdrop-blur-xl"
+                 className="lg:hidden border-b border-white/10 backdrop-blur-xl"
                 style={{ background: "rgba(15, 81, 50, 0.95)" }}
               >
               <div className="px-4 py-3 flex flex-col gap-1">
