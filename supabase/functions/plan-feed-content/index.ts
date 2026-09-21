@@ -376,7 +376,7 @@ DO NOT reuse or lightly reword any of these existing posts:
     for (const day of parsed.days || []) {
       const date = todo.includes(day.date) ? day.date : todo[0];
       for (const post of day.posts || []) {
-        const companion = findCompanion(post.companion_name) || COMPANIONS[seed % COMPANIONS.length];
+        const companion = resolveCompanion(post.companion_name) || COMPANIONS[seed % COMPANIONS.length];
         const hour = Math.min(Math.max(post.hour ?? 9, 5), 23);
         const minute = Math.min(Math.max(post.minute ?? seed % 60, 0), 59);
         const scheduledAt = `${date}T${String(hour).padStart(2, "0")}:${String(minute).padStart(
@@ -388,24 +388,39 @@ DO NOT reuse or lightly reword any of these existing posts:
           ? post.media_type
           : "text";
 
-        let mediaUrls: string[] = [];
-        let theme: string | null = null;
-        if (mediaType === "video") {
-          const pick = pickCompanionVideo(companion, seed);
-          mediaUrls = [pick.url];
-          theme = pick.theme;
-        }
+        // Media is assigned at publish time so it can be checked against the
+        // permanent media history and never repeat an already-used asset.
+        const mediaUrls: string[] = [];
+        const theme: string | null = null;
 
-        const interactions = (post.interactions || [])
-          .filter((i) => i && i.text && i.companion_name !== companion.name)
-          .slice(0, 4)
-          .map((i) => ({
-            companion_name: findCompanion(i.companion_name)?.name || "Seren",
-            text: i.text,
-            minutes_after: Math.min(Math.max(i.minutes_after ?? 20, 2), 900),
-            reply_companion: i.reply_text ? findCompanion(i.reply_companion || "")?.name || null : null,
-            reply_text: i.reply_text || null,
-          }));
+        // The model proposes a conversation; the interaction engine decides who
+        // would realistically show up. Plenty of posts end up with nobody.
+        const proposed = (post.interactions || []).filter(
+          (i) => i && i.text && resolveCompanion(i.companion_name)?.name !== companion.name,
+        );
+        const cast = selectCommenters(
+          post.text || "",
+          companion.name,
+          post.content_type || "",
+          Math.min(proposed.length, 4),
+          seed,
+        );
+        const interactions = cast.map((name, idx) => {
+          const src = proposed[idx];
+          return {
+            companion_name: name,
+            text: src.text,
+            minutes_after: Math.min(Math.max(src.minutes_after ?? 20, 2), 900),
+            reply_companion:
+              src.reply_text && Math.random() < 0.35
+                ? resolveCompanion(src.reply_companion || "")?.name ||
+                  COMPANIONS.filter((c) => c.name !== name && c.name !== companion.name)[
+                    seed % 6
+                  ].name
+                : null,
+            reply_text: src.reply_text && Math.random() < 0.85 ? src.reply_text : null,
+          };
+        });
 
         const engagement = {
           likes: 3 + Math.floor(Math.random() * 60) + interactions.length * 4,
