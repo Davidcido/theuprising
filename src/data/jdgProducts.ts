@@ -1,4 +1,4 @@
-import emblemImage from "@/assets/jdg/emblem.png";
+import emblemImage from "@/assets/jdg/emblem-transparent.png";
 import teeWhiteAsset from "@/assets/jdg/rebirth-tee-white.png.asset.json";
 import teeBlackAsset from "@/assets/jdg/rebirth-tee-black.png.asset.json";
 import teeBlueAsset from "@/assets/jdg/rebirth-tee-blue.png.asset.json";
