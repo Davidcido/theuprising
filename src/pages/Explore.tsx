@@ -56,65 +56,77 @@ const Explore = () => {
   );
 
   useEffect(() => {
-    if (!isReady) return; // Wait for auth session to be restored before querying
+    let cancelled = false;
 
-    const fetchData = async () => {
-      setLoading(true);
-
-      // Fetch posts and creator profiles in parallel
-      const [postsResult, profilesResult] = await Promise.all([
-        supabase.from("community_posts").select("*").order("created_at", { ascending: false }).limit(200),
-        supabase.from("profiles").select("user_id, display_name, avatar_url, bio").limit(50),
-      ]);
-
-      // Process posts
-      if (postsResult.data) {
-        const authorIds = [...new Set(postsResult.data.filter(p => p.author_id).map(p => p.author_id!))];
-        let profilesMap: Record<string, { display_name: string | null; avatar_url: string }> = {};
-        if (authorIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from("profiles")
-            .select("user_id, display_name, avatar_url")
-            .in("user_id", authorIds);
-          if (profiles) profiles.forEach(p => { profilesMap[p.user_id] = { display_name: p.display_name, avatar_url: p.avatar_url ?? "" }; });
-        }
-        setPosts(postsResult.data.map(p => ({
-          ...p,
-          media_urls: p.media_urls || [],
-          author_profile: p.author_id ? profilesMap[p.author_id] || null : null,
-        })));
+    // Trending posts load immediately — they are public and must not wait for
+    // the auth session or for the slower creator queries.
+    const loadPosts = async () => {
+      const { data } = await supabase
+        .from("community_posts")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (cancelled || !data) {
+        if (!cancelled) setLoading(false);
+        return;
       }
 
-      // Process creators
-      if (profilesResult.data) {
-        const userIds = profilesResult.data.map(p => p.user_id);
-        const [{ data: postCounts }, { data: followerCounts }] = await Promise.all([
-          supabase.from("community_posts").select("author_id").in("author_id", userIds),
-          supabase.from("follows").select("following_id").in("following_id", userIds),
-        ]);
-
-        const pCounts: Record<string, number> = {};
-        postCounts?.forEach(p => { if (p.author_id) pCounts[p.author_id] = (pCounts[p.author_id] || 0) + 1; });
-        const fCounts: Record<string, number> = {};
-        followerCounts?.forEach(f => { fCounts[f.following_id] = (fCounts[f.following_id] || 0) + 1; });
-
-        const scored = profilesResult.data
-          .map(p => ({
-            ...p,
-            post_count: pCounts[p.user_id] || 0,
-            follower_count: fCounts[p.user_id] || 0,
-          }))
-          .filter(p => p.post_count > 0 || p.follower_count > 0)
-          .sort((a, b) => (b.follower_count * 3 + b.post_count) - (a.follower_count * 3 + a.post_count));
-
-        setCreators(scored.slice(0, 10));
-      }
-
+      // Show posts right away, then fill in author details in the background
+      setPosts(data.map(p => ({ ...p, media_urls: p.media_urls || [], author_profile: null })));
       setLoading(false);
+
+      const authorIds = [...new Set(data.filter(p => p.author_id).map(p => p.author_id!))];
+      if (authorIds.length === 0) return;
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, display_name, avatar_url")
+        .in("user_id", authorIds);
+      if (cancelled || !profiles) return;
+      const profilesMap: Record<string, { display_name: string | null; avatar_url: string }> = {};
+      profiles.forEach(p => { profilesMap[p.user_id] = { display_name: p.display_name, avatar_url: p.avatar_url ?? "" }; });
+      setPosts(prev => prev.map(p => ({
+        ...p,
+        author_profile: p.author_id ? profilesMap[p.author_id] || null : null,
+      })));
     };
 
-    fetchData();
-  }, [isReady]);
+    // Creators are secondary — they load on their own and never block the page
+    const loadCreators = async () => {
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("user_id, display_name, avatar_url, bio")
+        .limit(50);
+      if (cancelled || !profilesData) return;
+
+      const userIds = profilesData.map(p => p.user_id);
+      const [{ data: postCounts }, { data: followerCounts }] = await Promise.all([
+        supabase.from("community_posts").select("author_id").in("author_id", userIds),
+        supabase.from("follows").select("following_id").in("following_id", userIds),
+      ]);
+      if (cancelled) return;
+
+      const pCounts: Record<string, number> = {};
+      postCounts?.forEach(p => { if (p.author_id) pCounts[p.author_id] = (pCounts[p.author_id] || 0) + 1; });
+      const fCounts: Record<string, number> = {};
+      followerCounts?.forEach(f => { fCounts[f.following_id] = (fCounts[f.following_id] || 0) + 1; });
+
+      const scored = profilesData
+        .map(p => ({
+          ...p,
+          post_count: pCounts[p.user_id] || 0,
+          follower_count: fCounts[p.user_id] || 0,
+        }))
+        .filter(p => p.post_count > 0 || p.follower_count > 0)
+        .sort((a, b) => (b.follower_count * 3 + b.post_count) - (a.follower_count * 3 + a.post_count));
+
+      setCreators(scored.slice(0, 10));
+    };
+
+    loadPosts();
+    loadCreators();
+
+    return () => { cancelled = true; };
+  }, []);
 
   // Extract trending hashtags from posts
   const trendingHashtags = useMemo(() => {

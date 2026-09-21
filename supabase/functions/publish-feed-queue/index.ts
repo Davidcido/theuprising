@@ -2,7 +2,15 @@
 // Runs hourly. Only touches rows that are due; never modifies existing posts.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { findCompanion, pickCompanionVideo, COMPANIONS } from "../_shared/feedCompanions.ts";
+import {
+  resolveCompanion,
+  pickCompanionVideo,
+  COMPANIONS,
+  THEMED_VIDEOS,
+  selectCommenters,
+  buildVisualDirection,
+  seedFrom,
+} from "../_shared/feedCompanions.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,12 +24,54 @@ const MAX_IMAGES_PER_RUN = 3;
 
 const REACTION_EMOJIS = ["❤️", "🔥", "🙏", "✨", "💚", "😊"];
 
+async function sha256Hex(bytes: Uint8Array) {
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/** Records an asset in the permanent media history. Returns false if already used. */
+async function claimAsset(
+  supabase: any,
+  assetHash: string,
+  url: string,
+  kind: string,
+  concept: string | null,
+) {
+  const { error } = await supabase
+    .from("feed_media_assets")
+    .insert({ asset_hash: assetHash, url, kind, visual_concept: concept });
+  return !error;
+}
+
+/** Picks a themed clip that has never been used before, if one is left. */
+async function pickUnusedVideo(supabase: any, companion: any, seed: number) {
+  const themes = companion.themes.filter((t: string) => THEMED_VIDEOS[t]?.length);
+  const candidates: { url: string; theme: string }[] = [];
+  for (const theme of themes.length ? themes : ["forest"]) {
+    for (const url of THEMED_VIDEOS[theme] || []) candidates.push({ url, theme });
+  }
+  if (candidates.length === 0) return pickCompanionVideo(companion, seed);
+
+  const { data: used } = await supabase
+    .from("feed_media_assets")
+    .select("url")
+    .in("url", candidates.map((c) => c.url));
+  const usedSet = new Set((used || []).map((u: any) => u.url));
+  const fresh = candidates.filter((c) => !usedSet.has(c.url));
+  if (fresh.length === 0) return null;
+  return fresh[seed % fresh.length];
+}
+
 async function generateImage(
   apiKey: string,
   supabase: any,
   concept: string,
   fileName: string,
+  seed: number,
 ): Promise<string | null> {
+  const direction = buildVisualDirection(seed);
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -30,7 +80,7 @@ async function generateImage(
       messages: [
         {
           role: "user",
-          content: `Create a beautiful cinematic image: ${concept}. Style: dreamy, soft lighting, rich colors, peaceful, mystical glow. No text in image. Vertical 9:16 aspect ratio.`,
+          content: `Create an original cinematic image, unlike any stock photo: ${concept}. Visual direction: ${direction}. Include human life or lived-in detail where it fits. No text in image. Vertical 9:16 aspect ratio.`,
         },
       ],
       modalities: ["image", "text"],
@@ -51,13 +101,29 @@ async function generateImage(
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
+  // Reject an image that is byte-identical to one already published.
+  const assetHash = await sha256Hex(bytes);
+  const { data: seen } = await supabase
+    .from("feed_media_assets")
+    .select("id")
+    .eq("asset_hash", assetHash)
+    .maybeSingle();
+  if (seen) {
+    console.log("skipping duplicate generated image");
+    return null;
+  }
+
   const path = `${fileName}.${match[1]}`;
   const { error } = await supabase.storage
     .from("community-media")
     .upload(path, bytes, { contentType: `image/${match[1]}`, upsert: true });
   if (error) return null;
 
-  return supabase.storage.from("community-media").getPublicUrl(path).data?.publicUrl || null;
+  const url =
+    supabase.storage.from("community-media").getPublicUrl(path).data?.publicUrl || null;
+  if (!url) return null;
+  await claimAsset(supabase, assetHash, url, "image", concept);
+  return url;
 }
 
 serve(async (req) => {
@@ -104,16 +170,30 @@ serve(async (req) => {
         .maybeSingle();
       if (!claimed) continue;
 
-      const companion = findCompanion(item.companion_name) || COMPANIONS[0];
-      let mediaUrls: string[] = item.media_urls || [];
+      const companion = resolveCompanion(item.companion_name) || COMPANIONS[0];
+      const mediaSeed = seedFrom(item.id + item.content.slice(0, 40));
+      let mediaUrls: string[] = [];
 
-      if (item.media_type === "image" && mediaUrls.length === 0) {
+      // Never reuse media: anything already in the history is rejected.
+      for (const url of (item.media_urls as string[]) || []) {
+        const { data: seen } = await supabase
+          .from("feed_media_assets")
+          .select("id")
+          .eq("url", url)
+          .maybeSingle();
+        if (!seen && (await claimAsset(supabase, `url:${url}`, url, item.media_type, null))) {
+          mediaUrls.push(url);
+        }
+      }
+
+      if (item.media_type !== "text" && mediaUrls.length === 0) {
         if (apiKey && imagesMade < MAX_IMAGES_PER_RUN) {
           const url = await generateImage(
             apiKey,
             supabase,
             item.visual_concept || item.content.slice(0, 120),
             `feed-${item.id}`,
+            mediaSeed,
           );
           if (url) {
             mediaUrls = [url];
@@ -121,9 +201,12 @@ serve(async (req) => {
           }
         }
         if (mediaUrls.length === 0) {
-          // graceful fallback: a themed clip rather than an empty media post
-          const pick = pickCompanionVideo(companion, Math.floor(Math.random() * 97));
-          mediaUrls = [pick.url];
+          // Fall back to a themed clip, but only one that has never been used.
+          const pick = await pickUnusedVideo(supabase, companion, mediaSeed % 97);
+          if (pick && (await claimAsset(supabase, `url:${pick.url}`, pick.url, "video", pick.theme))) {
+            mediaUrls = [pick.url];
+          }
+          // Otherwise the post simply publishes as text — better than recycled media.
         }
       }
 
@@ -151,13 +234,28 @@ serve(async (req) => {
         continue;
       }
 
-      // Comments and occasional replies, timed after the post
-      const interactions = Array.isArray(item.interactions) ? item.interactions : [];
+      // Comments and occasional replies, timed after the post.
+      // The cast is re-decided here from each companion's interest profile, so
+      // queued rows planned before the profiles existed are rebalanced too.
+      const rawInteractions = (Array.isArray(item.interactions) ? item.interactions : []).filter(
+        (i: any) => i && i.text,
+      );
+      const cast = selectCommenters(
+        item.content || "",
+        companion.name,
+        item.content_type || "",
+        Math.min(rawInteractions.length, 4),
+        mediaSeed,
+      );
+      const interactions = cast.map((name, idx) => ({
+        ...rawInteractions[idx],
+        companion_name: name,
+      }));
       let commentCount = 0;
       const postTime = new Date(item.scheduled_at).getTime();
 
       for (const inter of interactions) {
-        const commenter = findCompanion(inter.companion_name);
+        const commenter = resolveCompanion(inter.companion_name);
         if (!commenter || !inter.text) continue;
         const at = new Date(postTime + (inter.minutes_after ?? 20) * 60000);
         if (at.getTime() > Date.now()) continue; // stays for a later run of the thread
@@ -176,7 +274,7 @@ serve(async (req) => {
         commentCount++;
 
         if (inter.reply_text && inter.reply_companion) {
-          const replier = findCompanion(inter.reply_companion);
+          const replier = resolveCompanion(inter.reply_companion);
           if (replier) {
             const replyAt = new Date(at.getTime() + (10 + Math.floor(Math.random() * 90)) * 60000);
             if (replyAt.getTime() <= Date.now()) {

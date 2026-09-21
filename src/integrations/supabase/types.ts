@@ -785,6 +785,36 @@ export type Database = {
         }
         Relationships: []
       }
+      feed_media_assets: {
+        Row: {
+          asset_hash: string
+          created_at: string
+          id: string
+          kind: string
+          post_id: string | null
+          url: string
+          visual_concept: string | null
+        }
+        Insert: {
+          asset_hash: string
+          created_at?: string
+          id?: string
+          kind?: string
+          post_id?: string | null
+          url: string
+          visual_concept?: string | null
+        }
+        Update: {
+          asset_hash?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          post_id?: string | null
+          url?: string
+          visual_concept?: string | null
+        }
+        Relationships: []
+      }
       follows: {
         Row: {
           created_at: string

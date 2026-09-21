@@ -6,8 +6,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   COMPANIONS,
   CONTENT_TYPES,
-  findCompanion,
-  pickCompanionVideo,
+  INTERACTION_PROFILES,
+  resolveCompanion,
+  selectCommenters,
 } from "../_shared/feedCompanions.ts";
 
 const corsHeaders = {
@@ -304,12 +305,14 @@ serve(async (req) => {
       .map((r) => r.content.replace(/\s+/g, " ").slice(0, 90))
       .join("\n- ");
 
-    const roster = COMPANIONS.map(
-      (c) =>
-        `${c.name} ${c.emoji} — ${c.style}. Voice: ${c.voice}. Activity level: ${
-          c.activity >= 0.85 ? "high" : c.activity >= 0.65 ? "medium" : "low"
-        }.`,
-    ).join("\n");
+    const roster = COMPANIONS.map((c) => {
+      const p = INTERACTION_PROFILES[c.name];
+      return `${c.name} ${c.emoji} — ${c.style}. Voice: ${c.voice}. Posting activity: ${
+        c.activity >= 0.85 ? "high" : c.activity >= 0.65 ? "medium" : "low"
+      }. Cares about: ${p.topics.join(", ")}. Rarely engages with: ${p.avoids.join(
+        ", ",
+      )}. Tone: ${p.tone}. Naturally bounces off: ${p.affinities.join(" and ")}.`;
+    }).join("\n");
 
     const prompt = `Plan ${todo.length} day(s) of activity for the Uprising community feed.
 Dates (UTC): ${todo.join(", ")}. Current real date: ${dateStr(now)}. Season context: ${seasonFor(
@@ -324,10 +327,12 @@ Rules:
 - Spread posts from 05:00 to 23:00 with irregular minute values (not :00).
 - Higher-activity companions post more often; low-activity ones may skip days. Never give every companion the same number of posts.
 - Rotate content types across this list: ${CONTENT_TYPES.join("; ")}.
-- media_type: roughly 45% "text", 35% "image", 20% "video". For image posts give a vivid cinematic visual_concept; for text/video posts describe the mood briefly in visual_concept.
+- media_type: roughly 45% "text", 35% "image", 20% "video". visual_concept must be a specific, never-before-seen scene — name the place, the time of day, the light, the activity and the framing. Never describe the same scene twice across the plan.
 - "text" is the full post body (2-5 sentences, plus a short hashtag line when it fits). Write it in that companion's voice, warm, culturally at home for young Africans. No markdown headings.
-- interactions: 0 to 4 entries. Many posts get 1-2; some get none; a few get a lively 3-4 exchange. minutes_after between 3 and 600. Commenters must never be the post author. Comments are 1-3 sentences, in the commenter's own distinct voice, sometimes offering a different perspective while staying supportive, sometimes referencing an earlier day's theme, sometimes inviting human members to answer.
-- Use reply_companion/reply_text (or null) for an occasional reply to a comment, so threads feel real.
+- interactions: 0 to 4 entries. A post with ZERO comments is normal and good — roughly a third should have none. Only include a companion whose listed interests genuinely match this post; a companion who "rarely engages" with the topic must stay silent. Never let one companion appear on most posts, and never repeat the same pair of companions across nearby posts. minutes_after between 3 and 600. Commenters must never be the post author.
+- ALWAYS write companion_name as the bare name only (Seren, Atlas, Nova, Orion, Kai, Sol, Elias, Leo) — no emoji, no punctuation.
+- Comments are 1-3 sentences in the commenter's own distinct voice: sometimes a different perspective, a respectful disagreement, a question, a joke, or a callback to an earlier theme. Never generic praise.
+- Use reply_companion/reply_text (or null) for an occasional reply to a comment, so threads feel real. Most posts should leave these null.
 - Roughly one post per day should openly invite the community to respond with their own experience.
 
 DO NOT reuse or lightly reword any of these existing posts:
@@ -371,7 +376,7 @@ DO NOT reuse or lightly reword any of these existing posts:
     for (const day of parsed.days || []) {
       const date = todo.includes(day.date) ? day.date : todo[0];
       for (const post of day.posts || []) {
-        const companion = findCompanion(post.companion_name) || COMPANIONS[seed % COMPANIONS.length];
+        const companion = resolveCompanion(post.companion_name) || COMPANIONS[seed % COMPANIONS.length];
         const hour = Math.min(Math.max(post.hour ?? 9, 5), 23);
         const minute = Math.min(Math.max(post.minute ?? seed % 60, 0), 59);
         const scheduledAt = `${date}T${String(hour).padStart(2, "0")}:${String(minute).padStart(
@@ -383,24 +388,39 @@ DO NOT reuse or lightly reword any of these existing posts:
           ? post.media_type
           : "text";
 
-        let mediaUrls: string[] = [];
-        let theme: string | null = null;
-        if (mediaType === "video") {
-          const pick = pickCompanionVideo(companion, seed);
-          mediaUrls = [pick.url];
-          theme = pick.theme;
-        }
+        // Media is assigned at publish time so it can be checked against the
+        // permanent media history and never repeat an already-used asset.
+        const mediaUrls: string[] = [];
+        const theme: string | null = null;
 
-        const interactions = (post.interactions || [])
-          .filter((i) => i && i.text && i.companion_name !== companion.name)
-          .slice(0, 4)
-          .map((i) => ({
-            companion_name: findCompanion(i.companion_name)?.name || "Seren",
-            text: i.text,
-            minutes_after: Math.min(Math.max(i.minutes_after ?? 20, 2), 900),
-            reply_companion: i.reply_text ? findCompanion(i.reply_companion || "")?.name || null : null,
-            reply_text: i.reply_text || null,
-          }));
+        // The model proposes a conversation; the interaction engine decides who
+        // would realistically show up. Plenty of posts end up with nobody.
+        const proposed = (post.interactions || []).filter(
+          (i) => i && i.text && resolveCompanion(i.companion_name)?.name !== companion.name,
+        );
+        const cast = selectCommenters(
+          post.text || "",
+          companion.name,
+          post.content_type || "",
+          Math.min(proposed.length, 4),
+          seed,
+        );
+        const interactions = cast.map((name, idx) => {
+          const src = proposed[idx];
+          return {
+            companion_name: name,
+            text: src.text,
+            minutes_after: Math.min(Math.max(src.minutes_after ?? 20, 2), 900),
+            reply_companion:
+              src.reply_text && Math.random() < 0.35
+                ? resolveCompanion(src.reply_companion || "")?.name ||
+                  COMPANIONS.filter((c) => c.name !== name && c.name !== companion.name)[
+                    seed % 6
+                  ].name
+                : null,
+            reply_text: src.reply_text && Math.random() < 0.85 ? src.reply_text : null,
+          };
+        });
 
         const engagement = {
           likes: 3 + Math.floor(Math.random() * 60) + interactions.length * 4,

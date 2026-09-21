@@ -6,6 +6,24 @@ import { useAuthReady } from "@/hooks/useAuthReady";
 // Module-level cache so profile persists across navigations
 const profileCache = new Map<string, { profile: any; ts: number }>();
 const PROFILE_CACHE_TTL = 60_000; // 1 minute
+const STORAGE_PREFIX = "uprising_profile_";
+
+// Persisted copy so the profile renders instantly on a cold page load
+const readStoredProfile = (userId: string) => {
+  try {
+    const raw = localStorage.getItem(STORAGE_PREFIX + userId);
+    if (!raw) return null;
+    return JSON.parse(raw) as { profile: any; ts: number };
+  } catch {
+    return null;
+  }
+};
+
+const writeStoredProfile = (userId: string, profile: any) => {
+  try {
+    localStorage.setItem(STORAGE_PREFIX + userId, JSON.stringify({ profile, ts: Date.now() }));
+  } catch {}
+};
 
 export type Profile = {
   id: string;
@@ -22,31 +40,36 @@ export type Profile = {
 };
 
 export const useProfile = (userId?: string) => {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Start from any cached copy so the page paints content instead of a skeleton
+  const initial = userId
+    ? profileCache.get(userId)?.profile ?? readStoredProfile(userId)?.profile ?? null
+    : null;
+  const [profile, setProfile] = useState<Profile | null>(initial);
+  const [loading, setLoading] = useState(!initial);
   const { user: authUser } = useAuthReady();
 
   const fetchProfile = useCallback(async () => {
     if (!userId) { setLoading(false); return; }
 
-    // Use cache if fresh
-    const cached = profileCache.get(userId);
-    if (cached && Date.now() - cached.ts < PROFILE_CACHE_TTL) {
+    // Show whatever we already have straight away, then refresh in the background
+    const cached = profileCache.get(userId) || readStoredProfile(userId);
+    if (cached?.profile) {
       setProfile(cached.profile);
       setLoading(false);
-      return;
+      if (Date.now() - cached.ts < PROFILE_CACHE_TTL) return;
     }
-    
+
     try {
       const { data } = await Promise.race([
         supabase.from("profiles").select("*").eq("user_id", userId).single(),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000)),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 4000)),
       ]);
 
       if (data) {
         const p = data as unknown as Profile;
         setProfile(p);
         profileCache.set(userId, { profile: p, ts: Date.now() });
+        writeStoredProfile(userId, p);
       } else if (authUser?.id === userId) {
         // Only create profile if this is the current user (use context, not getSession)
         const defaultName = authUser.email?.split("@")[0] || `user_${userId.slice(0, 4)}`;
@@ -55,15 +78,45 @@ export const useProfile = (userId?: string) => {
           .insert({ user_id: userId, display_name: defaultName, online_status: "online" })
           .select("*")
           .single();
+        const p = (newProfile as unknown as Profile) ?? ({
+          // Creation blocked or slow — still render the page with the basics
+          // instead of leaving the user staring at a skeleton.
+          id: userId,
+          user_id: userId,
+          display_name: defaultName,
+          bio: null,
+          country: null,
+          avatar_url: null,
+          cover_photo: null,
+          online_status: "online",
+          last_seen_at: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as Profile);
+        setProfile(p);
         if (newProfile) {
-          const p = newProfile as unknown as Profile;
-          setProfile(p);
           profileCache.set(userId, { profile: p, ts: Date.now() });
+          writeStoredProfile(userId, p);
         }
       }
     } catch {
       // On timeout or error, don't block the page
       console.warn("Profile fetch failed or timed out for", userId);
+      if (authUser?.id === userId) {
+        setProfile((prev) => prev ?? ({
+          id: userId,
+          user_id: userId,
+          display_name: authUser.email?.split("@")[0] || `user_${userId.slice(0, 4)}`,
+          bio: null,
+          country: null,
+          avatar_url: null,
+          cover_photo: null,
+          online_status: "online",
+          last_seen_at: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as Profile));
+      }
     }
     setLoading(false);
   }, [userId, authUser]);
@@ -103,6 +156,7 @@ export const useProfile = (userId?: string) => {
       setProfile((prev) => prev ? { ...prev, ...updates } : prev);
       invalidateProfileCache(userId);
       profileCache.delete(userId);
+      try { localStorage.removeItem(STORAGE_PREFIX + userId); } catch {}
     }
     return { error: error?.message || null };
   };

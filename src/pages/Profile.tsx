@@ -27,7 +27,7 @@ import FollowListModal from "@/components/profile/FollowListModal";
 
 const Profile = () => {
   const { userId: paramUserId } = useParams();
-  const { user: authUser } = useAuthReady();
+  const { user: authUser, isReady: authReady } = useAuthReady();
   const currentUserId = authUser?.id;
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState({ display_name: "", bio: "", country: "" });
@@ -151,7 +151,7 @@ const Profile = () => {
   };
 
   // Show skeleton only when we have no profile data at all
-  if (!profile && loading) {
+  if (!profile && (loading || !authReady)) {
     return <ProfileSkeleton />;
   }
 

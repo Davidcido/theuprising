@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { selectCommenters } from "../_shared/feedCompanions.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -84,15 +85,20 @@ serve(async (req) => {
     // Build a batch prompt for all posts at once
     const postDescriptions = postsNeedingComments.map((p: any, idx: number) => {
       const existing = commentMap[p.id] || [];
-      const existingCount = existing.length;
-      const needed = Math.floor(Math.random() * 3) + 1; // 1-3 more comments
-      const maxNew = Math.min(needed, 4 - existingCount);
-      const availableCompanions = COMPANIONS.filter(
-        (c) => !existing.includes(c.name)
-      );
-      const selectedCompanions = availableCompanions
-        .sort(() => Math.random() - 0.5)
-        .slice(0, maxNew);
+      const maxNew = Math.max(0, Math.min(3, 4 - existing.length));
+
+      // Only companions who would genuinely care about this post show up,
+      // and plenty of posts get nobody at all.
+      const cast = selectCommenters(
+        p.content || "",
+        p.anonymous_name || "",
+        "",
+        maxNew,
+        idx,
+      ).filter((name) => !existing.includes(name));
+      const selectedCompanions = cast
+        .map((name) => COMPANIONS.find((c) => c.name === name))
+        .filter(Boolean) as typeof COMPANIONS;
 
       // Extract just the first few lines as context
       const contentPreview = p.content.split("\n").slice(0, 3).join(" ").slice(0, 200);
@@ -103,7 +109,7 @@ serve(async (req) => {
         contentPreview,
         companions: selectedCompanions,
       };
-    });
+    }).filter((pd) => pd.companions.length > 0);
 
     // Generate comments via AI in one call
     const promptPosts = postDescriptions

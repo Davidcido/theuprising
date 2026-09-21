@@ -206,3 +206,248 @@ export const CONTENT_TYPES = [
   "gratitude prompt",
   "gentle check-in with the community",
 ];
+
+// ---------------------------------------------------------------------------
+// Interaction profiles — each companion is a distinct social personality.
+// Used to decide, per post, who would realistically care enough to comment.
+// ---------------------------------------------------------------------------
+
+export type InteractionProfile = {
+  /** 0-1 — how often this companion comments at all. */
+  commentRate: number;
+  /** Topics that pull them into a conversation. */
+  topics: string[];
+  /** Topics they rarely engage with. */
+  avoids: string[];
+  tone: string;
+  /** Companions they naturally bounce off (soft preference, never a fixed pair). */
+  affinities: string[];
+  /** Post formats they gravitate to. */
+  prefers: string[];
+};
+
+export const INTERACTION_PROFILES: Record<string, InteractionProfile> = {
+  Seren: {
+    commentRate: 0.26,
+    topics: ["grief", "anxiety", "loneliness", "healing", "rest", "heartbreak", "fear", "burnout"],
+    avoids: ["career", "hustle", "productivity", "challenge", "money", "competition"],
+    tone: "soft, steady, emotionally safe",
+    affinities: ["Kai", "Elias"],
+    prefers: ["emotional support post", "gentle check-in", "mental health"],
+  },
+  Atlas: {
+    commentRate: 0.3,
+    topics: ["meaning", "purpose", "identity", "doubt", "philosophy", "change", "time", "failure"],
+    avoids: ["small talk", "gratitude prompt", "daily encouragement"],
+    tone: "thoughtful, asks the bigger question",
+    affinities: ["Nova", "Elias"],
+    prefers: ["personal growth discussion", "life lesson", "open question"],
+  },
+  Nova: {
+    commentRate: 0.34,
+    topics: ["creativity", "curiosity", "dreams", "imagination", "wonder", "friendship", "self-worth", "new starts"],
+    avoids: ["grief", "career", "discipline"],
+    tone: "playful, imaginative, asks 'what if'",
+    affinities: ["Sol", "Atlas"],
+    prefers: ["open question to the community", "short story", "positive challenge"],
+  },
+  Orion: {
+    commentRate: 0.24,
+    topics: ["fear", "discipline", "courage", "failure", "resilience", "goals", "procrastination", "confidence"],
+    avoids: ["rest", "grief", "gratitude prompt"],
+    tone: "direct, energising, never shaming",
+    affinities: ["Leo", "Sol"],
+    prefers: ["positive challenge", "failure and resilience", "career reflection"],
+  },
+  Kai: {
+    commentRate: 0.18,
+    topics: ["body", "breath", "rest", "overwhelm", "nature", "sleep", "slowing down", "burnout"],
+    avoids: ["career", "competition", "money", "goals"],
+    tone: "slow, grounded, practical about the body",
+    affinities: ["Seren", "Elias"],
+    prefers: ["wellbeing reflection", "gentle check-in"],
+  },
+  Sol: {
+    commentRate: 0.32,
+    topics: ["small wins", "friendship", "joy", "gratitude", "self-worth", "encouragement", "community", "beginnings"],
+    avoids: ["philosophy", "failure", "grief"],
+    tone: "bright, affectionate, celebrates loudly",
+    affinities: ["Nova", "Leo"],
+    prefers: ["daily encouragement", "gratitude prompt", "open question"],
+  },
+  Elias: {
+    commentRate: 0.15,
+    topics: ["memory", "family", "patience", "lessons", "time", "regret", "forgiveness", "stories"],
+    avoids: ["challenge", "productivity", "hype"],
+    tone: "reflective storyteller, lets the lesson land",
+    affinities: ["Atlas", "Kai"],
+    prefers: ["very short story", "life lesson"],
+  },
+  Leo: {
+    commentRate: 0.21,
+    topics: ["practical steps", "money", "school", "career", "habits", "planning", "stuck", "decisions"],
+    avoids: ["grief", "philosophy", "dreams"],
+    tone: "plain language, one doable step",
+    affinities: ["Orion", "Sol"],
+    prefers: ["career or life-direction reflection", "positive challenge"],
+  },
+};
+
+const NAME_LOOKUP = new Map(COMPANIONS.map((c) => [c.name.toLowerCase(), c]));
+
+/**
+ * Forgiving companion lookup. Model output often carries an emoji, punctuation
+ * or a wrapper ("Nova ✨", "@Kai:"), which an exact match silently dropped —
+ * that is what made every comment collapse onto a single fallback companion.
+ */
+export function resolveCompanion(raw?: string | null): Companion | null {
+  if (!raw) return null;
+  const cleaned = raw.toLowerCase().replace(/[^a-z]/g, "");
+  if (!cleaned) return null;
+  const exact = NAME_LOOKUP.get(cleaned);
+  if (exact) return exact;
+  return COMPANIONS.find((c) => cleaned.includes(c.name.toLowerCase())) || null;
+}
+
+/** Deterministic 32-bit hash — keeps behaviour reproducible per post. */
+export function seedFrom(text: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h);
+}
+
+/** Small deterministic PRNG so a given post always yields the same cast. */
+export function makeRandom(seed: number) {
+  let s = seed || 1;
+  return () => {
+    s = (s * 1664525 + 1013904223) % 4294967296;
+    return s / 4294967296;
+  };
+}
+
+function topicScore(profile: InteractionProfile, text: string) {
+  const lower = text.toLowerCase();
+  let score = 0;
+  for (const t of profile.topics) if (lower.includes(t.split(" ")[0])) score += 1;
+  for (const a of profile.avoids) if (lower.includes(a.split(" ")[0])) score -= 0.8;
+  return score;
+}
+
+/**
+ * Decides which companions would realistically engage with a given post.
+ * Returns 0-4 names. Plenty of posts legitimately get nobody.
+ */
+export function selectCommenters(
+  postText: string,
+  authorName: string,
+  contentType: string,
+  maxWanted: number,
+  extraSeed = 0,
+): string[] {
+  const rand = makeRandom(seedFrom(`${authorName}|${postText}`) + extraSeed);
+  const ctx = `${postText} ${contentType}`;
+
+  // Overall conversation size — many posts stay quiet.
+  const roll = rand();
+  let capacity: number;
+  if (roll < 0.28) capacity = 0;
+  else if (roll < 0.62) capacity = 1;
+  else if (roll < 0.9) capacity = 2;
+  else if (roll < 0.98) capacity = 3;
+  else capacity = 4;
+  capacity = Math.min(capacity, maxWanted);
+  if (capacity === 0) return [];
+
+  const candidates = COMPANIONS.filter((c) => c.name !== authorName).map((c) => {
+    const p = INTERACTION_PROFILES[c.name];
+    const relevance = topicScore(p, ctx);
+    const fit = p.prefers.some((f) => ctx.toLowerCase().includes(f.split(" ")[0])) ? 0.6 : 0;
+    // Probability of showing up at all, tilted by how much the post is "theirs".
+    const weight = p.commentRate * (1 + relevance * 0.7 + fit) * (0.55 + rand() * 0.9);
+    return { name: c.name, weight };
+  });
+
+  const chosen: string[] = [];
+  const pool = [...candidates];
+  while (chosen.length < capacity && pool.length) {
+    const total = pool.reduce((s, c) => s + Math.max(c.weight, 0.001), 0);
+    let target = rand() * total;
+    let idx = 0;
+    for (let i = 0; i < pool.length; i++) {
+      target -= Math.max(pool[i].weight, 0.001);
+      if (target <= 0) {
+        idx = i;
+        break;
+      }
+    }
+    const [picked] = pool.splice(idx, 1);
+    chosen.push(picked.name);
+
+    // A friend sometimes joins the thread — but only sometimes, and never as a fixed duo.
+    const affinity = INTERACTION_PROFILES[picked.name].affinities;
+    for (const other of pool) {
+      if (affinity.includes(other.name)) other.weight *= rand() < 0.5 ? 1.35 : 0.7;
+    }
+  }
+
+  return chosen;
+}
+
+/** Rotating visual direction so generated imagery never repeats a look. */
+export const VISUAL_VARIATIONS = {
+  lighting: [
+    "golden hour backlight",
+    "soft overcast diffusion",
+    "blue hour dusk",
+    "harsh midday sun with deep shadows",
+    "warm lamplight at night",
+    "dappled light through leaves",
+    "misty dawn haze",
+    "neon-tinged evening glow",
+  ],
+  angle: [
+    "low angle looking up",
+    "high overhead view",
+    "eye-level intimate framing",
+    "wide establishing shot",
+    "tight macro detail",
+    "over-the-shoulder perspective",
+    "dutch tilt",
+    "reflection in water or glass",
+  ],
+  setting: [
+    "rooftop above a busy city",
+    "quiet village road",
+    "coastal cliff path",
+    "market street at closing time",
+    "a small room with an open window",
+    "riverbank at the edge of town",
+    "open savanna under wide sky",
+    "rain-wet courtyard",
+    "forest clearing",
+    "train platform between journeys",
+  ],
+  style: [
+    "documentary film still",
+    "soft painterly realism",
+    "high-contrast editorial photography",
+    "dreamlike long-exposure",
+    "warm analogue film grain",
+    "clean minimal composition",
+  ],
+  timeOfDay: ["dawn", "mid-morning", "afternoon", "late afternoon", "sunset", "night"],
+};
+
+export function buildVisualDirection(seed: number) {
+  const pick = <T,>(arr: T[], offset: number) => arr[(seed + offset) % arr.length];
+  return [
+    pick(VISUAL_VARIATIONS.setting, 0),
+    pick(VISUAL_VARIATIONS.timeOfDay, 1),
+    pick(VISUAL_VARIATIONS.lighting, 2),
+    pick(VISUAL_VARIATIONS.angle, 3),
+    pick(VISUAL_VARIATIONS.style, 4),
+  ].join(", ");
+}
