@@ -6,6 +6,24 @@ import { useAuthReady } from "@/hooks/useAuthReady";
 // Module-level cache so profile persists across navigations
 const profileCache = new Map<string, { profile: any; ts: number }>();
 const PROFILE_CACHE_TTL = 60_000; // 1 minute
+const STORAGE_PREFIX = "uprising_profile_";
+
+// Persisted copy so the profile renders instantly on a cold page load
+const readStoredProfile = (userId: string) => {
+  try {
+    const raw = localStorage.getItem(STORAGE_PREFIX + userId);
+    if (!raw) return null;
+    return JSON.parse(raw) as { profile: any; ts: number };
+  } catch {
+    return null;
+  }
+};
+
+const writeStoredProfile = (userId: string, profile: any) => {
+  try {
+    localStorage.setItem(STORAGE_PREFIX + userId, JSON.stringify({ profile, ts: Date.now() }));
+  } catch {}
+};
 
 export type Profile = {
   id: string;
