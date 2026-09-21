@@ -1249,6 +1249,7 @@ export type Database = {
         Returns: undefined
       }
       increment_likes: { Args: { post_id_input: string }; Returns: undefined }
+      increment_shares: { Args: { post_id_input: string }; Returns: undefined }
       increment_views: { Args: { post_id_input: string }; Returns: undefined }
       recalculate_engagement_score: {
         Args: { post_id_input: string }
