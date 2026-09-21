@@ -7,6 +7,8 @@ const looks = [
   { word: "IDENTITY", product: jdgProducts[1], color: 0, statement: "Wear the self you chose deliberately." },
   { word: "TRANSFORMATION", product: jdgProducts[0], color: 3, statement: "Change is not disappearance. It is arrival." },
   { word: "BECOMING", product: jdgProducts[1], color: 3, statement: "The next version is already moving through you." },
+  { word: "REBIRTH", product: jdgProducts[3], color: 0, statement: "The same emblem, remade for colder mornings." },
+  { word: "IDENTITY", product: jdgProducts[2], color: 1, statement: "A silhouette cut closer to the skin." },
 ];
 
 const JdgLookbook = () => (
