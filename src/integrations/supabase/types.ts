@@ -1267,6 +1267,14 @@ export type Database = {
         Args: { user_a: string; user_b: string }
         Returns: string
       }
+      get_my_real_name: { Args: never; Returns: string }
+      get_profile_view_counts: {
+        Args: { _profile_user_id: string }
+        Returns: {
+          total_views: number
+          weekly_views: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
