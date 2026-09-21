@@ -2,7 +2,15 @@
 // Runs hourly. Only touches rows that are due; never modifies existing posts.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { findCompanion, pickCompanionVideo, COMPANIONS } from "../_shared/feedCompanions.ts";
+import {
+  resolveCompanion,
+  pickCompanionVideo,
+  COMPANIONS,
+  THEMED_VIDEOS,
+  selectCommenters,
+  buildVisualDirection,
+  seedFrom,
+} from "../_shared/feedCompanions.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
