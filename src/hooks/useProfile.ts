@@ -102,6 +102,21 @@ export const useProfile = (userId?: string) => {
     } catch {
       // On timeout or error, don't block the page
       console.warn("Profile fetch failed or timed out for", userId);
+      if (authUser?.id === userId) {
+        setProfile((prev) => prev ?? ({
+          id: userId,
+          user_id: userId,
+          display_name: authUser.email?.split("@")[0] || `user_${userId.slice(0, 4)}`,
+          bio: null,
+          country: null,
+          avatar_url: null,
+          cover_photo: null,
+          online_status: "online",
+          last_seen_at: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as Profile));
+      }
     }
     setLoading(false);
   }, [userId, authUser]);
