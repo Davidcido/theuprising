@@ -97,7 +97,7 @@ export async function getCachedProfile(userId: string) {
 
   const { data } = await supabase
     .from("profiles")
-    .select("*")
+    .select("id, user_id, display_name, bio, country, avatar_url, cover_photo, online_status, last_seen_at, pinned_post_id, created_at, updated_at")
     .eq("user_id", userId)
     .single();
 

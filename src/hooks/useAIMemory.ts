@@ -50,11 +50,7 @@ export function useAIMemory() {
             .select("memory_enabled")
             .eq("user_id", userId)
             .maybeSingle(),
-          supabase
-            .from("profiles")
-            .select("real_name" as any)
-            .eq("user_id", userId)
-            .maybeSingle(),
+          supabase.rpc("get_my_real_name" as any),
         ]);
 
         if (cancelled) return;
@@ -69,7 +65,7 @@ export function useAIMemory() {
         }
 
         if (profileResult.data) {
-          setRealName((profileResult.data as any).real_name || null);
+          setRealName((profileResult.data as any) || null);
         }
       } catch (e) {
         console.error("[AIMemory] Fetch exception:", e);
@@ -166,11 +162,7 @@ export function useAIMemory() {
           .eq("user_id", userId)
           .order("importance_score", { ascending: false })
           .order("created_at", { ascending: false }),
-        supabase
-          .from("profiles")
-          .select("real_name" as any)
-          .eq("user_id", userId)
-          .maybeSingle(),
+        supabase.rpc("get_my_real_name" as any),
         supabase
           .from("life_events" as any)
           .select("*")
@@ -180,7 +172,7 @@ export function useAIMemory() {
           .limit(30),
       ]);
       if (memResult.data) setMemories(memResult.data as any);
-      if (profileResult.data) setRealName((profileResult.data as any).real_name || null);
+      if (profileResult.data) setRealName((profileResult.data as any) || null);
       if (evtResult.data) setLifeEvents(evtResult.data as any);
     } catch (e) {
       console.error("[AIMemory] refetchMemories error:", e);

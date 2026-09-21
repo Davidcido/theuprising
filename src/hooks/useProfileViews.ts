@@ -19,21 +19,13 @@ export const useProfileViews = (profileUserId?: string, currentUserId?: string) 
   const fetchViews = useCallback(async () => {
     if (!profileUserId) return;
 
-    // Total views
-    const { count: total } = await supabase
-      .from("profile_views")
-      .select("*", { count: "exact", head: true })
-      .eq("profile_user_id", profileUserId);
-    setTotalViews(total || 0);
-
-    // Weekly views
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const { count: weekly } = await supabase
-      .from("profile_views")
-      .select("*", { count: "exact", head: true })
-      .eq("profile_user_id", profileUserId)
-      .gte("viewed_at", weekAgo);
-    setWeeklyViews(weekly || 0);
+    // Counts come from a secure function: totals only, never who viewed
+    const { data: counts } = await supabase.rpc("get_profile_view_counts" as any, {
+      _profile_user_id: profileUserId,
+    });
+    const row: any = Array.isArray(counts) ? counts[0] : counts;
+    setTotalViews(Number(row?.total_views) || 0);
+    setWeeklyViews(Number(row?.weekly_views) || 0);
 
     // Recent viewers (only for profile owner)
     if (currentUserId === profileUserId) {

@@ -8,6 +8,10 @@ const profileCache = new Map<string, { profile: any; ts: number }>();
 const PROFILE_CACHE_TTL = 60_000; // 1 minute
 const STORAGE_PREFIX = "uprising_profile_";
 
+// real_name is private and never read through the public profiles API
+const PROFILE_COLUMNS =
+  "id, user_id, display_name, bio, country, avatar_url, cover_photo, online_status, last_seen_at, pinned_post_id, created_at, updated_at";
+
 // Persisted copy so the profile renders instantly on a cold page load
 const readStoredProfile = (userId: string) => {
   try {
@@ -61,7 +65,7 @@ export const useProfile = (userId?: string) => {
 
     try {
       const { data } = await Promise.race([
-        supabase.from("profiles").select("*").eq("user_id", userId).single(),
+        supabase.from("profiles").select(PROFILE_COLUMNS).eq("user_id", userId).single(),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 4000)),
       ]);
 
@@ -76,7 +80,7 @@ export const useProfile = (userId?: string) => {
         const { data: newProfile } = await supabase
           .from("profiles")
           .insert({ user_id: userId, display_name: defaultName, online_status: "online" })
-          .select("*")
+          .select(PROFILE_COLUMNS)
           .single();
         const p = (newProfile as unknown as Profile) ?? ({
           // Creation blocked or slow — still render the page with the basics
