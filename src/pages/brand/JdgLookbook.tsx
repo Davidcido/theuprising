@@ -19,7 +19,7 @@ const JdgLookbook = () => (
     </header>
     <div className="space-y-1">
       {looks.map((look, index) => (
-        <Link key={look.word} to={`/brand/product/${look.product.slug}`} className="group relative block min-h-[72dvh] overflow-hidden bg-jdg-surface">
+        <Link key={`${look.word}-${index}`} to={`/brand/product/${look.product.slug}`} className="group relative block min-h-[72dvh] overflow-hidden bg-jdg-surface">
           <img src={look.product.colorways[look.color].image} alt={look.product.colorways[look.color].imageAlt} loading={index === 0 ? "eager" : "lazy"} className="absolute inset-0 h-full w-full object-cover opacity-75 transition-transform duration-1000 motion-reduce:transition-none group-hover:scale-[1.02]" />
           <div className="absolute inset-0 bg-jdg-lookbook" />
           <div className="relative mx-auto flex min-h-[72dvh] max-w-[1400px] flex-col justify-end px-4 py-12 sm:px-8 sm:py-16">
