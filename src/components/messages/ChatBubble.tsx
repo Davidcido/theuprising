@@ -151,6 +151,9 @@ const ChatBubble = ({ msg, isMine, replyMessage, onSwipeReply, onScrollToMessage
   const longPressRef = useRef<NodeJS.Timeout | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Attachments live in a private bucket — resolve to a short-lived signed URL.
+  const attachmentUrl = useDmMediaUrl(msgAny.attachment_url);
+
   const isDeletedForEveryone = msgAny.deleted_for_everyone === true;
   const isEdited = !!msgAny.edited_at;
   const canEdit = isMine && !isDeletedForEveryone && !msgAny.attachment_url && (Date.now() - new Date(msg.created_at).getTime()) < EDIT_WINDOW_MS;
