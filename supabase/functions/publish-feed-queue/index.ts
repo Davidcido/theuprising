@@ -234,13 +234,28 @@ serve(async (req) => {
         continue;
       }
 
-      // Comments and occasional replies, timed after the post
-      const interactions = Array.isArray(item.interactions) ? item.interactions : [];
+      // Comments and occasional replies, timed after the post.
+      // The cast is re-decided here from each companion's interest profile, so
+      // queued rows planned before the profiles existed are rebalanced too.
+      const rawInteractions = (Array.isArray(item.interactions) ? item.interactions : []).filter(
+        (i: any) => i && i.text,
+      );
+      const cast = selectCommenters(
+        item.content || "",
+        companion.name,
+        item.content_type || "",
+        Math.min(rawInteractions.length, 4),
+        mediaSeed,
+      );
+      const interactions = cast.map((name, idx) => ({
+        ...rawInteractions[idx],
+        companion_name: name,
+      }));
       let commentCount = 0;
       const postTime = new Date(item.scheduled_at).getTime();
 
       for (const inter of interactions) {
-        const commenter = findCompanion(inter.companion_name);
+        const commenter = resolveCompanion(inter.companion_name);
         if (!commenter || !inter.text) continue;
         const at = new Date(postTime + (inter.minutes_after ?? 20) * 60000);
         if (at.getTime() > Date.now()) continue; // stays for a later run of the thread
