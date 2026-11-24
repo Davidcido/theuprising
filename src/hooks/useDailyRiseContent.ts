@@ -55,14 +55,23 @@ export const useDailyRiseContent = () => {
         // If AI credits are unavailable (402/429) we back off for the rest
         // of the day and keep serving the static fallback below.
         const backoffKey = "daily-rise-gen-blocked";
-        if (localStorage.getItem(backoffKey) !== today) {
+        let shouldGenerate = false;
+        try {
+          shouldGenerate = localStorage.getItem(backoffKey) !== today;
+        } catch {
+          // If browser storage is unavailable, prefer the static fallback over
+          // repeatedly attempting a generation that may be unavailable.
+        }
+        if (shouldGenerate) {
           supabase.functions
             .invoke("generate-daily-rise")
-            .then(({ error }) => {
-              if (error) localStorage.setItem(backoffKey, today);
+            .then(({ data, error }) => {
+              if (error || data?.fallback === true || data?.success === false) {
+                markGenerationBlocked(backoffKey, today);
+              }
             })
             .catch(() => {
-              localStorage.setItem(backoffKey, today);
+              markGenerationBlocked(backoffKey, today);
             });
         }
       } catch {
@@ -78,6 +87,14 @@ export const useDailyRiseContent = () => {
     staleTime: 1000 * 60 * 30, // 30 min
   });
 };
+
+function markGenerationBlocked(key: string, date: string) {
+  try {
+    localStorage.setItem(key, date);
+  } catch {
+    // Storage can be disabled in private browsing; fallback content still works.
+  }
+}
 
 function mapCards(raw: any[]): DailyRiseCard[] {
   return raw.map((card) => ({

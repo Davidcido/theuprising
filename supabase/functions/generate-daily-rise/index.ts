@@ -88,9 +88,10 @@ Return ONLY a valid JSON array with no extra text.`;
         );
       }
       if (aiResponse.status === 402) {
+        console.warn("Daily Rise generation unavailable: AI credits are required.");
         return new Response(
-          JSON.stringify({ error: "Payment required for AI generation." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ success: false, fallback: true, reason: "credits_unavailable" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       const errText = await aiResponse.text();
